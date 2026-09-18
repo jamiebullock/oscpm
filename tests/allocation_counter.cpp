@@ -7,13 +7,15 @@ namespace {
 
 std::size_t g_allocations = 0;
 
-void* allocate(std::size_t size)
+void* countedMalloc(std::size_t size) noexcept
 {
     ++g_allocations;
-    if (size == 0) {
-        size = 1;
-    }
-    if (void* p = std::malloc(size)) {
+    return std::malloc(size == 0 ? 1 : size);
+}
+
+void* allocate(std::size_t size)
+{
+    if (void* p = countedMalloc(size)) {
         return p;
     }
     throw std::bad_alloc();
@@ -42,14 +44,12 @@ void* operator new[](std::size_t size)
 
 void* operator new(std::size_t size, const std::nothrow_t&) noexcept
 {
-    ++g_allocations;
-    return std::malloc(size == 0 ? 1 : size);
+    return countedMalloc(size);
 }
 
 void* operator new[](std::size_t size, const std::nothrow_t&) noexcept
 {
-    ++g_allocations;
-    return std::malloc(size == 0 ? 1 : size);
+    return countedMalloc(size);
 }
 
 void operator delete(void* p) noexcept

@@ -70,21 +70,21 @@ std::vector<Case> loadCorpus(const char* path)
         c.address = quotedField(line, pos, lineNumber);
 
         std::istringstream rest(line.substr(pos));
-        std::string verdict;
-        rest >> verdict;
-        if (verdict == "match") {
+        std::string expectation;
+        rest >> expectation;
+        if (expectation == "match") {
             c.expectation = Expectation::Match;
-        } else if (verdict == "nomatch") {
+        } else if (expectation == "nomatch") {
             c.expectation = Expectation::NoMatch;
-        } else if (verdict == "malformed-pattern" || verdict == "malformed-address") {
-            c.expectation = verdict == "malformed-pattern" ? Expectation::MalformedPattern
-                                                           : Expectation::MalformedAddress;
+        } else if (expectation == "malformed-pattern" || expectation == "malformed-address") {
+            c.expectation = expectation == "malformed-pattern" ? Expectation::MalformedPattern
+                                                               : Expectation::MalformedAddress;
             if (!(rest >> c.kind >> c.offset)) {
-                FAIL("corpus line " << lineNumber << ": " << verdict
+                FAIL("corpus line " << lineNumber << ": " << expectation
                                     << " needs <ErrorKind> <offset>: " << line);
             }
         } else {
-            FAIL("corpus line " << lineNumber << ": unknown expectation '" << verdict
+            FAIL("corpus line " << lineNumber << ": unknown expectation '" << expectation
                                 << "': " << line);
         }
         std::string trailing;
@@ -109,7 +109,7 @@ void checkCase(const Case& c)
 
     if (c.expectation == Expectation::MalformedPattern) {
         REQUIRE_FALSE(parsed.ok());
-        CHECK(oscpm::name(parsed.error().kind) == c.kind);
+        CHECK(oscpm::toString(parsed.error().kind) == c.kind);
         CHECK(parsed.error().offset == c.offset);
         CHECK(convenience == oscpm::MatchResult::Malformed);
         return;
@@ -120,7 +120,7 @@ void checkCase(const Case& c)
 
     if (c.expectation == Expectation::MalformedAddress) {
         REQUIRE(addressError.has_value());
-        CHECK(oscpm::name(addressError->kind) == c.kind);
+        CHECK(oscpm::toString(addressError->kind) == c.kind);
         CHECK(addressError->offset == c.offset);
         CHECK(parsed.pattern().matches(c.address) == oscpm::MatchResult::Malformed);
         CHECK(convenience == oscpm::MatchResult::Malformed);

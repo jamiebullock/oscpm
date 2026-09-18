@@ -32,7 +32,7 @@ enum class ErrorKind : unsigned char {
     BareRoot,            // The input is exactly "/".
     TrailingSlash,       // The input ends in '/'.
     EmptyPart,           // Two adjacent '/' in an Address.
-    IllegalCharacter,    // An Address contains a pattern character, '#' or space.
+    IllegalCharacter,    // A pattern character in an Address, or '#' or space anywhere.
     NotYetSupported,     // A Pattern contains a Wildcard or "//". Temporary.
 };
 
@@ -44,7 +44,7 @@ struct Error {
 };
 
 // The enumerator's name, for diagnostics.
-constexpr const char* name(ErrorKind kind) noexcept
+constexpr const char* toString(ErrorKind kind) noexcept
 {
     switch (kind) {
     case ErrorKind::MissingLeadingSlash: return "MissingLeadingSlash";
@@ -71,18 +71,21 @@ constexpr bool isPatternCharacter(char c) noexcept
     return c == '?' || c == '*' || c == '[' || c == ']' || c == '{' || c == '}' || c == ',';
 }
 
-// The bytes OSC 1.0 forbids in the name of a Container or Method.
-constexpr bool isIllegalInAddress(char c) noexcept
+// The bytes OSC 1.0 reserves outside of pattern syntax. A Pattern is an
+// Address whose Parts may contain Wildcards, so neither side may carry them.
+constexpr bool isReserved(char c) noexcept
 {
-    return isPatternCharacter(c) || c == '#' || c == ' ';
+    return c == '#' || c == ' ';
 }
 
 // One left-to-right scan of the rules shared by Addresses and Patterns: a
-// leading '/', at least one Part, no trailing '/'. The first fault by byte
-// offset wins. In an Address, two adjacent slashes are an empty Part and
-// the OSC 1.0 reserved bytes are illegal; in a Pattern, until later tickets
-// implement them, "//" and the pattern characters are unsupported.
-constexpr std::optional<Error> validate(std::string_view text, bool isAddress) noexcept
+// leading '/', at least one Part, no trailing '/', no reserved bytes. The
+// first fault by byte offset wins. Two adjacent slashes are reported as
+// `onDoubleSlash` and a pattern character as `onPatternCharacter`, since an
+// Address forbids both while a Pattern gives them meaning.
+constexpr std::optional<Error> validate(std::string_view text,
+                                        ErrorKind onDoubleSlash,
+                                        ErrorKind onPatternCharacter) noexcept
 {
     if (text.empty() || text.front() != '/') {
         return Error{ErrorKind::MissingLeadingSlash, 0};
@@ -93,10 +96,13 @@ constexpr std::optional<Error> validate(std::string_view text, bool isAddress) n
     for (std::size_t i = 1; i < text.size(); ++i) {
         const char c = text[i];
         if (c == '/' && text[i - 1] == '/') {
-            return Error{isAddress ? ErrorKind::EmptyPart : ErrorKind::NotYetSupported, i};
+            return Error{onDoubleSlash, i};
         }
-        if (isAddress ? isIllegalInAddress(c) : isPatternCharacter(c)) {
-            return Error{isAddress ? ErrorKind::IllegalCharacter : ErrorKind::NotYetSupported, i};
+        if (isReserved(c)) {
+            return Error{ErrorKind::IllegalCharacter, i};
+        }
+        if (isPatternCharacter(c)) {
+            return Error{onPatternCharacter, i};
         }
     }
     if (text.back() == '/') {
@@ -110,7 +116,7 @@ constexpr std::optional<Error> validate(std::string_view text, bool isAddress) n
 // Checks that `address` is a well-formed literal Address.
 constexpr std::optional<Error> validateAddress(std::string_view address) noexcept
 {
-    return detail::validate(address, true);
+    return detail::validate(address, ErrorKind::EmptyPart, ErrorKind::IllegalCharacter);
 }
 
 class ParseResult;
@@ -170,7 +176,9 @@ private:
 
 constexpr ParseResult Pattern::parse(std::string_view text) noexcept
 {
-    if (const std::optional<Error> error = detail::validate(text, false)) {
+    // "//" and the pattern characters gain meaning in later tickets.
+    if (const std::optional<Error> error =
+            detail::validate(text, ErrorKind::NotYetSupported, ErrorKind::NotYetSupported)) {
         return ParseResult(*error);
     }
     return ParseResult(Pattern(text));

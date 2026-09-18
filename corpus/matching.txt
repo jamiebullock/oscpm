@@ -27,6 +27,9 @@
 #   NotYetSupported      the first pattern character (or the second '/' of a
 #                        '//'); a placeholder kind that later tickets remove
 #
+# When two rules fault at the same byte, as in "/a//" where the second '/'
+# both closes an empty Part and ends the input, the empty Part is reported.
+#
 # A malformed-pattern case asserts on Pattern::parse and match(). A
 # malformed-address case asserts that the pattern parses, that
 # validateAddress reports the kind and offset, and that matches() and
@@ -84,7 +87,6 @@
 "/a/"               "/a/"               malformed-pattern TrailingSlash 2
 
 ## Illegal characters in an Address: pattern characters, '#' and space
-## A Pattern may carry '#' or a space; such a Pattern parses but can never Match.
 
 "/a"                "/a?"               malformed-address IllegalCharacter 2
 "/a"                "/a*"               malformed-address IllegalCharacter 2
@@ -97,8 +99,13 @@
 "/a"                "/a "               malformed-address IllegalCharacter 2
 "/a"                "/ /a"              malformed-address IllegalCharacter 1
 "/a"                "/x/y/z*"           malformed-address IllegalCharacter 6
-"/a#b"              "/a#b"              malformed-address IllegalCharacter 2
-"/a b"              "/a b"              malformed-address IllegalCharacter 2
+
+## '#' and space are illegal in a Pattern too: a Pattern is an Address plus Wildcards
+
+"/a#b"              "/a#b"              malformed-pattern IllegalCharacter 2
+"/a b"              "/a b"              malformed-pattern IllegalCharacter 2
+"/#bundle"          "/x"                malformed-pattern IllegalCharacter 1
+"/a/b c"            "/a/b"              malformed-pattern IllegalCharacter 4
 
 ## The first fault by byte offset wins
 
