@@ -11,7 +11,7 @@ A literal OSC address such as `/synth/1/freq`: a `/`-separated sequence of Parts
 _Avoid_: Path, route, URL
 
 **Part**:
-One `/`-delimited component of an Address or Pattern.
+One `/`-delimited component of an Address or Pattern, at least one byte long. Every Address and Pattern begins with `/` and has at least one Part; the bare root `/`, a trailing `/`, and an empty Part are Malformed. The only permitted empty-looking sequence is the Descendant Operator in a Pattern.
 _Avoid_: Segment, component, level, node
 
 **Container**:
