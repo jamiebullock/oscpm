@@ -1,0 +1,122 @@
+# oscpm conformance corpus: pattern matching
+#
+# One case per line. Blank lines and lines beginning with '#' are ignored;
+# a '##' line names the section that follows.
+# A case has three fields:
+#
+#   "<pattern>" "<address>" <expected>
+#
+# The pattern and address are double-quoted so that a space inside either
+# is visible and testable. Neither may contain a double quote. Everything
+# after the second quoted field is whitespace-separated:
+#
+#   match
+#   nomatch
+#   malformed-pattern <ErrorKind> <offset>
+#   malformed-address <ErrorKind> <offset>
+#
+# <ErrorKind> is the enumerator name from oscpm::ErrorKind and <offset> is
+# the zero-based byte offset the library must report. Offsets point at the
+# byte that made the input Malformed:
+#
+#   MissingLeadingSlash  0
+#   BareRoot             0
+#   TrailingSlash        the final '/'
+#   EmptyPart            the '/' that closes the empty Part
+#   IllegalCharacter     the offending byte
+#   NotYetSupported      the first pattern character (or the second '/' of a
+#                        '//'); a placeholder kind that later tickets remove
+#
+# A malformed-pattern case asserts on Pattern::parse and match(). A
+# malformed-address case asserts that the pattern parses, that
+# validateAddress reports the kind and offset, and that matches() and
+# match() report Malformed. A match or nomatch case asserts that both sides
+# are well-formed and that matches() and match() agree on the result.
+#
+# The corpus is plain text so that other OSC implementations can reuse it.
+
+## Exact match
+
+"/a"                "/a"                match
+"/synth/1/freq"     "/synth/1/freq"     match
+"/a/b/c"            "/a/b/c"            match
+"/-_.~!$%&'()+=@^`|" "/-_.~!$%&'()+=@^`|" match
+
+## Mismatch: byte-wise and case-sensitive, whole Parts, whole Address
+
+"/a"                "/b"                nomatch
+"/a"                "/A"                nomatch
+"/a"                "/ab"               nomatch
+"/ab"               "/a"                nomatch
+"/a"                "/a/b"              nomatch
+"/a/b"              "/a"                nomatch
+"/a/b"              "/b/a"              nomatch
+"/synth/1/freq"     "/synth/1/fre"      nomatch
+"/synth/1/freq"     "/synth/10/freq"    nomatch
+
+## Structural Malformed Pattern: leading slash, bare root, trailing slash
+
+""                  "/a"                malformed-pattern MissingLeadingSlash 0
+"a"                 "/a"                malformed-pattern MissingLeadingSlash 0
+"a/b"               "/a/b"              malformed-pattern MissingLeadingSlash 0
+" /a"               "/a"                malformed-pattern MissingLeadingSlash 0
+"/"                 "/a"                malformed-pattern BareRoot 0
+"/a/"               "/a"                malformed-pattern TrailingSlash 2
+"/a/b/"             "/a/b"              malformed-pattern TrailingSlash 4
+
+## Structural Malformed Address: leading slash, bare root, empty Part, trailing slash
+
+"/a"                ""                  malformed-address MissingLeadingSlash 0
+"/a"                "a"                 malformed-address MissingLeadingSlash 0
+"/a"                "a/b"               malformed-address MissingLeadingSlash 0
+"/a"                "/"                 malformed-address BareRoot 0
+"/a"                "//"                malformed-address EmptyPart 1
+"/a"                "//a"               malformed-address EmptyPart 1
+"/a"                "/a//b"             malformed-address EmptyPart 3
+"/a"                "/a///b"            malformed-address EmptyPart 3
+"/a"                "/a//"              malformed-address EmptyPart 3
+"/a"                "/a/"               malformed-address TrailingSlash 2
+"/a"                "/a/b/"             malformed-address TrailingSlash 4
+
+## A Malformed Pattern is reported before a Malformed Address
+
+"a"                 "b"                 malformed-pattern MissingLeadingSlash 0
+"/a/"               "/a/"               malformed-pattern TrailingSlash 2
+
+## Illegal characters in an Address: pattern characters, '#' and space
+## A Pattern may carry '#' or a space; such a Pattern parses but can never Match.
+
+"/a"                "/a?"               malformed-address IllegalCharacter 2
+"/a"                "/a*"               malformed-address IllegalCharacter 2
+"/a"                "/a["               malformed-address IllegalCharacter 2
+"/a"                "/a]"               malformed-address IllegalCharacter 2
+"/a"                "/a{"               malformed-address IllegalCharacter 2
+"/a"                "/a}"               malformed-address IllegalCharacter 2
+"/a"                "/a,"               malformed-address IllegalCharacter 2
+"/a"                "/a#"               malformed-address IllegalCharacter 2
+"/a"                "/a "               malformed-address IllegalCharacter 2
+"/a"                "/ /a"              malformed-address IllegalCharacter 1
+"/a"                "/x/y/z*"           malformed-address IllegalCharacter 6
+"/a#b"              "/a#b"              malformed-address IllegalCharacter 2
+"/a b"              "/a b"              malformed-address IllegalCharacter 2
+
+## The first fault by byte offset wins
+
+"/a"                "a?"                malformed-address MissingLeadingSlash 0
+"/a"                "/a?/"              malformed-address IllegalCharacter 2
+"/a"                "/a/?/"             malformed-address IllegalCharacter 3
+"/a"                "/a//?"             malformed-address EmptyPart 3
+
+## Pattern characters are not yet supported (removed by tickets 02 and 03)
+
+"/a?"               "/ab"               malformed-pattern NotYetSupported 2
+"/a*"               "/ab"               malformed-pattern NotYetSupported 2
+"/a[b]"             "/ab"               malformed-pattern NotYetSupported 2
+"/a]"               "/a"                malformed-pattern NotYetSupported 2
+"/{a,b}"            "/a"                malformed-pattern NotYetSupported 1
+"/a}"               "/a"                malformed-pattern NotYetSupported 2
+"/a,b"              "/a"                malformed-pattern NotYetSupported 2
+"//a"               "/a"                malformed-pattern NotYetSupported 1
+"/a//b"             "/a/b"              malformed-pattern NotYetSupported 3
+"/a//"              "/a"                malformed-pattern NotYetSupported 3
+"/x/y/z*"           "/x/y/z"            malformed-pattern NotYetSupported 6
