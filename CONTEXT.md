@@ -55,7 +55,7 @@ The yes/no outcome of testing one Pattern against one Address. Distinct from a M
 _Avoid_: Hit, dispatch, resolve
 
 **Malformed**:
-The state of a Pattern or Address that fails validation, such as an unterminated `[`, a nested `{`, a trailing `//`, or a pattern character in an Address. Reported by result code, never by exception, and never confused with a non-Match.
+The state of a Pattern or Address that fails validation, such as an unterminated `[`, a nested `{`, a trailing `//`, a Pattern Part longer than 8191 bytes (ADR 0004), a `]`, `}` or `,` outside its construct in a Pattern, or a pattern character in an Address. Reported by result code, never by exception, and never confused with a non-Match.
 _Avoid_: Invalid, bad, error (unqualified)
 
 **Lookup**:

@@ -19,16 +19,32 @@
 # the zero-based byte offset the library must report. Offsets point at the
 # byte that made the input Malformed:
 #
-#   MissingLeadingSlash  0
-#   BareRoot             0
-#   TrailingSlash        the final '/'
-#   EmptyPart            the '/' that closes the empty Part
-#   IllegalCharacter     the offending byte
-#   NotYetSupported      the first pattern character (or the second '/' of a
-#                        '//'); a placeholder kind that later tickets remove
+#   MissingLeadingSlash         0
+#   BareRoot                    0
+#   TrailingSlash               the final '/'
+#   EmptyPart                   the '/' that closes the empty Part
+#   IllegalCharacter            the offending byte
+#   EmptyCharacterClass         the ']' that closes "[]" or "[!]"
+#   UnterminatedCharacterClass  the '[' that is never closed in its Part
+#   UnterminatedAlternative     the '{' that is never closed in its Part
+#   NestedAlternative           the inner '{'
+#   BracketInAlternative        the '[' or ']' inside the braces
+#   PartTooLong                 the first byte of a Pattern Part beyond
+#                               maxPatternPartLength; exercised in
+#                               pattern_test.cpp rather than here, since the
+#                               cases are thousands of bytes long
 #
-# When two rules fault at the same byte, as in "/a//" where the second '/'
-# both closes an empty Part and ends the input, the empty Part is reported.
+# The first fault by byte offset wins. An unterminated '[' or '{' faults at
+# its opening byte, so it is reported before anything inside it; a
+# terminated one is scanned for faults inside. When two rules fault at the
+# same byte, the more specific is reported: in "/a//" the second '/' both
+# closes an empty Part and ends the input, and the empty Part is reported;
+# a reserved byte that is also the first byte beyond maxPatternPartLength is
+# IllegalCharacter, not PartTooLong.
+#
+# Within a Part, a ']', '}' or ',' outside the construct that gives it
+# meaning is IllegalCharacter: no Address may contain it, so it could never
+# match and is a fault rather than a literal.
 #
 # A malformed-pattern case asserts on Pattern::parse and match(). A
 # malformed-address case asserts that the pattern parses, that
@@ -114,16 +130,320 @@
 "/a"                "/a/?/"             malformed-address IllegalCharacter 3
 "/a"                "/a//?"             malformed-address EmptyPart 3
 
-## Pattern characters are not yet supported (removed by tickets 02 and 03)
+## '?' matches exactly one byte, never '/'
 
-"/a?"               "/ab"               malformed-pattern NotYetSupported 2
-"/a*"               "/ab"               malformed-pattern NotYetSupported 2
-"/a[b]"             "/ab"               malformed-pattern NotYetSupported 2
-"/a]"               "/a"                malformed-pattern NotYetSupported 2
-"/{a,b}"            "/a"                malformed-pattern NotYetSupported 1
-"/a}"               "/a"                malformed-pattern NotYetSupported 2
-"/a,b"              "/a"                malformed-pattern NotYetSupported 2
-"//a"               "/a"                malformed-pattern NotYetSupported 1
-"/a//b"             "/a/b"              malformed-pattern NotYetSupported 3
-"/a//"              "/a"                malformed-pattern NotYetSupported 3
-"/x/y/z*"           "/x/y/z"            malformed-pattern NotYetSupported 6
+"/synth/?"          "/synth/1"          match
+"/synth/?"          "/synth/12"         nomatch
+"/synth/?"          "/synth"            nomatch
+"/?"                "/a"                match
+"/?"                "/ab"               nomatch
+"/?/b"              "/a/b"              match
+"/a?b"              "/a/b"              nomatch
+"/a?c"              "/abc"              match
+"/a?c"              "/abd"              nomatch
+"/??"               "/ab"               match
+"/??"               "/a"                nomatch
+"/??"               "/abc"              nomatch
+"/?/?"              "/a/b"              match
+"/?/?"              "/a"                nomatch
+"/?"                "/a/b"              nomatch
+
+## Matching is byte-wise: a two-byte UTF-8 sequence is two bytes
+
+"/?"                "/é"                nomatch
+"/??"               "/é"                match
+
+## '*' matches zero or more bytes, never '/'
+
+"/synth/*"          "/synth/freq"       match
+"/synth/*"          "/synth/1/freq"     nomatch
+"/*"                "/a"                match
+"/*"                "/abc"              match
+"/*"                "/a/b"              nomatch
+"/*/*"              "/a/b"              match
+"/*/*"              "/a"                nomatch
+"/a*"               "/a"                match
+"/a*"               "/abc"              match
+"/a*"               "/b"                nomatch
+"/a*"               "/ab/c"             nomatch
+"/*c"               "/abc"              match
+"/*c"               "/c"                match
+"/*c"               "/abcd"             nomatch
+"/a*c"              "/ac"               match
+"/a*c"              "/abbbc"            match
+"/a*c"              "/abbb"             nomatch
+"/**"               "/"                 malformed-address BareRoot 0
+"/**"               "/abc"              match
+"/*?"               "/a"                match
+"/*?"               "/abc"              match
+"/?*"               "/abc"              match
+"/*?"               "/a/b"              nomatch
+"/x/y/z*"           "/x/y/z"            match
+"/x/y/z*"           "/x/y/zed"          match
+
+## '*' followed by literal text backtracks past a false first match
+
+"/a*b"              "/aXbYb"            match
+"/a*b"              "/aXbY"             nomatch
+"/*ab*"             "/xaabab"           match
+"/*ab*"             "/xaaba"            match
+"/*ab*"             "/xaaa"             nomatch
+"/a*a*a"            "/aaa"              match
+"/a*a*a"            "/aa"               nomatch
+"/a*a*a"            "/abababa"          match
+"/*a"               "/baaa"             match
+"/*a"               "/baab"             nomatch
+"/*a*b*c"           "/xaybzc"           match
+"/*a*b*c"           "/xaybz"            nomatch
+"/x*?y"             "/xy"               nomatch
+"/x*?y"             "/xay"              match
+"/x*?y"             "/xaaaay"           match
+
+## A Character Class matches exactly one byte from its set
+
+"/ch[1-4]"          "/ch1"              match
+"/ch[1-4]"          "/ch4"              match
+"/ch[1-4]"          "/ch5"              nomatch
+"/ch[1-4]"          "/ch"               nomatch
+"/ch[1-4]"          "/ch12"             nomatch
+"/[abc]"            "/b"                match
+"/[abc]"            "/d"                nomatch
+"/[abc]"            "/ab"               nomatch
+"/[a]"              "/a"                match
+"/[a]/b"            "/a/b"              match
+"/[a]"              "/a/b"              nomatch
+"/[a-c][x-z]"       "/bz"               match
+"/[a-c][x-z]"       "/bw"               nomatch
+"/[a-cx-z]"         "/y"                match
+"/[a-cx-z]"         "/m"                nomatch
+"/[a-z0-9]"         "/5"                match
+"/[a-z0-9]"         "/A"                nomatch
+
+## A Character Class is byte-wise and case-sensitive, with ranges in ASCII order
+
+"/[a-z]"            "/A"                nomatch
+"/[A-Z]"            "/a"                nomatch
+"/[A-z]"            "/_"                match
+"/[a-c]"            "/b"                match
+"/[c-a]"            "/b"                nomatch
+"/[c-a]"            "/a"                nomatch
+"/[c-a]"            "/c"                nomatch
+"/[é]"              "/é"                nomatch
+"/[!é]"             "/é"                nomatch
+
+## A leading '!' negates a Character Class
+
+"/ch[!0]"           "/ch1"              match
+"/ch[!0]"           "/ch0"              nomatch
+"/ch[!0]"           "/ch"               nomatch
+"/ch[!0]"           "/ch10"             nomatch
+"/[!a-c]"           "/d"                match
+"/[!a-c]"           "/b"                nomatch
+"/[!!]"             "/a"                match
+"/[!!]"             "/!"                nomatch
+"/[a!]"             "/!"                match
+"/[a!]"             "/a"                match
+"/[a!]"             "/b"                nomatch
+
+## '-' is literal when first or last in a Character Class
+
+"/[-a]"             "/-"                match
+"/[-a]"             "/a"                match
+"/[-a]"             "/b"                nomatch
+"/[a-]"             "/-"                match
+"/[a-]"             "/a"                match
+"/[a-]"             "/b"                nomatch
+"/[-]"              "/-"                match
+"/[-]"              "/a"                nomatch
+"/[!-]"             "/a"                match
+"/[!-]"             "/-"                nomatch
+"/[!-a]"            "/-"                nomatch
+"/[!-a]"            "/b"                match
+"/[a-c-]"           "/-"                match
+"/[a-c-]"           "/b"                match
+"/[a-c-e]"          "/-"                match
+"/[a-c-e]"          "/e"                match
+"/[a-c-e]"          "/d"                nomatch
+"/[--]"             "/-"                match
+"/[--a]"            "/-"                match
+"/[--a]"            "/a"                match
+"/[--a]"            "/."                nomatch
+"/[--a]"            "/b"                nomatch
+"/[a--]"            "/-"                match
+"/[a--]"            "/a"                match
+"/[a--]"            "/b"                nomatch
+"/[!--a]"           "/-"                nomatch
+"/[!--a]"           "/."                match
+
+## Everything between '[' and ']' except a range is literal
+
+"/[*]"              "/a"                nomatch
+"/[?]"              "/a"                nomatch
+"/[,]"              "/a"                nomatch
+"/[{]"              "/a"                nomatch
+"/[[]"              "/a"                nomatch
+"/[!*]"             "/a"                match
+"/[!?,{}[]"         "/a"                match
+
+## '[]', '[!]' and an unterminated '[' are Malformed
+
+"/[]"               "/a"                malformed-pattern EmptyCharacterClass 2
+"/[!]"              "/a"                malformed-pattern EmptyCharacterClass 3
+"/a[]b"             "/ab"               malformed-pattern EmptyCharacterClass 3
+"/[]a]"             "/a"                malformed-pattern EmptyCharacterClass 2
+"/["                "/a"                malformed-pattern UnterminatedCharacterClass 1
+"/[!"               "/a"                malformed-pattern UnterminatedCharacterClass 1
+"/[a"               "/a"                malformed-pattern UnterminatedCharacterClass 1
+"/[a-"              "/a"                malformed-pattern UnterminatedCharacterClass 1
+"/a[b"              "/ab"               malformed-pattern UnterminatedCharacterClass 2
+"/[a/b]"            "/a"                malformed-pattern UnterminatedCharacterClass 1
+"/x/[a/b]"          "/x/a"              malformed-pattern UnterminatedCharacterClass 3
+"/[a#"              "/a"                malformed-pattern UnterminatedCharacterClass 1
+"/[a#]"             "/a"                malformed-pattern IllegalCharacter 3
+"/[a ]"             "/a"                malformed-pattern IllegalCharacter 3
+
+## A ']' outside a Character Class is Malformed: it can never match an Address byte
+
+"/a]"               "/a"                malformed-pattern IllegalCharacter 2
+"/]"                "/a"                malformed-pattern IllegalCharacter 1
+"/[a]]"             "/a"                malformed-pattern IllegalCharacter 4
+
+## An Alternative matches exactly one of its comma-separated literal members
+
+"/{amp,freq}"       "/amp"              match
+"/{amp,freq}"       "/freq"             match
+"/{amp,freq}"       "/gain"             nomatch
+"/{amp,freq}"       "/am"               nomatch
+"/{amp,freq}"       "/ampfreq"          nomatch
+"/{a,b}"            "/a"                match
+"/{a,b}"            "/b"                match
+"/{a,b}"            "/c"                nomatch
+"/{a,b}"            "/ab"               nomatch
+"/{a}"              "/a"                match
+"/{a}"              "/b"                nomatch
+"/{a,b}/c"          "/a/c"              match
+"/{a,b}/c"          "/b/c"              match
+"/{a,b}/c"          "/c/c"              nomatch
+"/x{a,b}y"          "/xay"              match
+"/x{a,b}y"          "/xby"              match
+"/x{a,b}y"          "/xy"               nomatch
+"/{a,b}{c,d}"       "/ad"               match
+"/{a,b}{c,d}"       "/bc"               match
+"/{a,b}{c,d}"       "/ab"               nomatch
+"/{a,b}"            "/a/b"              nomatch
+"/{a,b}"            "/A"                nomatch
+"/{aa,a}"           "/a"                match
+"/{aa,a}"           "/aa"               match
+"/{aa,a}"           "/aaa"              nomatch
+
+## An empty Alternative member matches the empty string
+
+"/x{a,}"            "/x"                match
+"/x{a,}"            "/xa"               match
+"/x{a,}"            "/xb"               nomatch
+"/x{,a}"            "/x"                match
+"/x{,a}"            "/xa"               match
+"/x{}"              "/x"                match
+"/x{}"              "/xa"               nomatch
+"/x{,}"             "/x"                match
+"/x{a,,b}"          "/x"                match
+"/x{a,,b}"          "/xb"               match
+"/{}"               "/"                 malformed-address BareRoot 0
+"/{}/a"             "/a"                nomatch
+"/{}/a"             "//a"               malformed-address EmptyPart 1
+
+## An Alternative backtracks when more than one member matches
+
+"/{a,ab}b"          "/abb"              match
+"/{a,ab}b"          "/ab"               match
+"/{ab,a}b"          "/abb"              match
+"/{ab,a}b"          "/ab"               match
+"/{a,ab}b"          "/abbb"             nomatch
+"/{a,ab}{b,bb}"     "/abb"              match
+"/{a,ab}{b,bb}"     "/abbb"             match
+"/{a,ab}{b,bb}"     "/abbbb"            nomatch
+"/{a,}{a,}b"        "/b"                match
+"/{a,}{a,}b"        "/ab"               match
+"/{a,}{a,}b"        "/aab"              match
+"/{a,}{a,}b"        "/aaab"             nomatch
+"/*{a,ab}b"         "/abb"              match
+"/*{a,ab}b"         "/xxabb"            match
+"/*{a,ab}b"         "/xxab"             match
+"/*{a,ab}b"         "/xxa"              nomatch
+"/{a,ab}*b"         "/ab"               match
+"/{a,ab}*b"         "/abxb"             match
+"/{a,ab}*b"         "/ba"               nomatch
+"/{a,ab}?"          "/abc"              match
+"/{a,ab}?"          "/ab"               match
+"/{a,ab}?"          "/a"                nomatch
+"/{a,ab}[c]"        "/abc"              match
+"/{a,ab}[c]"        "/ac"               match
+"/{a,ab}[c]"        "/abd"              nomatch
+
+## Characters inside braces are literal, so a member can never contain a Wildcard
+
+"/{a*,b}"           "/b"                match
+"/{a*,b}"           "/a"                nomatch
+"/{a*,b}"           "/ax"               nomatch
+"/{a?,b}"           "/ax"               nomatch
+"/{a-c,b}"          "/b"                match
+"/{a-c,b}"          "/a-c"              match
+"/{!a,b}"           "/b"                match
+"/{!a,b}"           "/!a"               match
+"/{!a,b}"           "/c"                nomatch
+
+## Nested braces and brackets inside braces are Malformed
+
+"/{a{b},c}"         "/a"                malformed-pattern NestedAlternative 3
+"/{{a}}"            "/a"                malformed-pattern NestedAlternative 2
+"/{a,b}{c,{d}}"     "/ad"               malformed-pattern NestedAlternative 9
+"/{a[b],c}"         "/ab"               malformed-pattern BracketInAlternative 3
+"/{a],c}"           "/a"                malformed-pattern BracketInAlternative 3
+"/{[a-c]}"          "/a"                malformed-pattern BracketInAlternative 2
+"/{a,b#}"           "/a"                malformed-pattern IllegalCharacter 5
+"/{a b}"            "/a"                malformed-pattern IllegalCharacter 3
+
+## An unterminated '{' is Malformed at the '{'
+
+"/{"                "/a"                malformed-pattern UnterminatedAlternative 1
+"/{a"               "/a"                malformed-pattern UnterminatedAlternative 1
+"/{a,"              "/a"                malformed-pattern UnterminatedAlternative 1
+"/{a,b"             "/a"                malformed-pattern UnterminatedAlternative 1
+"/x{a,b"            "/xa"               malformed-pattern UnterminatedAlternative 2
+"/{a/b}"            "/a"                malformed-pattern UnterminatedAlternative 1
+"/{a{b"             "/a"                malformed-pattern UnterminatedAlternative 1
+"/{a[b"             "/a"                malformed-pattern UnterminatedAlternative 1
+"/{a#"              "/a"                malformed-pattern UnterminatedAlternative 1
+"/{a,b}{c"          "/ac"               malformed-pattern UnterminatedAlternative 6
+
+## A '}' or ',' outside an Alternative is Malformed: it can never match an Address byte
+
+"/a}"               "/a"                malformed-pattern IllegalCharacter 2
+"/}"                "/a"                malformed-pattern IllegalCharacter 1
+"/a,b"              "/a"                malformed-pattern IllegalCharacter 2
+"/,"                "/a"                malformed-pattern IllegalCharacter 1
+"/{a}}"             "/a"                malformed-pattern IllegalCharacter 4
+"/{a},b"            "/a"                malformed-pattern IllegalCharacter 4
+
+## Wildcards combine within a Part
+
+"/ch[1-4]*"         "/ch1freq"          match
+"/ch[1-4]*"         "/ch5freq"          nomatch
+"/{amp,freq}?"      "/amp1"             match
+"/{amp,freq}?"      "/amp12"            nomatch
+"/*[0-9]"           "/synth7"           match
+"/*[0-9]"           "/synth"            nomatch
+"/*[0-9]*"          "/s7nth"            match
+"/?[!a]*{x,y}"      "/zbqqx"            match
+"/?[!a]*{x,y}"      "/zaqqx"            nomatch
+"/?[!a]*{x,y}"      "/zbqqz"            nomatch
+"/synth/*/{freq,amp}" "/synth/1/freq"   match
+"/synth/*/{freq,amp}" "/synth/12/amp"   match
+"/synth/*/{freq,amp}" "/synth/1/gain"   nomatch
+"/synth/*/{freq,amp}" "/synth/freq"     nomatch
+
+## The Descendant Operator is not yet supported: "//" is an empty Part (until ticket 03)
+
+"//a"               "/a"                malformed-pattern EmptyPart 1
+"/a//b"             "/a/b"              malformed-pattern EmptyPart 3
+"/a//"              "/a"                malformed-pattern EmptyPart 3

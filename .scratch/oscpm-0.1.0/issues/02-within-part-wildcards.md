@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 Scaffold and literal matching
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Corpus sections for `?`, `*`, Character Class, Alternative, each with positive and negative cases and the `/` boundary
-- [ ] Corpus section for every Q11 and Q12 decision: nesting rejected, empty member matches empty, brace contents literal, `-` edge rules, `[]` `[!]` unterminated forms
-- [ ] `*` followed by literal text backtracks correctly, e.g. `/a*b` against `/aXbYb`
-- [ ] The "not yet supported" error kind from ticket 01 is gone
-- [ ] Still no exceptions and no allocation in `parse` or `matches`
+- [x] Corpus sections for `?`, `*`, Character Class, Alternative, each with positive and negative cases and the `/` boundary
+- [x] Corpus section for every Q11 and Q12 decision: nesting rejected, empty member matches empty, brace contents literal, `-` edge rules, `[]` `[!]` unterminated forms
+- [x] `*` followed by literal text backtracks correctly, e.g. `/a*b` against `/aXbYb`
+- [x] The "not yet supported" error kind from ticket 01 is gone
+- [x] Still no exceptions and no allocation in `parse` or `matches`

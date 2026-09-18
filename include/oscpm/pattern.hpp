@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
@@ -31,10 +32,21 @@ enum class ErrorKind : unsigned char {
     MissingLeadingSlash, // The first byte is not '/'.
     BareRoot,            // The input is exactly "/".
     TrailingSlash,       // The input ends in '/'.
-    EmptyPart,           // Two adjacent '/' in an Address.
-    IllegalCharacter,    // A pattern character in an Address, or '#' or space anywhere.
-    NotYetSupported,     // A Pattern contains a Wildcard or "//". Temporary.
+    EmptyPart,           // Two adjacent '/'. In a Pattern, until "//" is supported.
+    IllegalCharacter,    // A pattern character in an Address, '#' or space anywhere,
+                         // or a ']', '}' or ',' outside its construct in a Pattern.
+    EmptyCharacterClass, // "[]" or "[!]".
+    UnterminatedCharacterClass, // A '[' with no ']' in the same Part.
+    UnterminatedAlternative,    // A '{' with no '}' in the same Part.
+    NestedAlternative,          // A '{' inside an Alternative.
+    BracketInAlternative,       // A '[' or ']' inside an Alternative.
+    PartTooLong,                // A Pattern Part longer than maxPatternPartLength.
 };
+
+// The longest Pattern Part that parses, in bytes. Matching tracks a set of
+// byte positions within one Part on the stack (ADR 0004); this bounds that
+// set. Addresses have no such limit.
+constexpr std::size_t maxPatternPartLength = 8191;
 
 // A Malformed result: what went wrong and the zero-based byte offset of the
 // byte that made the input Malformed.
@@ -52,7 +64,12 @@ constexpr const char* toString(ErrorKind kind) noexcept
     case ErrorKind::TrailingSlash: return "TrailingSlash";
     case ErrorKind::EmptyPart: return "EmptyPart";
     case ErrorKind::IllegalCharacter: return "IllegalCharacter";
-    case ErrorKind::NotYetSupported: return "NotYetSupported";
+    case ErrorKind::EmptyCharacterClass: return "EmptyCharacterClass";
+    case ErrorKind::UnterminatedCharacterClass: return "UnterminatedCharacterClass";
+    case ErrorKind::UnterminatedAlternative: return "UnterminatedAlternative";
+    case ErrorKind::NestedAlternative: return "NestedAlternative";
+    case ErrorKind::BracketInAlternative: return "BracketInAlternative";
+    case ErrorKind::PartTooLong: return "PartTooLong";
     }
     return "?";
 }
@@ -78,14 +95,10 @@ constexpr bool isReserved(char c) noexcept
     return c == '#' || c == ' ';
 }
 
-// One left-to-right scan of the rules shared by Addresses and Patterns: a
-// leading '/', at least one Part, no trailing '/', no reserved bytes. The
-// first fault by byte offset wins. Two adjacent slashes are reported as
-// `onDoubleSlash` and a pattern character as `onPatternCharacter`, since an
-// Address forbids both while a Pattern gives them meaning.
-constexpr std::optional<Error> validate(std::string_view text,
-                                        ErrorKind onDoubleSlash,
-                                        ErrorKind onPatternCharacter) noexcept
+// One left-to-right scan of a literal Address: a leading '/', at least one
+// Part, no empty Part, no trailing '/', no reserved or pattern bytes. The
+// first fault by byte offset wins.
+constexpr std::optional<Error> validateAddress(std::string_view text) noexcept
 {
     if (text.empty() || text.front() != '/') {
         return Error{ErrorKind::MissingLeadingSlash, 0};
@@ -96,13 +109,10 @@ constexpr std::optional<Error> validate(std::string_view text,
     for (std::size_t i = 1; i < text.size(); ++i) {
         const char c = text[i];
         if (c == '/' && text[i - 1] == '/') {
-            return Error{onDoubleSlash, i};
+            return Error{ErrorKind::EmptyPart, i};
         }
-        if (isReserved(c)) {
+        if (isReserved(c) || isPatternCharacter(c)) {
             return Error{ErrorKind::IllegalCharacter, i};
-        }
-        if (isPatternCharacter(c)) {
-            return Error{onPatternCharacter, i};
         }
     }
     if (text.back() == '/') {
@@ -111,12 +121,340 @@ constexpr std::optional<Error> validate(std::string_view text,
     return std::nullopt;
 }
 
+// One left-to-right scan of a Pattern: the structural rules shared with
+// Addresses plus the within-Part Wildcard syntax. The first fault by byte
+// offset wins; an unterminated '[' or '{' faults at its opening byte and so
+// is reported before anything inside it.
+constexpr std::optional<Error> scanPatternSyntax(std::string_view text) noexcept
+{
+    if (text.empty() || text.front() != '/') {
+        return Error{ErrorKind::MissingLeadingSlash, 0};
+    }
+    if (text.size() == 1) {
+        return Error{ErrorKind::BareRoot, 0};
+    }
+    for (std::size_t i = 1; i < text.size(); ++i) {
+        const char c = text[i];
+        if (c == '/' && text[i - 1] == '/') {
+            // The Descendant Operator gains meaning in a later ticket.
+            return Error{ErrorKind::EmptyPart, i};
+        }
+        if (isReserved(c)) {
+            return Error{ErrorKind::IllegalCharacter, i};
+        }
+        if (c == '?' || c == '*') {
+            continue;
+        }
+        if (c == '[') {
+            // The class body runs to the first ']' after an optional '!'. It
+            // cannot cross '/', since a Wildcard never matches one, so a '/'
+            // or the end of the input first means the '[' is unterminated.
+            std::size_t j = i + 1;
+            if (j < text.size() && text[j] == '!') {
+                ++j;
+            }
+            if (j < text.size() && text[j] == ']') {
+                return Error{ErrorKind::EmptyCharacterClass, j};
+            }
+            while (j < text.size() && text[j] != ']' && text[j] != '/') {
+                ++j;
+            }
+            if (j == text.size() || text[j] != ']') {
+                return Error{ErrorKind::UnterminatedCharacterClass, i};
+            }
+            for (std::size_t k = i + 1; k < j; ++k) {
+                if (isReserved(text[k])) {
+                    return Error{ErrorKind::IllegalCharacter, k};
+                }
+            }
+            i = j;
+            continue;
+        }
+        if (c == '{') {
+            // As with '[', the body runs to the first '}' in the same Part and
+            // an unterminated '{' is reported before anything inside it.
+            std::size_t j = i + 1;
+            while (j < text.size() && text[j] != '}' && text[j] != '/') {
+                ++j;
+            }
+            if (j == text.size() || text[j] != '}') {
+                return Error{ErrorKind::UnterminatedAlternative, i};
+            }
+            for (std::size_t k = i + 1; k < j; ++k) {
+                const char inner = text[k];
+                if (inner == '{') {
+                    return Error{ErrorKind::NestedAlternative, k};
+                }
+                if (inner == '[' || inner == ']') {
+                    return Error{ErrorKind::BracketInAlternative, k};
+                }
+                if (isReserved(inner)) {
+                    return Error{ErrorKind::IllegalCharacter, k};
+                }
+            }
+            i = j;
+            continue;
+        }
+        if (c == ']' || c == '}' || c == ',') {
+            return Error{ErrorKind::IllegalCharacter, i};
+        }
+    }
+    if (text.back() == '/') {
+        return Error{ErrorKind::TrailingSlash, text.size() - 1};
+    }
+    return std::nullopt;
+}
+
+// Finds the first Part longer than maxPatternPartLength. The fault is the
+// first byte beyond the limit.
+constexpr std::optional<Error> findOverlongPart(std::string_view text) noexcept
+{
+    std::size_t partStart = 1;
+    for (std::size_t i = 1; i <= text.size(); ++i) {
+        if (i == text.size() || text[i] == '/') {
+            if (i - partStart > maxPatternPartLength) {
+                return Error{ErrorKind::PartTooLong, partStart + maxPatternPartLength};
+            }
+            partStart = i + 1;
+        }
+    }
+    return std::nullopt;
+}
+
+// Validates a Pattern. Of the syntax fault and the length fault, the one at
+// the lower byte offset is reported; at the same byte the syntax fault is,
+// being the more specific.
+constexpr std::optional<Error> validatePattern(std::string_view text) noexcept
+{
+    const std::optional<Error> syntax = scanPatternSyntax(text);
+    if (text.size() <= maxPatternPartLength + 1) {
+        return syntax; // No Part can be too long.
+    }
+    const std::optional<Error> overlong = findOverlongPart(text);
+    if (syntax && overlong) {
+        return syntax->offset <= overlong->offset ? syntax : overlong;
+    }
+    return syntax ? syntax : overlong;
+}
+
+// Tests `byte` against the body of a Character Class: the bytes between
+// '[' and ']', which validatePattern has checked is non-empty after any
+// leading '!'. An element "x-y" is a range in byte order. A '-' is literal
+// when it is the first element or the last byte, so it neither opens nor
+// closes a range there; a reversed range matches nothing.
+constexpr bool classMatches(std::string_view body, unsigned char byte) noexcept
+{
+    bool negate = false;
+    std::size_t i = 0;
+    if (body.front() == '!') {
+        negate = true;
+        i = 1;
+    }
+    const std::size_t first = i;
+    bool found = false;
+    while (i < body.size()) {
+        const unsigned char low = static_cast<unsigned char>(body[i]);
+        unsigned char high = low;
+        const bool opensRange = !(i == first && body[i] == '-');
+        const bool closesRange = i + 2 < body.size() && body[i + 1] == '-'
+                                 && !(i + 2 == body.size() - 1 && body[i + 2] == '-');
+        if (opensRange && closesRange) {
+            high = static_cast<unsigned char>(body[i + 2]);
+            i += 3;
+        } else {
+            ++i;
+        }
+        if (low <= byte && byte <= high) {
+            found = true;
+        }
+    }
+    return found != negate;
+}
+
+// A set of byte positions within one Pattern Part, 0 to maxPatternPartLength
+// inclusive so that the position just past a maximal Part fits.
+class PositionSet {
+public:
+    constexpr bool test(std::size_t i) const noexcept
+    {
+        return ((m_words[i / 64] >> (i % 64)) & 1u) != 0;
+    }
+    constexpr void add(std::size_t i) noexcept
+    {
+        m_words[i / 64] |= std::uint64_t{1} << (i % 64);
+    }
+    constexpr void clear() noexcept
+    {
+        for (std::uint64_t& word : m_words) {
+            word = 0;
+        }
+    }
+    constexpr bool empty() const noexcept
+    {
+        for (const std::uint64_t word : m_words) {
+            if (word != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+private:
+    static constexpr std::size_t words = (maxPatternPartLength + 1 + 63) / 64;
+    std::uint64_t m_words[words] = {};
+};
+
+// Matching one Part is a set simulation rather than a backtracking search
+// (ADR 0004). A state is a byte position in the Pattern Part; the set holds
+// every position that some reading of the Address bytes consumed so far
+// could have reached. Each Address byte advances the whole set at once, so
+// the cost is bounded by the product of the two Part lengths whatever the
+// Pattern contains, with no recursion and no heap.
+//
+// Reading Address byte `b` at position p moves a state to p + 1 when
+// pattern[p] is '?' or equals b, to just past the ']' when p opens a
+// Character Class containing b, and keeps it at p when pattern[p] is '*'.
+// Empty moves, applied by `followEmptyMoves`, jump from '{' to every
+// member's first byte, from a member's end at ',' or '}' to just past the
+// '}', and from '*' to p + 1. Inside braces every byte is literal.
+
+// Adds every position reachable from `set` by empty moves. Empty moves only
+// go forward, so one increasing pass over the Part reaches all of them.
+constexpr void followEmptyMoves(PositionSet& set, std::string_view pattern) noexcept
+{
+    bool inBraces = false;
+    std::size_t braceClose = 0; // The '}' of the braces being walked.
+    for (std::size_t p = 0; p < pattern.size(); ++p) {
+        const char c = pattern[p];
+        if (inBraces) {
+            if (c == '}') {
+                inBraces = false;
+                if (set.test(p)) {
+                    set.add(p + 1);
+                }
+            } else if (c == ',' && set.test(p)) {
+                set.add(braceClose + 1);
+            }
+            continue;
+        }
+        if (c == '[') {
+            p = pattern.find(']', p + 1);
+            continue;
+        }
+        if (c == '{') {
+            inBraces = true;
+            braceClose = pattern.find('}', p + 1);
+            if (set.test(p)) {
+                set.add(p + 1);
+                for (std::size_t q = p + 1; q < braceClose; ++q) {
+                    if (pattern[q] == ',') {
+                        set.add(q + 1);
+                    }
+                }
+            }
+            continue;
+        }
+        if (c == '*' && set.test(p)) {
+            set.add(p + 1);
+        }
+    }
+}
+
+// Fills `to` with every position reachable from `from` by reading `byte`.
+constexpr void readByte(const PositionSet& from, PositionSet& to, std::string_view pattern,
+                        unsigned char byte) noexcept
+{
+    to.clear();
+    bool inBraces = false;
+    for (std::size_t p = 0; p < pattern.size(); ++p) {
+        const char c = pattern[p];
+        if (inBraces) {
+            if (c == '}') {
+                inBraces = false;
+            } else if (c != ',' && from.test(p) && static_cast<unsigned char>(c) == byte) {
+                to.add(p + 1);
+            }
+            continue;
+        }
+        if (c == '[') {
+            const std::size_t close = pattern.find(']', p + 1);
+            if (from.test(p) && classMatches(pattern.substr(p + 1, close - p - 1), byte)) {
+                to.add(close + 1);
+            }
+            p = close;
+            continue;
+        }
+        if (c == '{') {
+            inBraces = true;
+            continue;
+        }
+        if (from.test(p)) {
+            if (c == '*') {
+                to.add(p);
+            } else if (c == '?' || static_cast<unsigned char>(c) == byte) {
+                to.add(p + 1);
+            }
+        }
+    }
+}
+
+// Tests one Part of a well-formed Pattern, no longer than
+// maxPatternPartLength, against one Part of a well-formed Address. Neither
+// view contains '/'.
+constexpr bool matchPart(std::string_view pattern, std::string_view address) noexcept
+{
+    PositionSet sets[2];
+    std::size_t current = 0;
+    sets[current].add(0);
+    followEmptyMoves(sets[current], pattern);
+    for (const char c : address) {
+        readByte(sets[current], sets[1 - current], pattern, static_cast<unsigned char>(c));
+        current = 1 - current;
+        if (sets[current].empty()) {
+            return false;
+        }
+        followEmptyMoves(sets[current], pattern);
+    }
+    return sets[current].test(pattern.size());
+}
+
+// The Part beginning at `start`, and whether another Part follows it, in
+// which case `start` is moved to that Part's first byte.
+constexpr std::string_view nextPart(std::string_view text, std::size_t& start,
+                                    bool& more) noexcept
+{
+    const std::size_t end = text.find('/', start);
+    more = end != std::string_view::npos;
+    const std::string_view part = text.substr(start, more ? end - start : std::string_view::npos);
+    start = end + 1;
+    return part;
+}
+
+// Tests a well-formed Pattern against a well-formed Address Part by Part.
+constexpr bool matchAddress(std::string_view pattern, std::string_view address) noexcept
+{
+    std::size_t p = 1;
+    std::size_t a = 1;
+    for (;;) {
+        bool morePattern = false;
+        bool moreAddress = false;
+        const std::string_view patternPart = nextPart(pattern, p, morePattern);
+        const std::string_view addressPart = nextPart(address, a, moreAddress);
+        if (!matchPart(patternPart, addressPart)) {
+            return false;
+        }
+        if (!morePattern || !moreAddress) {
+            return morePattern == moreAddress;
+        }
+    }
+}
+
 } // namespace detail
 
 // Checks that `address` is a well-formed literal Address.
 constexpr std::optional<Error> validateAddress(std::string_view address) noexcept
 {
-    return detail::validate(address, ErrorKind::EmptyPart, ErrorKind::IllegalCharacter);
+    return detail::validateAddress(address);
 }
 
 class ParseResult;
@@ -136,7 +474,7 @@ public:
         if (validateAddress(address)) {
             return MatchResult::Malformed;
         }
-        return address == m_text ? MatchResult::Match : MatchResult::NoMatch;
+        return detail::matchAddress(m_text, address) ? MatchResult::Match : MatchResult::NoMatch;
     }
 
     // The bytes this Pattern was parsed from.
@@ -176,9 +514,7 @@ private:
 
 constexpr ParseResult Pattern::parse(std::string_view text) noexcept
 {
-    // "//" and the pattern characters gain meaning in later tickets.
-    if (const std::optional<Error> error =
-            detail::validate(text, ErrorKind::NotYetSupported, ErrorKind::NotYetSupported)) {
+    if (const std::optional<Error> error = detail::validatePattern(text)) {
         return ParseResult(*error);
     }
     return ParseResult(Pattern(text));
