@@ -62,7 +62,7 @@ jobs:
       # Ninja needs cl.exe on the PATH, which only a Visual Studio developer
       # environment arranges. The job uses the Ninja preset so it does not
       # depend on which Visual Studio release the runner image carries.
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         if: runner.os == 'Windows'
         with:
           arch: x64
