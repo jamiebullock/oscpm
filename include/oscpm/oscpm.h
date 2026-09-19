@@ -292,6 +292,13 @@ private:
     bool m_exhausted = false;
 };
 
+constexpr std::size_t closeWithinPart(std::string_view pattern, std::size_t open, char closeByte) noexcept
+{
+    const std::size_t close = pattern.find(closeByte, open + 1);
+    const std::size_t nextSeparator = pattern.find(k::partSeparator, open + 1);
+    return close < nextSeparator ? close : npos;
+}
+
 constexpr bool isPrintableAscii(char byte) noexcept
 {
     const auto value = static_cast<unsigned char>(byte);
@@ -382,9 +389,9 @@ constexpr bool isValidAddress(std::string_view address) noexcept
 }
 
 /// Whether `pattern` is a well-formed OSC address pattern: it starts with
-/// '/', every byte is printable ASCII, every '[' and '{' is closed, and no
-/// '{' appears inside a brace list. Every pattern this rejects matches
-/// nothing.
+/// '/', every byte is printable ASCII, every '[' and '{' is closed within
+/// its part, and no '{' appears inside a brace list. Every pattern this
+/// rejects matches nothing.
 constexpr bool isValidPattern(std::string_view pattern) noexcept
 {
     if (pattern.empty() || pattern[0] != detail::k::partSeparator)
@@ -403,7 +410,7 @@ constexpr bool isValidPattern(std::string_view pattern) noexcept
     {
         if (pattern[i] == detail::k::setOpen)
         {
-            const std::size_t close = pattern.find(detail::k::setClose, i + 1);
+            const std::size_t close = detail::closeWithinPart(pattern, i, detail::k::setClose);
             if (close == detail::npos)
             {
                 return false;
@@ -412,7 +419,7 @@ constexpr bool isValidPattern(std::string_view pattern) noexcept
         }
         else if (pattern[i] == detail::k::listOpen)
         {
-            const std::size_t close = pattern.find(detail::k::listClose, i + 1);
+            const std::size_t close = detail::closeWithinPart(pattern, i, detail::k::listClose);
             if (close == detail::npos || pattern.find(detail::k::listOpen, i + 1) < close)
             {
                 return false;

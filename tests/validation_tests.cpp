@@ -96,6 +96,17 @@ TEST_CASE("every set in a valid pattern is closed")
     STATIC_CHECK_FALSE(isValidPattern("/a/[b"));
 }
 
+TEST_CASE("a set or brace list closes within its own part")
+{
+    STATIC_CHECK(isValidPattern("/[a]/[b]"));
+    STATIC_CHECK(isValidPattern("/{a}/{b}"));
+    STATIC_CHECK_FALSE(isValidPattern("/[a/b]"));
+    STATIC_CHECK_FALSE(isValidPattern("/{a/b}"));
+    STATIC_CHECK_FALSE(isValidPattern("/{a,b}/[c"));
+    STATIC_CHECK_FALSE(oscpm::match("/[a/b]", "/a/b"));
+    STATIC_CHECK_FALSE(oscpm::match("/{a/b}", "/a/b"));
+}
+
 TEST_CASE("every brace list in a valid pattern is closed and not nested")
 {
     STATIC_CHECK(isValidPattern("/{a,b}"));
