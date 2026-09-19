@@ -13,6 +13,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(oscpm_tests
+    address_space_test.cpp
     allocation_counter.cpp
     corpus_test.cpp
     pattern_test.cpp)

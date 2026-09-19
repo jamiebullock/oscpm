@@ -27,7 +27,9 @@
 
 namespace oscpm {
 
-// Why an input is Malformed. Vocabulary follows CONTEXT.md.
+// Why an operation failed: either why an input is Malformed, or, for
+// Duplicate and NotFound, why AddressSpace refused a registration or a
+// removal. Vocabulary follows CONTEXT.md.
 enum class ErrorKind : unsigned char {
     MissingLeadingSlash, // The first byte is not '/'.
     BareRoot,            // The input is exactly "/".
@@ -42,6 +44,8 @@ enum class ErrorKind : unsigned char {
     NestedAlternative,          // A '{' inside an Alternative.
     BracketInAlternative,       // A '[' or ']' inside an Alternative.
     PartTooLong,                // A Pattern Part longer than maxPatternPartLength.
+    Duplicate,                  // A Method is already registered at the Address.
+    NotFound,                   // No Method is registered at the Address.
 };
 
 // The longest Pattern Part that parses, in bytes. Matching tracks a set of
@@ -49,8 +53,9 @@ enum class ErrorKind : unsigned char {
 // set. Addresses have no such limit.
 constexpr std::size_t maxPatternPartLength = 8191;
 
-// A Malformed result: what went wrong and the zero-based byte offset of the
-// byte that made the input Malformed.
+// What went wrong and the zero-based byte offset of the byte that made the
+// input Malformed. The offset is 0 for Duplicate and NotFound, where no byte
+// is at fault.
 struct Error {
     ErrorKind kind;
     std::size_t offset;
@@ -71,6 +76,8 @@ constexpr const char* toString(ErrorKind kind) noexcept
     case ErrorKind::NestedAlternative: return "NestedAlternative";
     case ErrorKind::BracketInAlternative: return "BracketInAlternative";
     case ErrorKind::PartTooLong: return "PartTooLong";
+    case ErrorKind::Duplicate: return "Duplicate";
+    case ErrorKind::NotFound: return "NotFound";
     }
     return "?";
 }

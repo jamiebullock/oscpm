@@ -26,6 +26,10 @@ _Avoid_: Handler, callback, endpoint, leaf, route
 The tree of Containers and Methods that Patterns are matched against.
 _Avoid_: Namespace, dispatch table, registry, router
 
+**Address Order**:
+The order in which an Address Space is walked: Part by Part, each Part compared bytewise, with a Method visited before the Methods beneath it. This is depth-first order over the tree, so `/synth` precedes `/synth/1/amp`, which precedes `/synth/10/freq`, which precedes `/synth/2/freq`. It differs from comparing whole strings only where a Part is a prefix of a sibling Part: `/a/b` precedes `/a-b`.
+_Avoid_: Sorted order, alphabetical order, insertion order
+
 ### Patterns
 
 **Pattern**:

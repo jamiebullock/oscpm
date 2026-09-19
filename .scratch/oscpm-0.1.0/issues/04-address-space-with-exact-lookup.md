@@ -4,13 +4,13 @@
 
 **Blocked by:** 01 Scaffold and literal matching
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `AddressSpace<T>` compiles with a move-only T such as `std::unique_ptr` and with a capturing lambda type
-- [ ] `add` returns Malformed with offset for pattern characters and structural faults; Duplicate on a second registration at the same Address
-- [ ] `remove` returns NotFound for an unknown Address and succeeds otherwise; removing a Method that is also a Container leaves its children intact
-- [ ] `/synth` and `/synth/freq` coexist and both are found by exact Lookup
-- [ ] `lookup` returns 0 and does not call the visitor for an unregistered exact Address
-- [ ] `forEach` order is address order, proven with an interleaved registration order
-- [ ] Zero allocations during `lookup` and `forEach`, asserted with a counting `operator new`
-- [ ] A Pattern containing Wildcards is accepted by `lookup` but, for this ticket only, may return 0; documented in the test as pending ticket 05
+- [x] `AddressSpace<T>` compiles with a move-only T such as `std::unique_ptr` and with a capturing lambda type
+- [x] `add` returns Malformed with offset for pattern characters and structural faults; Duplicate on a second registration at the same Address
+- [x] `remove` returns NotFound for an unknown Address and succeeds otherwise; removing a Method that is also a Container leaves its children intact
+- [x] `/synth` and `/synth/freq` coexist and both are found by exact Lookup
+- [x] `lookup` returns 0 and does not call the visitor for an unregistered exact Address
+- [x] `forEach` order is address order, proven with an interleaved registration order
+- [x] Zero allocations during `lookup` and `forEach`, asserted with a counting `operator new`
+- [x] A Pattern containing Wildcards is accepted by `lookup` but, for this ticket only, may return 0; documented in the test as pending ticket 05
