@@ -4,11 +4,11 @@
 
 **Blocked by:** 05 Wildcard Lookup
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Two adapter free functions: one yielding a `Pattern` or error from a message, one running `lookup` for a message
-- [ ] Adapter CMake target appears when oscpp is located and is silently absent otherwise; core target configuration does not mention oscpp
-- [ ] Smoke test builds a packet with oscpp's client API, parses it with the server API, and reaches the expected Methods through the adapter
-- [ ] Example builds with no networking dependency and runs to completion
-- [ ] README covers install via CMake, the three headers, naming conventions, the no-allocation and no-exception guarantees, the non-owning `Pattern` lifetime rule, and a link to the corpus
-- [ ] Adapter naming mirrors oscpp style per the interview decision
+- [x] Two adapter free functions: one yielding a `Pattern` or error from a message, one running `lookup` for a message
+- [x] Adapter CMake target appears when oscpp is located and is silently absent otherwise; core target configuration does not mention oscpp
+- [x] Smoke test builds a packet with oscpp's client API, parses it with the server API, and reaches the expected Methods through the adapter
+- [x] Example builds with no networking dependency and runs to completion
+- [x] README covers install via CMake, the three headers, naming conventions, the no-allocation and no-exception guarantees, the non-owning `Pattern` lifetime rule, and a link to the corpus
+- [x] Adapter naming mirrors oscpp style per the interview decision

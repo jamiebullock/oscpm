@@ -12,6 +12,9 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(Catch2)
 
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+include(Catch)
+
 add_executable(oscpm_tests
     address_space_test.cpp
     allocation_counter.cpp
@@ -25,12 +28,18 @@ target_link_libraries(oscpm_tests PRIVATE oscpm::oscpm Catch2::Catch2WithMain)
 target_compile_definitions(oscpm_tests PRIVATE
     OSCPM_CORPUS_PATH="${PROJECT_SOURCE_DIR}/corpus/matching.txt")
 
-if(MSVC)
-    target_compile_options(oscpm_tests PRIVATE /W4)
-else()
-    target_compile_options(oscpm_tests PRIVATE -Wall -Wextra -Wpedantic)
-endif()
-
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-include(Catch)
+oscpm_strict_warnings(oscpm_tests)
 catch_discover_tests(oscpm_tests)
+
+# The adapter's smoke test is a separate binary so that the core suite never
+# includes oscpp; it is skipped when the adapter target is absent.
+if(TARGET oscpm::oscpp)
+    add_executable(oscpm_oscpp_tests
+        allocation_counter.cpp
+        oscpp_adapter_test.cpp)
+
+    target_link_libraries(oscpm_oscpp_tests PRIVATE oscpm::oscpp Catch2::Catch2WithMain)
+
+    oscpm_strict_warnings(oscpm_oscpp_tests)
+    catch_discover_tests(oscpm_oscpp_tests)
+endif()
