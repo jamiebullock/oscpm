@@ -4,10 +4,10 @@
 
 **Blocked by:** 06 oscpp adapter, example, README; 07 Fuzzing under sanitizers
 
-**Status:** in-progress
+**Status:** done
 
 - [x] GitHub Actions workflow with the three-compiler matrix, `-Wall -Wextra -Wpedantic -Werror` and `/W4 /WX`, running the full test suite and building the example
 - [x] Workflow job running the fuzz target for one minute under ASan and UBSan on a supporting compiler
 - [x] CMake install and export produce a config package; a separate consumer test project uses `find_package` and links both targets
 - [x] `OSCPM_VERSION` macro and CMake project version agree; semantic versioning documented
-- [ ] Repository has a GitHub remote, CI is green, and tag `0.1.0` is pushed
+- [x] Repository has a GitHub remote, CI is green, and tag `0.1.0` is pushed
