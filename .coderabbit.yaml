@@ -1,0 +1,30 @@
+# CodeRabbit review settings. See https://docs.coderabbit.ai/guides/configure-coderabbit
+language: en-GB
+
+reviews:
+  # Substantive findings over style notes.
+  profile: chill
+  high_level_summary: true
+  poem: false
+  # CodeRabbit requests changes when it finds something and approves once
+  # that is resolved, so the review state says whether anything is open.
+  request_changes_workflow: true
+  # Nothing to say on a pull request with no reviewable change.
+  review_status: false
+  path_instructions:
+    - path: '**/*.cpp'
+      instructions: |
+        A .cpp file carries no comments. The bar is a hidden constraint that
+        no rename, refactor or test name could carry, and it is almost never
+        met - flag a comment that restates what the code already says.
+
+        Contracts are documented on the header instead, where the declaration
+        is.
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - develop
+
+chat:
+  auto_reply: true
