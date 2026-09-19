@@ -322,6 +322,31 @@ tests and example needs that too; consuming oscpm needs only 3.14. The
 conformance corpus is replayed against both the matcher and a populated
 address space.
 
+### Fuzzing
+
+A libFuzzer target feeds arbitrary bytes to `Pattern::parse`, `matches`,
+`match` and `validateAddress` under AddressSanitizer and
+UndefinedBehaviorSanitizer, and aborts if the API contradicts itself. It
+is off by default and needs an LLVM clang, since Apple clang, GCC and MSVC
+ship no libFuzzer. On macOS use Homebrew's `llvm`; LLVM 20's
+AddressSanitizer hangs at startup on macOS 26, where `llvm@22` works. To
+build the target and fuzz for ten minutes:
+
+```shell
+cmake -S . -B build-fuzz -DOSCPM_BUILD_FUZZERS=ON -DOSCPM_BUILD_TESTS=OFF -DOSCPM_BUILD_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CXX_COMPILER="$(brew --prefix llvm)/bin/clang++" && cmake --build build-fuzz && build-fuzz/fuzz/oscpm_pattern_fuzz -max_total_time=600 -max_len=16384 build-fuzz/fuzz/corpus build-fuzz/fuzz/seeds
+```
+
+A fuzz input is a pattern, a newline, and an address. The seed corpus is
+generated at build time from `corpus/matching.txt`, one seed per case, so
+the fuzzer starts from every shape the corpus knows, and what it discovers
+accumulates in `build-fuzz/fuzz/corpus` across runs. `-max_len` is raised
+above libFuzzer's 4096-byte default so that a part can exceed
+`maxPatternPartLength`. A crash or sanitizer report writes a `crash-*`
+file into the current directory; its contents are a corpus case waiting
+to be added, and any such finding is a bug in the scanner. With the tests
+on, `ctest` checks the seed corpus and runs every seed through the harness
+once.
+
 ## License
 
 zlib. See [`LICENSE`](LICENSE).

@@ -22,6 +22,9 @@ endif()
 
 option(OSCPM_BUILD_TESTS "Build the oscpm test suite" ${OSCPM_IS_TOP_LEVEL})
 option(OSCPM_BUILD_EXAMPLES "Build the oscpm examples" ${OSCPM_IS_TOP_LEVEL})
+option(OSCPM_BUILD_FUZZERS
+    "Build the libFuzzer target under sanitizers; needs a compiler that ships libFuzzer"
+    OFF)
 option(OSCPM_FETCH_OSCPP
     "Pull oscpp with FetchContent when no oscpp is found, so that the adapter, its test and the example build"
     ${OSCPM_IS_TOP_LEVEL})
@@ -68,4 +71,8 @@ endif()
 
 if(OSCPM_BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+if(OSCPM_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
 endif()

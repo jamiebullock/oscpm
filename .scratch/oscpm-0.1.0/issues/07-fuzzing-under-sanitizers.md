@@ -4,10 +4,10 @@
 
 **Blocked by:** 03 Descendant Operator
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] CMake option enables the fuzz target only on compilers that support libFuzzer, and it is off by default
-- [ ] Fuzz entry splits its input into a Pattern and an Address and exercises `parse`, `matches` and `validateAddress`
-- [ ] Seed corpus generated from the conformance corpus at configure or build time
-- [ ] Documented one-line command to build and run under ASan and UBSan
-- [ ] A ten-minute local run completes with no findings; any findings fixed and added to the conformance corpus as regression cases
+- [x] CMake option enables the fuzz target only on compilers that support libFuzzer, and it is off by default
+- [x] Fuzz entry splits its input into a Pattern and an Address and exercises `parse`, `matches` and `validateAddress`
+- [x] Seed corpus generated from the conformance corpus at configure or build time
+- [x] Documented one-line command to build and run under ASan and UBSan
+- [x] A ten-minute local run completes with no findings; any findings fixed and added to the conformance corpus as regression cases
