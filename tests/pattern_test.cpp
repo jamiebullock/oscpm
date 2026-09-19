@@ -4,6 +4,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <new>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -196,10 +197,13 @@ TEST_CASE("the earliest fault wins between length and syntax", "[pattern]")
 
 TEST_CASE("allocation counter observes the heap", "[realtime]")
 {
+    // The allocation function is called directly: an optimising compiler
+    // may elide a new-expression whose result is only deleted, but never a
+    // direct call to operator new.
     const std::size_t before = oscpm_test::allocationCount();
-    auto* p = new int(1);
+    void* p = ::operator new(sizeof(int));
     CHECK(oscpm_test::allocationCount() == before + 1);
-    delete p;
+    ::operator delete(p);
 }
 
 TEST_CASE("ParseResult exposes the Pattern's text and the Error", "[pattern]")

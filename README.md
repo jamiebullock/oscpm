@@ -1,5 +1,7 @@
 # oscpm
 
+[![CI](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml/badge.svg)](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml)
+
 **oscpm** is a header-only C++17 library for OSC address pattern matching.
 It implements the OSC 1.0 wildcards (`?`, `*`, `[...]`, `{...}`) and the
 OSC 1.1 descendant operator (`//`), reports a malformed pattern distinctly
@@ -43,6 +45,23 @@ add_subdirectory(third_party/oscpm)
 target_link_libraries(myapp PRIVATE oscpm::oscpm)
 ```
 
+**From an install:**
+
+```shell
+cmake -S oscpm -B oscpm-build -DOSCPM_BUILD_TESTS=OFF -DOSCPM_BUILD_EXAMPLES=OFF
+cmake --install oscpm-build --prefix /some/prefix
+```
+
+```cmake
+find_package(oscpm 0.1 CONFIG REQUIRED)
+target_link_libraries(myapp PRIVATE oscpm::oscpm)
+```
+
+The install is the headers and a CMake package config; there is no library
+file. The version check is semantic: while the major version is 0 the
+package satisfies a request for the same minor version, from 1.0 the same
+major version.
+
 **Without CMake:** copy the `include` directory onto your include path.
 There is nothing to compile.
 
@@ -63,6 +82,13 @@ order:
 ```cmake
 target_link_libraries(myapp PRIVATE oscpm::oscpp)  # brings oscpm::oscpm and oscpp::oscpp
 ```
+
+An installed oscpm exports the adapter target too, when oscpp was located
+while oscpm was configured. `find_package(oscpm)` then provides
+`oscpm::oscpp` if oscpp can be found at your configure time, as a target
+you already created or as an installed package, and omits it otherwise.
+Ask for it with `find_package(oscpm CONFIG REQUIRED COMPONENTS oscpp)` to
+make its absence an error rather than a missing target.
 
 ## The three headers
 
@@ -297,6 +323,19 @@ implementations can run it too, and it is the authoritative record of
 oscpm's interpretation. The reasoning behind the larger decisions is in
 [`docs/adr/`](docs/adr/).
 
+## Versioning
+
+oscpm follows [semantic versioning](https://semver.org). While the major
+version is 0 the public API may change in a minor release; from 1.0 it
+changes only in a major release. Each release is a git tag named after the
+version, so `GIT_TAG 0.1.0` above pins one.
+
+`<oscpm/version.hpp>`, which every other header includes, defines
+`OSCPM_VERSION_MAJOR`, `OSCPM_VERSION_MINOR` and `OSCPM_VERSION_PATCH` as
+integers for `#if`, and `OSCPM_VERSION` as the same value in a string for a
+log line. The CMake project version is checked against them at configure
+time, so they cannot drift apart.
+
 ## Naming
 
 Everything lives in the lowercase namespace `oscpm`. Types are PascalCase
@@ -321,6 +360,14 @@ Tests use Catch2 v3 and, for the adapter, oscpp, both pulled with
 tests and example needs that too; consuming oscpm needs only 3.14. The
 conformance corpus is replayed against both the matcher and a populated
 address space.
+
+Two of the tests build `tests/consumer`, a separate CMake project that
+links both targets, once against a fresh install of oscpm and once through
+`FetchContent`, so that both routes are known to deliver what this README
+promises. `-DOSCPM_WARNINGS_AS_ERRORS=ON` turns the strict warning level
+the tests, example and fuzz target are built at into errors; CI builds
+that way on Apple Clang, GCC and MSVC, and fuzzes for a minute under the
+sanitizers on every push.
 
 ### Fuzzing
 

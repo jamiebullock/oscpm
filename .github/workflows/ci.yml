@@ -1,0 +1,101 @@
+# Every push and pull request is built on Apple Clang, GCC and MSVC with
+# warnings as errors, the whole test suite is run, including the consumer
+# projects that install and FetchContent the library, and the fuzz target
+# runs for one minute under AddressSanitizer and UndefinedBehaviorSanitizer.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["*"]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Apple Clang
+            os: macos-latest
+            cmake_args: ""
+          - name: GCC
+            os: ubuntu-latest
+            cmake_args: -DCMAKE_CXX_COMPILER=g++
+          - name: MSVC
+            os: windows-latest
+            cmake_args: ""
+    env:
+      # Catch2 and oscpp are pulled with FetchContent; keep them between runs.
+      FETCHCONTENT_BASE_DIR: ${{ github.workspace }}/deps
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache FetchContent downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.FETCHCONTENT_BASE_DIR }}
+          key: deps-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'tests/CMakeLists.txt') }}
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DOSCPM_WARNINGS_AS_ERRORS=ON
+          -DFETCHCONTENT_BASE_DIR=${{ env.FETCHCONTENT_BASE_DIR }}
+          ${{ matrix.cmake_args }}
+
+      - name: Build the tests and the example
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure --parallel 4
+
+  fuzz:
+    name: Fuzz under ASan and UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install an LLVM clang with libFuzzer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-rt-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_CXX_COMPILER=clang++
+          -DOSCPM_BUILD_FUZZERS=ON
+          -DOSCPM_BUILD_EXAMPLES=OFF
+          -DOSCPM_FETCH_OSCPP=OFF
+          -DOSCPM_WARNINGS_AS_ERRORS=ON
+
+      # Naming the fuzz target fails the job if the libFuzzer probe skipped it,
+      # so this job can never pass vacuously.
+      - name: Build the fuzz target
+        run: cmake --build build --parallel --target oscpm_pattern_fuzz oscpm_tests
+
+      - name: Check the seed corpus and run every seed once
+        run: ctest --test-dir build -R fuzz --output-on-failure
+
+      - name: Fuzz for one minute
+        run: >
+          build/fuzz/oscpm_pattern_fuzz
+          -max_total_time=60 -max_len=16384 -print_final_stats=1
+          build/fuzz/corpus build/fuzz/seeds
+
+      - name: Keep any finding
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: |
+            crash-*
+            leak-*
+            timeout-*
+            oom-*
+          if-no-files-found: ignore

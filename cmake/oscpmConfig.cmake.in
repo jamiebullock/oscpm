@@ -1,0 +1,24 @@
+# oscpm package config. find_package(oscpm CONFIG) always provides
+# oscpm::oscpm. It also provides oscpm::oscpp, the adapter target, when the
+# adapter was installed and oscpp is available: either as a target the
+# consumer already created, for example with FetchContent, or as an
+# installed package. find_package(oscpm CONFIG COMPONENTS oscpp) fails
+# instead of silently omitting the adapter.
+
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/oscpmTargets.cmake")
+
+set(oscpm_oscpp_FOUND FALSE)
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/oscpmOscppTargets.cmake")
+    if(NOT TARGET oscpp::oscpp)
+        # Quietly: the adapter is optional unless the oscpp component was asked for.
+        find_package(oscpp CONFIG QUIET)
+    endif()
+    if(TARGET oscpp::oscpp)
+        include("${CMAKE_CURRENT_LIST_DIR}/oscpmOscppTargets.cmake")
+        set(oscpm_oscpp_FOUND TRUE)
+    endif()
+endif()
+
+check_required_components(oscpm)

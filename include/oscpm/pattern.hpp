@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <oscpm/version.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
