@@ -1,0 +1,67 @@
+name: Tag on develop
+
+# develop is the release branch: every push to it is tagged with the version
+# its commits imply, and that tag is the only place the version is written
+# down. CMake reads it back with git describe.
+#
+# The version moves by a patch for each push. A minor or a major is a decision
+# rather than a consequence, so neither happens unless a commit subject since
+# the last tag says (MINOR) or (MAJOR). Conventional Commit prefixes describe
+# the change and mean nothing here.
+
+on:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: write
+
+# Two pushes in quick succession would otherwise race to create the same tag.
+concurrency:
+  group: tag-on-develop
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag and push version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # the version is computed from the whole history
+
+      - name: Determine version
+        id: version
+        uses: PaulHatch/semantic-version@v6.0.2
+        with:
+          tag_prefix: "v"
+          version_format: "${major}.${minor}.${patch}"
+          # Literal, not regular expressions: the parentheses are part of the
+          # marker, so prose mentioning a major version cannot trigger one.
+          major_pattern: "(MAJOR)"
+          minor_pattern: "(MINOR)"
+          # Subjects only: a marker is a decision, and a decision belongs in
+          # the line everyone reads.
+          search_commit_body: false
+
+      - name: Tag and push version
+        run: |
+          TAG="${{ steps.version.outputs.version_tag }}"
+          echo "Tag to create: $TAG"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            # Already tagged is fine when it is this commit that carries it, and
+            # a mistake worth stopping for when it is another: two commits
+            # cannot both be the release.
+            EXISTING="$(git rev-list -n 1 "$TAG")"
+            if [ "$EXISTING" = "$GITHUB_SHA" ]; then
+              echo "Tag $TAG already points at this commit."
+              exit 0
+            fi
+            echo "Tag $TAG already exists and points at $EXISTING, not $GITHUB_SHA."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"

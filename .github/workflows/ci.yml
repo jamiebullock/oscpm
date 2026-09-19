@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A pull request's runs share a group, so a new push cancels the superseded
+# one. A push to develop gets a group of its own and is never cancelled.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux (GCC)
+            os: ubuntu-latest
+            preset: release
+            configure_args: -DCMAKE_CXX_COMPILER=g++
+          - name: Linux (Clang)
+            os: ubuntu-latest
+            preset: release
+            configure_args: -DCMAKE_CXX_COMPILER=clang++
+          - name: macOS
+            os: macos-latest
+            preset: release
+            configure_args: ''
+          - name: Windows (MSVC)
+            os: windows-latest
+            preset: windows
+            configure_args: ''
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The version comes from the most recent tag, and checkout fetches
+          # none by default: without this every build reports 0.0.0.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      # Formatting is checked by the job below with a pinned clang-format;
+      # the runners' own versions differ from it and from each other.
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }} -DOSCPM_CHECK_FORMAT=OFF ${{ matrix.configure_args }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      # ctest reports success having run nothing when no test is registered.
+      - name: Check the test suite is registered
+        shell: bash
+        run: |
+          ctest --preset ${{ matrix.preset }} -N | grep -E 'Total Tests: [1-9]'
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  format:
+    name: Formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Pinned to the version the tree is formatted with; clang-format's
+      # output changes between releases, so a local check must use the same.
+      - name: Install clang-format
+        run: pip install clang-format==22.1.0
+
+      - name: Check formatting
+        run: |
+          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' | xargs clang-format --style=file --dry-run --Werror
