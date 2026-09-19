@@ -13,7 +13,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(oscpm_tests
-    oscpm_tests.cpp
+    match_tests.cpp
+    validation_tests.cpp
 )
 
 target_link_libraries(oscpm_tests PRIVATE
