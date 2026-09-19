@@ -4,11 +4,11 @@
 
 **Blocked by:** 03 Descendant Operator, 04 Address Space with exact Lookup
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Corpus replay test: every corpus Address is registered, every corpus Pattern is looked up, and the visited set equals the set of Addresses the matcher says Match
-- [ ] Each matching Method is visited exactly once even when several Wildcard paths reach it, e.g. `//a//b` over `/a/a/b`
-- [ ] Visitor order is address order, matching `forEach`
-- [ ] Span convenience truncates without error when storage is too small and reports the true count separately
-- [ ] The pending note from ticket 04 is removed
-- [ ] Zero allocations during wildcard `lookup`, including deep `//` walks
+- [x] Corpus replay test: every corpus Address is registered, every corpus Pattern is looked up, and the visited set equals the set of Addresses the matcher says Match
+- [x] Each matching Method is visited exactly once even when several Wildcard paths reach it, e.g. `//a//b` over `/a/a/b`
+- [x] Visitor order is address order, matching `forEach`
+- [x] Span convenience truncates without error when storage is too small and reports the true count separately
+- [x] The pending note from ticket 04 is removed
+- [x] Zero allocations during wildcard `lookup`, including deep `//` walks

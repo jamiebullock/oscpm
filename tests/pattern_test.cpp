@@ -139,7 +139,8 @@ TEST_CASE("a Pattern Part may be at most maxPatternPartLength bytes", "[pattern]
     const std::string maximal = std::string(oscpm::maxPatternPartLength, 'a');
     const std::string excessive = maximal + 'a';
 
-    const oscpm::ParseResult longest = oscpm::Pattern::parse("/" + maximal);
+    const std::string longestText = "/" + maximal; // Pattern views it (ADR 0003).
+    const oscpm::ParseResult longest = oscpm::Pattern::parse(longestText);
     REQUIRE(longest.ok());
     CHECK(longest.pattern().matches("/" + maximal) == oscpm::MatchResult::Match);
     CHECK(longest.pattern().matches("/" + excessive) == oscpm::MatchResult::NoMatch);

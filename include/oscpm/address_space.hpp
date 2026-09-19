@@ -33,6 +33,23 @@
 
 namespace oscpm {
 
+// A Method as the span-filling Lookup reports it: its Address and a pointer
+// to its value. Both stay valid until the Method is removed or the Address
+// Space is destroyed (ADR 0005). `T` is const in the const overload.
+template <typename T>
+struct Method {
+    std::string_view address;
+    T* value;
+};
+
+// What a span-filling Lookup did: how many Methods it wrote to the caller's
+// storage, and how many the Pattern Matched. The second exceeds the first
+// only when the storage was too small, which is not an error.
+struct LookupCount {
+    std::size_t stored;
+    std::size_t matched;
+};
+
 // The tree of Containers and Methods that Patterns are matched against.
 // Each Method holds a caller-supplied value of type T, which need only be
 // move-constructible: std::unique_ptr and capturing lambdas both work.
@@ -124,26 +141,36 @@ public:
     // Finds every Method whose Address `pattern` Matches and calls
     // `visitor(std::string_view address, T& value)` once for each, in
     // address order. Returns the number of Methods visited. A Pattern with
-    // no Wildcards costs one binary search per Part. Never allocates.
+    // no Wildcards costs one binary search per Part; any other walks the
+    // tree, entering a Container only while the Pattern could still Match
+    // something beneath it. Never allocates. Recursion depth is as for
+    // forEach.
     template <typename Visitor>
     std::size_t lookup(Pattern pattern, Visitor&& visitor)
     {
-        if (Entry* entry = findMethod(pattern.text())) {
-            visitor(std::string_view(entry->address), *entry->value);
-            return 1;
-        }
-        return 0;
+        return lookupWith<T>(pattern, visitor);
     }
 
     // As above, calling `visitor(std::string_view address, const T& value)`.
     template <typename Visitor>
     std::size_t lookup(Pattern pattern, Visitor&& visitor) const
     {
-        if (const Entry* entry = findMethod(pattern.text())) {
-            visitor(std::string_view(entry->address), *entry->value);
-            return 1;
-        }
-        return 0;
+        return lookupWith<const T>(pattern, visitor);
+    }
+
+    // As the visitor form, but writes the matching Methods in address order
+    // to `out`, which has room for `capacity` of them. Once `out` is full
+    // the remaining Methods are counted but not written, so the result's
+    // `matched` may exceed its `stored`. Never allocates.
+    LookupCount lookup(Pattern pattern, Method<T>* out, std::size_t capacity)
+    {
+        return fill<T>(pattern, out, capacity);
+    }
+
+    // As above, writing pointers to const.
+    LookupCount lookup(Pattern pattern, Method<const T>* out, std::size_t capacity) const
+    {
+        return fill<const T>(pattern, out, capacity);
     }
 
 private:
@@ -264,15 +291,24 @@ private:
         }
     }
 
+    // Delivers the Method at `entry` to `visitor`. `Value` is T or const T,
+    // so one helper serves the const and non-const overloads; a const walk
+    // still reaches a mutable Entry through its unique_ptr. Precondition:
+    // `entry` holds a value.
+    template <typename Value, typename Visitor>
+    static void visit(Entry& entry, Visitor& visitor)
+    {
+        visitor(std::string_view(entry.address), static_cast<Value&>(*entry.value));
+    }
+
     // Depth first over `children`, each Entry's own Method before its
-    // children's. `Value` is T or const T, so this serves both overloads
-    // of forEach.
+    // children's.
     template <typename Value, typename Visitor>
     static void forEachIn(const Children& children, Visitor& visitor)
     {
         for (const std::unique_ptr<Entry>& entry : children) {
             if (entry->value) {
-                visitor(std::string_view(entry->address), static_cast<Value&>(*entry->value));
+                visit<Value>(*entry, visitor);
             }
             forEachIn<Value>(entry->children, visitor);
         }
@@ -292,14 +328,66 @@ private:
         return true;
     }
 
-    // The Method a literal Pattern names, or nullptr.
-    Entry* findMethod(std::string_view pattern) const noexcept
+    // Both `lookup` overloads: the literal fast path or the tree walk.
+    template <typename Value, typename Visitor>
+    std::size_t lookupWith(Pattern pattern, Visitor& visitor) const
     {
-        if (!isLiteral(pattern)) {
-            return nullptr; // Wildcard Lookup arrives with ticket 05.
+        const std::string_view text = pattern.text();
+        if (isLiteral(text)) {
+            Entry* entry = find(text);
+            if (entry != nullptr && entry->value) {
+                visit<Value>(*entry, visitor);
+                return 1;
+            }
+            return 0;
         }
-        Entry* entry = find(pattern);
-        return entry != nullptr && entry->value ? entry : nullptr;
+        return lookupIn<Value>(m_children, text, detail::MatchState{}, visitor);
+    }
+
+    // The tree walk behind a wildcard Lookup: depth first over `children`
+    // in address order, so each Method is seen once and a Method before its
+    // children, as forEach. `state` is the matcher's position after the
+    // Parts above `children`. Each child advances a copy of it over its own
+    // Part; after a "//" that can mean resuming from an earlier Part of the
+    // Address, exactly as matching the child's whole Address would. A child
+    // is skipped along with everything beneath it once no Address under it
+    // could Match.
+    template <typename Value, typename Visitor>
+    static std::size_t lookupIn(const Children& children, std::string_view pattern,
+                                const detail::MatchState& state, Visitor& visitor)
+    {
+        std::size_t count = 0;
+        for (const std::unique_ptr<Entry>& entry : children) {
+            detail::MatchState next = state;
+            if (!detail::matchParts(next, pattern, entry->address, entry->partStart)) {
+                continue;
+            }
+            if (next.complete(pattern)) {
+                if (entry->value) {
+                    visit<Value>(*entry, visitor);
+                    ++count;
+                }
+                if (!next.canAbsorbMore()) {
+                    continue;
+                }
+            }
+            count += lookupIn<Value>(entry->children, pattern, next, visitor);
+        }
+        return count;
+    }
+
+    // Both span-filling overloads, built on the visitor form.
+    template <typename Value>
+    LookupCount fill(Pattern pattern, Method<Value>* out, std::size_t capacity) const
+    {
+        LookupCount count{0, 0};
+        const auto store = [&](std::string_view address, Value& value) {
+            if (count.stored < capacity) {
+                out[count.stored++] = Method<Value>{address, &value};
+            }
+        };
+        count.matched = lookupWith<Value>(pattern, store);
+        return count;
     }
 
     Children m_children; // The root's children, sorted by part().

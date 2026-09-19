@@ -15,8 +15,10 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(oscpm_tests
     address_space_test.cpp
     allocation_counter.cpp
+    corpus.cpp
     corpus_test.cpp
-    pattern_test.cpp)
+    pattern_test.cpp
+    wildcard_lookup_test.cpp)
 
 target_link_libraries(oscpm_tests PRIVATE oscpm::oscpm Catch2::Catch2WithMain)
 

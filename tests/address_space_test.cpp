@@ -312,7 +312,7 @@ TEST_CASE("lookup and forEach do not allocate", "[address_space][realtime]")
 
     const std::size_t found = space.lookup(hit, visit);
     const std::size_t notFound = space.lookup(miss, visit);
-    space.lookup(wild, visit); // Pending ticket 05; only its allocation is asserted.
+    const std::size_t wildFound = space.lookup(wild, visit);
     space.forEach(visit);
     const std::size_t constFound =
         std::as_const(space).lookup(hit, [&](std::string_view, const std::unique_ptr<int>&) {
@@ -326,25 +326,6 @@ TEST_CASE("lookup and forEach do not allocate", "[address_space][realtime]")
     CHECK(found == 1);
     CHECK(notFound == 0);
     CHECK(constFound == 1);
-    CHECK(visits == 1 + 6 + 1 + 6); // The wildcard Lookup finds nothing yet.
-}
-
-// Wildcard Lookup is ticket 05. Until then a Pattern with Wildcards or the
-// Descendant Operator is accepted and finds nothing, even at an Address
-// the Pattern would Match.
-TEST_CASE("lookup with a Wildcard Pattern is accepted and pending ticket 05", "[address_space]")
-{
-    oscpm::AddressSpace<int> space;
-    REQUIRE_FALSE(space.add("/synth/freq", 1).has_value());
-    REQUIRE_FALSE(space.add("/synth/amp", 2).has_value());
-
-    int calls = 0;
-    for (const char* pattern : {"/synth/*", "/synth/?req", "/synth/[fa]*", "/synth/{freq,amp}",
-                                "//freq", "/synth//amp"}) {
-        INFO(pattern);
-        const oscpm::ParseResult parsed = oscpm::Pattern::parse(pattern);
-        REQUIRE(parsed.ok());
-        CHECK(space.lookup(parsed.pattern(), [&](std::string_view, int&) { ++calls; }) == 0);
-    }
-    CHECK(calls == 0);
+    CHECK(wildFound == 2);
+    CHECK(visits == 1 + 2 + 6 + 1 + 6);
 }

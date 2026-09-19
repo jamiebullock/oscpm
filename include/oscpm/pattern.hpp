@@ -438,9 +438,34 @@ constexpr std::size_t partEnd(std::string_view text, std::size_t start) noexcept
     return slash == std::string_view::npos ? text.size() : slash;
 }
 
-// Tests a well-formed Pattern against a well-formed Address Part by Part.
-// `p` and `a` are the first byte of the current Part on each side; a side is
-// exhausted once its position passes the end of its text.
+// Where a Part-by-Part walk of a Pattern over an Address stands between two
+// Address Parts. `matchParts` advances it over the Parts of one Address;
+// AddressSpace carries one per Container so that a child continues from
+// where its parent stopped rather than rematching the whole Address.
+struct MatchState {
+    static constexpr std::size_t none = std::string_view::npos;
+
+    std::size_t p = 1;          // The first byte of the current Pattern Part.
+    std::size_t resumeP = none; // The Part after the most recent "//".
+    std::size_t resumeA = none; // The Address Part that "//" currently ends before.
+
+    // Whether the Address consumed so far is one the Pattern Matches.
+    constexpr bool complete(std::string_view pattern) const noexcept
+    {
+        return p >= pattern.size();
+    }
+
+    // Whether a longer Address could still Match once the Pattern is used
+    // up: only if a "//" has been passed, since it can absorb more Parts.
+    constexpr bool canAbsorbMore() const noexcept { return resumeP != none; }
+};
+
+// Advances `state` over the Parts of a well-formed Address from byte `a` to
+// the end of `address`, against a well-formed Pattern. Returns false once
+// no Address beginning with `address` can Match: a Part failed and no "//"
+// before it can absorb more. Returns true otherwise, with `state` ready for
+// the Parts that follow, and `state.complete(pattern)` saying whether
+// `address` itself Matches.
 //
 // The Descendant Operator matches zero or more whole Parts. Each "//" is
 // first taken to match zero Parts and the Parts after it are matched
@@ -451,39 +476,47 @@ constexpr std::size_t partEnd(std::string_view text, std::size_t start) noexcept
 // can absorb instead. This is the single-restart-point walk that filename
 // matchers use for '*', and it bounds the work by the product of the two
 // Part counts with no recursion, so no Pattern can send it exponential.
-constexpr bool matchAddress(std::string_view pattern, std::string_view address) noexcept
+//
+// Because the walk reads Address bytes left to right and only ever resumes
+// from a Part it has already passed, its state on reaching the end of an
+// Address is the state it would be in at that same byte of any longer
+// Address with the same prefix; that is what lets a tree walk carry it.
+constexpr bool matchParts(MatchState& state, std::string_view pattern, std::string_view address,
+                          std::size_t a) noexcept
 {
-    constexpr std::size_t none = std::string_view::npos;
-    std::size_t p = 1;
-    std::size_t a = 1;
-    std::size_t resumeP = none; // The Part after the most recent "//".
-    std::size_t resumeA = none; // The Address Part that "//" currently ends before.
     for (;;) {
-        if (p < pattern.size() && pattern[p] == '/') {
-            resumeP = ++p;
-            resumeA = a;
+        if (state.p < pattern.size() && pattern[state.p] == '/') {
+            state.resumeP = ++state.p;
+            state.resumeA = a;
             continue;
         }
         if (a >= address.size()) {
-            return p >= pattern.size();
+            return true;
         }
-        if (p < pattern.size()) {
-            const std::size_t patternEnd = partEnd(pattern, p);
+        if (state.p < pattern.size()) {
+            const std::size_t patternEnd = partEnd(pattern, state.p);
             const std::size_t addressEnd = partEnd(address, a);
-            if (matchPart(pattern.substr(p, patternEnd - p),
+            if (matchPart(pattern.substr(state.p, patternEnd - state.p),
                           address.substr(a, addressEnd - a))) {
-                p = patternEnd + 1;
+                state.p = patternEnd + 1;
                 a = addressEnd + 1;
                 continue;
             }
         }
-        if (resumeP == none) {
+        if (state.resumeP == MatchState::none) {
             return false;
         }
-        resumeA = partEnd(address, resumeA) + 1;
-        p = resumeP;
-        a = resumeA;
+        state.resumeA = partEnd(address, state.resumeA) + 1;
+        state.p = state.resumeP;
+        a = state.resumeA;
     }
+}
+
+// Tests a well-formed Pattern against a well-formed Address.
+constexpr bool matchAddress(std::string_view pattern, std::string_view address) noexcept
+{
+    MatchState state;
+    return matchParts(state, pattern, address, 1) && state.complete(pattern);
 }
 
 } // namespace detail
