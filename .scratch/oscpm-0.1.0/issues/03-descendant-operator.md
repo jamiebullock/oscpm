@@ -4,9 +4,9 @@
 
 **Blocked by:** 02 Within-Part Wildcards
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Corpus section for every Q10 decision: leading, middle, zero-part, multi-part, trailing rejected, `///` rejected
-- [ ] Corpus cases combining `//` with `*`, `?`, Character Class and Alternative on both sides, including cases that require backtracking past a false first match
-- [ ] Multiple `//` in one Pattern, e.g. `//a//b`
-- [ ] Still no exceptions and no allocation in `parse` or `matches`
+- [x] Corpus section for every Q10 decision: leading, middle, zero-part, multi-part, trailing rejected, `///` rejected
+- [x] Corpus cases combining `//` with `*`, `?`, Character Class and Alternative on both sides, including cases that require backtracking past a false first match
+- [x] Multiple `//` in one Pattern, e.g. `//a//b`
+- [x] Still no exceptions and no allocation in `parse` or `matches`

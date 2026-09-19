@@ -22,6 +22,7 @@ TEST_CASE("parse and matches do not allocate", "[pattern][realtime]")
     const std::string_view malformedAddress = "/synth/1/freq/";
     const std::string_view wildcards = "/synth/?[0-9]*/{freq,amp}";
     const std::string_view backtracking = "/*{a,ab}*b";
+    const std::string_view descendant = "//synth//{freq,amp}";
 
     const std::size_t before = oscpm_test::allocationCount();
 
@@ -35,6 +36,8 @@ TEST_CASE("parse and matches do not allocate", "[pattern][realtime]")
     const std::optional<oscpm::Error> checked = oscpm::validateAddress(malformedAddress);
     const oscpm::MatchResult wild = oscpm::match(wildcards, "/synth/12abc/amp");
     const oscpm::MatchResult backtracked = oscpm::match(backtracking, "/xxabxxb");
+    const oscpm::MatchResult descended = oscpm::match(descendant, "/a/synth/1/osc/amp");
+    const oscpm::ParseResult trailing = oscpm::Pattern::parse("/a//");
 
     const std::size_t after = oscpm_test::allocationCount();
 
@@ -49,6 +52,8 @@ TEST_CASE("parse and matches do not allocate", "[pattern][realtime]")
     CHECK(checked.has_value());
     CHECK(wild == oscpm::MatchResult::Match);
     CHECK(backtracked == oscpm::MatchResult::Match);
+    CHECK(descended == oscpm::MatchResult::Match);
+    CHECK_FALSE(trailing.ok());
 }
 
 // A constant expression cannot throw or allocate, so evaluating the matcher
@@ -59,6 +64,10 @@ TEST_CASE("parse and match are usable in constant expressions", "[pattern][realt
     STATIC_REQUIRE(oscpm::match("/ch[!0-4]", "/ch7") == oscpm::MatchResult::Match);
     STATIC_REQUIRE(oscpm::match("/{a,ab}{b,bb}", "/abbb") == oscpm::MatchResult::Match);
     STATIC_REQUIRE(oscpm::match("/synth/?", "/synth/12") == oscpm::MatchResult::NoMatch);
+    STATIC_REQUIRE(oscpm::match("//a/b", "/a/x/a/b") == oscpm::MatchResult::Match);
+    STATIC_REQUIRE(oscpm::match("/a//b//c", "/a/c/b") == oscpm::MatchResult::NoMatch);
+    STATIC_REQUIRE(oscpm::Pattern::parse("/a///b").error().kind == oscpm::ErrorKind::EmptyPart);
+    STATIC_REQUIRE(oscpm::Pattern::parse("/a///b").error().offset == 4);
     STATIC_REQUIRE(oscpm::match("/[a", "/a") == oscpm::MatchResult::Malformed);
     STATIC_REQUIRE(oscpm::Pattern::parse("/{a{b}").error().kind
                    == oscpm::ErrorKind::NestedAlternative);
@@ -106,6 +115,23 @@ TEST_CASE("Patterns that defeat a backtracking matcher still match", "[pattern][
     REQUIRE(manyEmptyMembers.ok());
     CHECK(manyEmptyMembers.pattern().matches("/" + std::string(4000, 'a'))
           == oscpm::MatchResult::Match);
+
+    // Across Parts, "//a//a//a..." against "/a/a/a.../a/b" makes a recursive
+    // matcher try every way of distributing the Address Parts among the
+    // operators before it can say NoMatch.
+    std::string descendants;
+    for (int i = 0; i < 200; ++i) {
+        descendants += "//a";
+    }
+    std::string deep;
+    for (int i = 0; i < 2000; ++i) {
+        deep += "/a";
+    }
+    const oscpm::ParseResult descended = oscpm::Pattern::parse(descendants);
+    REQUIRE(descended.ok());
+    CHECK(descended.pattern().matches(deep) == oscpm::MatchResult::Match);
+    CHECK(descended.pattern().matches(deep + "/b") == oscpm::MatchResult::NoMatch);
+    CHECK(descended.pattern().matches("/a") == oscpm::MatchResult::NoMatch);
 }
 
 TEST_CASE("a Pattern Part may be at most maxPatternPartLength bytes", "[pattern]")

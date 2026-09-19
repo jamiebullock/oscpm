@@ -32,7 +32,8 @@ enum class ErrorKind : unsigned char {
     MissingLeadingSlash, // The first byte is not '/'.
     BareRoot,            // The input is exactly "/".
     TrailingSlash,       // The input ends in '/'.
-    EmptyPart,           // Two adjacent '/'. In a Pattern, until "//" is supported.
+    EmptyPart,           // Two adjacent '/' in an Address, or three in a Pattern,
+                         // where "//" is the Descendant Operator.
     IllegalCharacter,    // A pattern character in an Address, '#' or space anywhere,
                          // or a ']', '}' or ',' outside its construct in a Pattern.
     EmptyCharacterClass, // "[]" or "[!]".
@@ -122,9 +123,9 @@ constexpr std::optional<Error> validateAddress(std::string_view text) noexcept
 }
 
 // One left-to-right scan of a Pattern: the structural rules shared with
-// Addresses plus the within-Part Wildcard syntax. The first fault by byte
-// offset wins; an unterminated '[' or '{' faults at its opening byte and so
-// is reported before anything inside it.
+// Addresses, the Descendant Operator, and the within-Part Wildcard syntax.
+// The first fault by byte offset wins; an unterminated '[' or '{' faults at
+// its opening byte and so is reported before anything inside it.
 constexpr std::optional<Error> scanPatternSyntax(std::string_view text) noexcept
 {
     if (text.empty() || text.front() != '/') {
@@ -136,8 +137,12 @@ constexpr std::optional<Error> scanPatternSyntax(std::string_view text) noexcept
     for (std::size_t i = 1; i < text.size(); ++i) {
         const char c = text[i];
         if (c == '/' && text[i - 1] == '/') {
-            // The Descendant Operator gains meaning in a later ticket.
-            return Error{ErrorKind::EmptyPart, i};
+            // "//" is the Descendant Operator (ADR 0002). A third '/' closes
+            // an empty Part; a trailing "//" is caught by the final check.
+            if (i >= 2 && text[i - 2] == '/') {
+                return Error{ErrorKind::EmptyPart, i};
+            }
+            continue;
         }
         if (isReserved(c)) {
             return Error{ErrorKind::IllegalCharacter, i};
@@ -418,34 +423,59 @@ constexpr bool matchPart(std::string_view pattern, std::string_view address) noe
     return sets[current].test(pattern.size());
 }
 
-// The Part beginning at `start`, and whether another Part follows it, in
-// which case `start` is moved to that Part's first byte.
-constexpr std::string_view nextPart(std::string_view text, std::size_t& start,
-                                    bool& more) noexcept
+// The byte just past the Part beginning at `start`: the next '/' or the
+// end of the text.
+constexpr std::size_t partEnd(std::string_view text, std::size_t start) noexcept
 {
-    const std::size_t end = text.find('/', start);
-    more = end != std::string_view::npos;
-    const std::string_view part = text.substr(start, more ? end - start : std::string_view::npos);
-    start = end + 1;
-    return part;
+    const std::size_t slash = text.find('/', start);
+    return slash == std::string_view::npos ? text.size() : slash;
 }
 
 // Tests a well-formed Pattern against a well-formed Address Part by Part.
+// `p` and `a` are the first byte of the current Part on each side; a side is
+// exhausted once its position passes the end of its text.
+//
+// The Descendant Operator matches zero or more whole Parts. Each "//" is
+// first taken to match zero Parts and the Parts after it are matched
+// greedily; when one of them fails, or the Pattern runs out before the
+// Address does, the walk resumes just after the most recent "//" with that
+// operator absorbing one more Address Part. Only the most recent "//" need
+// be revisited: an earlier one could only absorb Parts that the later one
+// can absorb instead. This is the single-restart-point walk that filename
+// matchers use for '*', and it bounds the work by the product of the two
+// Part counts with no recursion, so no Pattern can send it exponential.
 constexpr bool matchAddress(std::string_view pattern, std::string_view address) noexcept
 {
+    constexpr std::size_t none = std::string_view::npos;
     std::size_t p = 1;
     std::size_t a = 1;
+    std::size_t resumeP = none; // The Part after the most recent "//".
+    std::size_t resumeA = none; // The Address Part that "//" currently ends before.
     for (;;) {
-        bool morePattern = false;
-        bool moreAddress = false;
-        const std::string_view patternPart = nextPart(pattern, p, morePattern);
-        const std::string_view addressPart = nextPart(address, a, moreAddress);
-        if (!matchPart(patternPart, addressPart)) {
+        if (p < pattern.size() && pattern[p] == '/') {
+            resumeP = ++p;
+            resumeA = a;
+            continue;
+        }
+        if (a >= address.size()) {
+            return p >= pattern.size();
+        }
+        if (p < pattern.size()) {
+            const std::size_t patternEnd = partEnd(pattern, p);
+            const std::size_t addressEnd = partEnd(address, a);
+            if (matchPart(pattern.substr(p, patternEnd - p),
+                          address.substr(a, addressEnd - a))) {
+                p = patternEnd + 1;
+                a = addressEnd + 1;
+                continue;
+            }
+        }
+        if (resumeP == none) {
             return false;
         }
-        if (!morePattern || !moreAddress) {
-            return morePattern == moreAddress;
-        }
+        resumeA = partEnd(address, resumeA) + 1;
+        p = resumeP;
+        a = resumeA;
     }
 }
 
