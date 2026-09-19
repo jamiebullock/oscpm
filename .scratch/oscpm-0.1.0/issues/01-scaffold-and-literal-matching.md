@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] CMake interface target builds header-only with C++17, Catch2 v3 pulled via FetchContent, tests run with `ctest`
-- [ ] Corpus file format documented at its head; loader reports the line number of any failing case
-- [ ] `Pattern::parse` returns either a trivially copyable non-owning `Pattern` or an error with kind and byte offset (ADR 0003)
-- [ ] `matches` returns a tri-state result; `match(pattern, address)` does parse-then-match
-- [ ] `validateAddress` rejects pattern characters `? * [ ] { } , #` and space, and every structural rule, each with the right offset
-- [ ] Corpus sections cover: exact match, mismatch, structural Malformed for both Pattern and Address
-- [ ] No exceptions, no allocation in `parse` or `matches` (asserted with a counting `operator new` in the test)
-- [ ] Clean at `-Wall -Wextra -Wpedantic` on the local compiler
+- [x] CMake interface target builds header-only with C++17, Catch2 v3 pulled via FetchContent, tests run with `ctest`
+- [x] Corpus file format documented at its head; loader reports the line number of any failing case
+- [x] `Pattern::parse` returns either a trivially copyable non-owning `Pattern` or an error with kind and byte offset (ADR 0003)
+- [x] `matches` returns a tri-state result; `match(pattern, address)` does parse-then-match
+- [x] `validateAddress` rejects pattern characters `? * [ ] { } , #` and space, and every structural rule, each with the right offset
+- [x] Corpus sections cover: exact match, mismatch, structural Malformed for both Pattern and Address
+- [x] No exceptions, no allocation in `parse` or `matches` (asserted with a counting `operator new` in the test)
+- [x] Clean at `-Wall -Wextra -Wpedantic` on the local compiler
