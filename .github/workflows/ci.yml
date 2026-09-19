@@ -41,7 +41,7 @@ jobs:
             configure_args: ''
           - name: Windows (MSVC)
             os: windows-latest
-            preset: windows
+            preset: release
             configure_args: ''
     steps:
       - uses: actions/checkout@v6
@@ -58,6 +58,14 @@ jobs:
       - name: Install Ninja (macOS)
         if: runner.os == 'macOS'
         run: brew install ninja
+
+      # Ninja needs cl.exe on the PATH, which only a Visual Studio developer
+      # environment arranges. The job uses the Ninja preset so it does not
+      # depend on which Visual Studio release the runner image carries.
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+        with:
+          arch: x64
 
       # Formatting is checked by the job below with a pinned clang-format;
       # the runners' own versions differ from it and from each other.
