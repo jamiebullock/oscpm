@@ -486,32 +486,41 @@ struct MatchState {
 constexpr bool matchParts(MatchState& state, std::string_view pattern, std::string_view address,
                           std::size_t a) noexcept
 {
-    for (;;) {
+    // One exit at the end rather than returns inside an endless loop: MSVC
+    // rejects a constexpr function whose only returns sit inside for (;;).
+    bool walking = true;
+    bool viable = false;
+    while (walking) {
         if (state.p < pattern.size() && pattern[state.p] == '/') {
             state.resumeP = ++state.p;
             state.resumeA = a;
-            continue;
-        }
-        if (a >= address.size()) {
-            return true;
-        }
-        if (state.p < pattern.size()) {
-            const std::size_t patternEnd = partEnd(pattern, state.p);
-            const std::size_t addressEnd = partEnd(address, a);
-            if (matchPart(pattern.substr(state.p, patternEnd - state.p),
-                          address.substr(a, addressEnd - a))) {
-                state.p = patternEnd + 1;
-                a = addressEnd + 1;
-                continue;
+        } else if (a >= address.size()) {
+            viable = true;
+            walking = false;
+        } else {
+            bool advanced = false;
+            if (state.p < pattern.size()) {
+                const std::size_t patternEnd = partEnd(pattern, state.p);
+                const std::size_t addressEnd = partEnd(address, a);
+                if (matchPart(pattern.substr(state.p, patternEnd - state.p),
+                              address.substr(a, addressEnd - a))) {
+                    state.p = patternEnd + 1;
+                    a = addressEnd + 1;
+                    advanced = true;
+                }
+            }
+            if (!advanced) {
+                if (state.resumeP == MatchState::none) {
+                    walking = false;
+                } else {
+                    state.resumeA = partEnd(address, state.resumeA) + 1;
+                    state.p = state.resumeP;
+                    a = state.resumeA;
+                }
             }
         }
-        if (state.resumeP == MatchState::none) {
-            return false;
-        }
-        state.resumeA = partEnd(address, state.resumeA) + 1;
-        state.p = state.resumeP;
-        a = state.resumeA;
     }
+    return viable;
 }
 
 // Tests a well-formed Pattern against a well-formed Address.
