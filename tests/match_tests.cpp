@@ -27,14 +27,12 @@ TEST_CASE("a pattern without special characters matches only itself")
 
 TEST_CASE("pattern and address must have the same number of parts")
 {
-    STATIC_CHECK_FALSE(match("a/b", "/a/b"));
     STATIC_CHECK_FALSE(match("/a/b", "a/b"));
-    STATIC_CHECK(match("a/b", "a/b"));
+    STATIC_CHECK_FALSE(match("/a", "a"));
     STATIC_CHECK(match("/", "/"));
-    STATIC_CHECK(match("", ""));
-    STATIC_CHECK_FALSE(match("", "/"));
     STATIC_CHECK_FALSE(match("/", ""));
     STATIC_CHECK_FALSE(match("/", "/a"));
+    STATIC_CHECK_FALSE(match("/a", "/"));
 }
 
 TEST_CASE("? matches exactly one byte within a part")
@@ -204,11 +202,19 @@ TEST_CASE("special characters inside a brace list are literal")
     STATIC_CHECK_FALSE(match("/{[a],b}", "/a"));
 }
 
-TEST_CASE("a nested or unclosed brace list matches nothing")
+TEST_CASE("a brace inside a brace list is literal and the first closing brace ends the list")
 {
     STATIC_CHECK_FALSE(match("/{a,{b,c}}", "/a"));
     STATIC_CHECK_FALSE(match("/{a,{b,c}}", "/b"));
+    STATIC_CHECK_FALSE(match("/{a,{b,c}}", "/c"));
     STATIC_CHECK_FALSE(match("/{a,{b,c}}", "/{b,c}"));
+    STATIC_CHECK(match("/{a,{b,c}}", "/a}"));
+    STATIC_CHECK(match("/{a,{b,c}}", "/{b}"));
+    STATIC_CHECK(match("/{a,{b,c}}", "/c}"));
+}
+
+TEST_CASE("an unclosed brace list matches nothing")
+{
     STATIC_CHECK_FALSE(match("/{a,b", "/a"));
     STATIC_CHECK_FALSE(match("/{a,b", "/{a,b"));
     STATIC_CHECK_FALSE(match("/{", "/{"));
@@ -254,18 +260,36 @@ TEST_CASE("a run of more than two slashes is one operator")
     STATIC_CHECK_FALSE(match("///z/w", "/xy/z/w/u"));
 }
 
-TEST_CASE("a trailing slash is an empty part, not the operator")
+TEST_CASE("a single trailing slash is an empty part")
 {
     STATIC_CHECK_FALSE(match("/a/", "/a"));
     STATIC_CHECK(match("/a/", "/a/"));
     STATIC_CHECK_FALSE(match("/a/", "/a/b"));
-    STATIC_CHECK_FALSE(match("/a//", "/a"));
-    STATIC_CHECK(match("/a//", "/a/"));
-    STATIC_CHECK_FALSE(match("/a//", "/a/b"));
-    STATIC_CHECK(match("/a//", "/a/b/"));
+    STATIC_CHECK_FALSE(match("//a//b/", "/a/b"));
+}
+
+TEST_CASE("a trailing run of slashes matches the part before it and every descendant")
+{
+    STATIC_CHECK(match("/a//", "/a"));
+    STATIC_CHECK(match("/a//", "/a/b"));
+    STATIC_CHECK(match("/a//", "/a/b/c"));
+    STATIC_CHECK_FALSE(match("/a//", "/b"));
+    STATIC_CHECK_FALSE(match("/a//", "/ab"));
+    STATIC_CHECK(match("/a///", "/a/b"));
+    STATIC_CHECK(match("/a/b//", "/a/b/c/d"));
+    STATIC_CHECK_FALSE(match("/a/b//", "/a/c"));
+    STATIC_CHECK(match("//a//", "/a"));
+    STATIC_CHECK(match("//a//", "/x/a/y"));
+    STATIC_CHECK_FALSE(match("//a//", "/x/b"));
+}
+
+TEST_CASE("a bare run of slashes matches every address")
+{
     STATIC_CHECK(match("//", "/"));
-    STATIC_CHECK_FALSE(match("//", "/a"));
-    STATIC_CHECK(match("//", "//"));
+    STATIC_CHECK(match("//", "/a"));
+    STATIC_CHECK(match("//", "/a/b/c"));
+    STATIC_CHECK(match("///", "/x/y"));
+    STATIC_CHECK_FALSE(match("//", ""));
 }
 
 TEST_CASE("several // operators in one pattern")
