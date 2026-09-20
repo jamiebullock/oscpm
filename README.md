@@ -31,8 +31,8 @@ printable ASCII, closes every `[` and `{`, and nests no brace list. `match`
 validates neither argument: a malformed pattern matches nothing, and an
 address is compared byte for byte.
 
-With CMake, `find_package(oscpm)` or `add_subdirectory`, then link
-`oscpm::oscpm`.
+With CMake 3.25 or later, `find_package(oscpm)` or `add_subdirectory`, then
+link `oscpm::oscpm`.
 
 ## Matching rules
 
