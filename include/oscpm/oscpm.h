@@ -19,8 +19,10 @@ namespace oscpm
 /// matches, and `validateAddress` reports it as `PartTooLong`.
 constexpr std::size_t kMaxAddressPartLength = 4095;
 
-/// A fault in a pattern (the first three), in an address (the next four)
-/// or in an `AddressSpace` operation (the last two).
+/// A fault in a pattern, in an address or in an `AddressSpace` operation
+/// (the last two). `MissingLeadingSlash` is reported for both a pattern
+/// and an address; `UnterminatedClass` and `UnterminatedBraces` only for
+/// a pattern; the four that follow them only for an address.
 enum class Error
 {
     MissingLeadingSlash,

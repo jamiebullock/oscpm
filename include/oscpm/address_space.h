@@ -32,7 +32,9 @@ constexpr std::size_t kMaxMemoPatternLength = 256;
 /// `add` or `remove` when `Memo` is true. The memo has `1 << CacheBits`
 /// entries and keeps a result of at most `InlineResults` methods for a
 /// pattern of at most `kMaxMemoPatternLength` bytes. `add` and `remove`
-/// allocate; `lookup` and `forEach` never do. Not safe for concurrent use.
+/// allocate; `lookup` and `forEach` never do. A moved-from space is empty
+/// and usable, without a memo until it is assigned to. Not safe for
+/// concurrent use.
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 64>
 class AddressSpace
 {
@@ -183,7 +185,7 @@ private:
             return 1;
         }
 
-        const bool memoisable = Memo && text.size() <= kMaxMemoPatternLength;
+        const bool memoisable = !m_memo.empty() && text.size() <= kMaxMemoPatternLength;
         Bucket* bucket = memoisable ? &m_memo[bucketIndex(text)] : nullptr;
         if (bucket != nullptr && bucket->generation == m_generation && holds(*bucket, text))
         {

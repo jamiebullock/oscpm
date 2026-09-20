@@ -200,6 +200,28 @@ TEST_CASE("an address space without a memo behaves the same")
     CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
 }
 
+TEST_CASE("a moved address space keeps its methods and the moved-from one stays usable")
+{
+    AddressSpace<int> source;
+    populate(source, { "/a/1", "/a/2" });
+    CHECK(lookupAddresses(source, "/a/*") == Addresses { "/a/1", "/a/2" });
+
+    AddressSpace<int> constructed(std::move(source));
+    CHECK(lookupAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(lookupAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(lookupAddresses(source, "/a/*") == Addresses { });
+    REQUIRE_FALSE(source.add("/b", 0).has_value());
+    CHECK(lookupAddresses(source, "/*") == Addresses { "/b" });
+    CHECK(lookupAddresses(source, "/*") == Addresses { "/b" });
+
+    AddressSpace<int> assigned;
+    assigned = std::move(constructed);
+    CHECK(lookupAddresses(assigned, "/a/*") == Addresses { "/a/1", "/a/2" });
+    REQUIRE_FALSE(constructed.add("/c", 0).has_value());
+    CHECK(lookupAddresses(constructed, "//") == Addresses { "/c" });
+    CHECK(lookupAddresses(constructed, "//") == Addresses { "/c" });
+}
+
 TEST_CASE("a move-only value type is stored and reached through lookup")
 {
     AddressSpace<std::unique_ptr<int>> space;
