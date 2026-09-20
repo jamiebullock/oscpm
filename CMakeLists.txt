@@ -48,6 +48,7 @@ install(
 
 option(OSCPM_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
 option(OSCPM_CHECK_FORMAT "Fail the build on clang-format violations" ${PROJECT_IS_TOP_LEVEL})
+option(OSCPM_BUILD_FUZZERS "Build the libFuzzer target under sanitizers; needs a compiler that ships libFuzzer" OFF)
 
 if(OSCPM_CHECK_FORMAT)
     include(CheckFormat)
@@ -55,11 +56,19 @@ if(OSCPM_CHECK_FORMAT)
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/fuzz/*.cpp
     )
     add_clang_format_check(SOURCES ${OSCPM_FORMATTED_SOURCES})
 endif()
 
-if(OSCPM_BUILD_TESTS)
+if(OSCPM_BUILD_TESTS OR OSCPM_BUILD_FUZZERS)
     include(CTest)
+endif()
+
+if(OSCPM_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+if(OSCPM_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
 endif()
