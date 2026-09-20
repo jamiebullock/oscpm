@@ -102,4 +102,46 @@ jobs:
 
       - name: Check formatting
         run: |
-          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' | xargs clang-format --style=file --dry-run --Werror
+          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'fuzz/*.cpp' | xargs clang-format --style=file --dry-run --Werror
+
+  fuzz:
+    name: Fuzz under ASan and UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Install Ninja and an LLVM clang with libFuzzer
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang libclang-rt-dev
+
+      - name: Configure
+        run: cmake --preset release -DCMAKE_CXX_COMPILER=clang++ -DOSCPM_BUILD_FUZZERS=ON -DOSCPM_CHECK_FORMAT=OFF
+
+      # Naming the target fails the build when the libFuzzer probe skipped
+      # it, so the job cannot pass without running the fuzzer.
+      - name: Build the fuzz target
+        run: cmake --build --preset release --target oscpm_pattern_fuzz
+
+      - name: Check the seeds and run each once
+        run: ctest --preset release -R fuzz --output-on-failure
+
+      - name: Fuzz for one minute
+        run: build/release/fuzz/oscpm_pattern_fuzz -max_total_time=60 -max_len=16384 -print_final_stats=1 build/release/fuzz/corpus build/release/fuzz/seeds
+
+      - name: Keep any finding
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-findings
+          path: |
+            crash-*
+            leak-*
+            timeout-*
+            oom-*
+            build/release/fuzz/crash-*
+            build/release/fuzz/leak-*
+            build/release/fuzz/timeout-*
+            build/release/fuzz/oom-*
+          if-no-files-found: ignore

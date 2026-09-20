@@ -133,7 +133,9 @@ ctest --preset release
 
 `debug` and `release` use Ninja; `windows` uses Visual Studio 2022. The tests
 use Catch2, fetched at configure time; `DEPENDENCIES.md` lists what is fetched
-and why.
+and why. `-DOSCPM_BUILD_FUZZERS=ON` adds a libFuzzer target under
+AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the corpus; it
+needs an LLVM clang.
 
 ## Licence
 
