@@ -72,6 +72,41 @@ oscpm::validateAddress("/synth/1/"); // TrailingSlash at 8
 (`PartTooLong`). `match` rejects a pattern `validatePattern` faults and never
 validates the address, which is compared byte for byte.
 
+### Address space
+
+`oscpm/address_space.h` adds a small dispatcher: a set of methods, each a
+well-formed address with a value, that an incoming pattern is fanned out to.
+
+```cpp
+#include <oscpm/address_space.h>
+
+oscpm::AddressSpace<Handler> methods;
+methods.add("/synth/1/freq", setFrequency); // Duplicate or a validateAddress fault
+methods.remove("/synth/1/freq");            // NotFound or a validateAddress fault
+
+if (const auto parsed = oscpm::Pattern::parse(message.address()))
+{
+    methods.lookup(parsed.pattern(), [&](std::string_view address, Handler& handler)
+        { handler(message); });
+}
+```
+
+`lookup` visits every matching method in bytewise address order and returns
+how many it visited; `forEach` visits them all. A literal pattern is a binary
+search. Any other pattern is matched against every method, so a cold lookup
+costs O(N) in the number of methods; by default the result is then memoised
+until the next `add` or `remove`, so repeating the same pattern costs a hash
+of its bytes. The memo is direct-mapped with `1 << CacheBits` entries, each
+holding a pattern of up to `kMaxMemoPatternLength` bytes and up to
+`InlineResults` results; a lookup that exceeds either limit is delivered in
+full but not memoised. Its memory is
+`(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::size_t) + 24)`
+bytes, about 200 KiB for the defaults of `CacheBits = 8` and
+`InlineResults = 64`, allocated when the space is constructed.
+`AddressSpace<T, false>` has no memo and costs nothing beyond its methods.
+`lookup` and `forEach` never allocate; `add` and `remove` do. An address
+space is not safe to use from several threads at once.
+
 With CMake 3.25 or later, `find_package(oscpm)` or `add_subdirectory`, then
 link `oscpm::oscpm`.
 

@@ -19,6 +19,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(oscpm_tests
+    address_space_tests.cpp
     allocation_counter.cpp
     corpus.cpp
     corpus_tests.cpp
@@ -40,6 +41,11 @@ target_compile_options(oscpm_tests PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
 )
+
+if(OSCPM_SANITIZE)
+    target_compile_options(oscpm_tests PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+    target_link_options(oscpm_tests PRIVATE -fsanitize=address,undefined)
+endif()
 
 include(Catch)
 catch_discover_tests(oscpm_tests)
