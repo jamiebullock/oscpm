@@ -5,10 +5,41 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 oscpm matches OSC address patterns against OSC addresses: the `?`, `*`,
 `[...]` and `{a,b}` syntax of OSC 1.0, plus the `//` operator that OSC 1.1
 took from XPath. It complements [oscpp](https://github.com/kaoskorobase/oscpp),
-which reads and writes OSC packets but leaves address matching to the caller.
-oscpm is usable on its own and depends on nothing outside the standard library.
+which reads and writes OSC packets but leaves address matching to the caller:
+the address oscpp hands you is what oscpm matches. oscpm is usable on its own
+and depends on nothing outside the standard library.
 
-## Usage
+## Integration
+
+With CMake 3.25 or later, any of these gives the target `oscpm::oscpm`:
+
+- **FetchContent**, pinned to a release tag:
+
+  ```cmake
+  include(FetchContent)
+  FetchContent_Declare(oscpm
+      GIT_REPOSITORY https://github.com/jamiebullock/oscpm.git
+      GIT_TAG        v0.2.0)
+  FetchContent_MakeAvailable(oscpm)
+  target_link_libraries(app PRIVATE oscpm::oscpm)
+  ```
+
+- **`find_package`** after `cmake --install`, which installs the headers and
+  a package config with a version file:
+
+  ```cmake
+  find_package(oscpm 0.2 REQUIRED)
+  target_link_libraries(app PRIVATE oscpm::oscpm)
+  ```
+
+- **`add_subdirectory`** on a checkout or a vendored copy. A source archive
+  has no git history to read the version from, so pass
+  `-DOSCPM_VERSION=<version>` when configuring it.
+
+The tests, example and fuzz target are built only when oscpm is the top-level
+project, so a consumer compiles nothing.
+
+## Matching
 
 ```cpp
 #include <oscpm/oscpm.h>
@@ -18,12 +49,8 @@ oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true
 oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 ```
 
-`match(pattern, address)` takes two `std::string_view`s, allocates nothing,
-never throws and is `constexpr`, so a fixed pattern can be checked at compile
-time. Its running time is bounded by the product of the two lengths whatever
-the pattern contains.
-
-A pattern that is matched many times is parsed once into a `Pattern` value:
+`match(pattern, address)` takes two `std::string_view`s. A pattern that is
+matched many times is parsed once into a `Pattern` value:
 
 ```cpp
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
@@ -72,7 +99,7 @@ oscpm::validateAddress("/synth/1/"); // TrailingSlash at 8
 (`PartTooLong`). `match` rejects a pattern `validatePattern` faults and never
 validates the address, which is compared byte for byte.
 
-### Address space
+## Address space
 
 `oscpm/address_space.h` adds a small dispatcher: a set of methods, each a
 well-formed address with a value, that an incoming pattern is fanned out to.
@@ -104,11 +131,31 @@ full but not memoised. Its memory is
 bytes, about 200 KiB for the defaults of `CacheBits = 8` and
 `InlineResults = 64`, allocated when the space is constructed.
 `AddressSpace<T, false>` has no memo and costs nothing beyond its methods.
-`lookup` and `forEach` never allocate; `add` and `remove` do. An address
-space is not safe to use from several threads at once.
+An address space is not safe to use from several threads at once.
 
-With CMake 3.25 or later, `find_package(oscpm)` or `add_subdirectory`, then
-link `oscpm::oscpm`.
+`examples/dispatch.cpp` puts the two together with oscpp: it builds a bundle
+with oscpp's client API, reads it back with the server API, fans each
+message's address out to the registered methods through an address space,
+and filters the incoming addresses through a stored pattern.
+
+## Guarantees
+
+`match`, `Pattern::parse`, `Pattern::matches`, `validatePattern`,
+`validateAddress`, `AddressSpace::lookup` and `AddressSpace::forEach`:
+
+- allocate nothing, which the test suite asserts with a counting
+  `operator new`;
+- never throw, and are declared `noexcept` outside the address space;
+- run in time bounded by the product of the pattern and address lengths,
+  whatever the pattern contains: a part is matched by a reach-set
+  simulation, never by backtracking over alternatives, and `//` keeps a
+  single backtrack point;
+- are `constexpr` outside the address space, so a fixed pattern is parsed,
+  validated or matched at compile time.
+
+`AddressSpace::add` and `remove` allocate. A libFuzzer target checks the
+matcher, the validators and the pattern value against each other under
+AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
 ## Matching rules
 
@@ -167,10 +214,20 @@ ctest --preset release
 ```
 
 `debug` and `release` use Ninja; `windows` uses Visual Studio 2022. The tests
-use Catch2, fetched at configure time; `DEPENDENCIES.md` lists what is fetched
-and why. `-DOSCPM_BUILD_FUZZERS=ON` adds a libFuzzer target under
-AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the corpus; it
-needs an LLVM clang.
+use Catch2 and the example uses oscpp, both fetched at configure time;
+`DEPENDENCIES.md` lists what is fetched and why. `-DOSCPM_BUILD_EXAMPLES=OFF`
+skips the example and its fetch. `-DOSCPM_BUILD_FUZZERS=ON` adds a libFuzzer
+target under AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the
+corpus; it needs an LLVM clang. `-DOSCPM_SANITIZE=ON` builds the tests under
+the same sanitizers.
+
+## Versioning
+
+Every push to `develop` is tagged `vX.Y.Z`, and CMake reads the version from
+the most recent tag. While the major version is 0 a minor release may change
+the API, so the installed package config accepts only the same minor
+version; from 1.0 it accepts the same major. A `(MINOR)` or `(MAJOR)` marker
+in a commit subject moves that component; every other push moves the patch.
 
 ## Licence
 

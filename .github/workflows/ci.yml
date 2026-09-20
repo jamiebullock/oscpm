@@ -102,7 +102,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'fuzz/*.cpp' | xargs clang-format --style=file --dry-run --Werror
+          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'fuzz/*.cpp' 'examples/*.cpp' | xargs clang-format --style=file --dry-run --Werror
 
   fuzz:
     name: Fuzz under ASan and UBSan
