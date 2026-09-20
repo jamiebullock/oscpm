@@ -124,6 +124,57 @@ TEST_CASE("a pattern is literal when it contains no wildcard, class, brace list 
     STATIC_CHECK_FALSE(Pattern::parse("//").pattern().isLiteral());
 }
 
+TEST_CASE("a pattern with a part beyond the maximum length is not literal and never matches")
+{
+    const std::string longest(oscpm::kMaxAddressPartLength, 'a');
+    const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
+    CHECK(Pattern::parse("/" + longest).pattern().isLiteral());
+    CHECK(Pattern::parse("/" + longest).pattern().matches("/" + longest));
+    CHECK_FALSE(Pattern::parse("/" + tooLong).pattern().isLiteral());
+    CHECK_FALSE(Pattern::parse("/" + tooLong).pattern().matches("/" + tooLong));
+    CHECK_FALSE(Pattern::parse("/a/" + tooLong).pattern().isLiteral());
+}
+
+TEST_CASE("every byte the matcher treats as an opener makes a pattern non-literal and no other does")
+{
+    for (int value = 0; value < 256; ++value)
+    {
+        const char byte = static_cast<char>(value);
+        if (byte == '/')
+        {
+            continue;
+        }
+        INFO("byte " << value);
+        const char other = byte == 'z' ? 'y' : 'z';
+        const std::string self = std::string("/") + byte + "x";
+        const ParseResult parsed = Pattern::parse(self);
+        const bool literalByFlag = parsed && parsed.pattern().isLiteral();
+        const bool literalByBehaviour = parsed
+            && oscpm::match(self, self)
+            && !oscpm::match(self, "/x")
+            && !oscpm::match(self, std::string("/") + other + "x")
+            && !oscpm::match(self, std::string("/") + byte + other + "x");
+        CHECK(literalByFlag == literalByBehaviour);
+    }
+}
+
+TEST_CASE("the literal shortcut agrees with the general matcher")
+{
+    const char* const patterns[] = { "/", "/a", "/a/", "/a/b", "/a]", "/a}", "/a,b", "/#bundle", "/a b", "/synth/1/freq" };
+    const char* const addresses[] = { "", "a", "/", "/a", "/a/", "/a/b", "/a]", "/a}", "/a,b", "/#bundle", "/a b", "/synth/1/freq", "/synth/1/fre", "/synth/1/freq/" };
+    for (const char* pattern : patterns)
+    {
+        const ParseResult parsed = Pattern::parse(pattern);
+        REQUIRE(parsed);
+        REQUIRE(parsed.pattern().isLiteral());
+        for (const char* address : addresses)
+        {
+            INFO("pattern " << pattern << " address " << address);
+            CHECK(parsed.pattern().matches(address) == oscpm::detail::matchParsed(pattern, address));
+        }
+    }
+}
+
 TEST_CASE("a literal pattern matches only its own text")
 {
     STATIC_CHECK(Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/freq"));

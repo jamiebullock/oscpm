@@ -45,9 +45,11 @@ else
 `ParseError` that stopped it parsing. A `Pattern` is a trivially copyable
 view of the bytes it was parsed from, which must outlive every use;
 `text()` returns them and `isLiteral()` says whether the pattern contains no
-`*`, `?`, `[`, `{` or slash run and so matches only an address equal to its
-text. `match` is `parse` followed by `matches`: a malformed pattern matches
-nothing, and `parse` says why.
+`*`, `?`, `[`, `{` or slash run and no part longer than
+`kMaxAddressPartLength`, and so matches only an address equal to its text,
+which `matches` then decides with a single comparison. `match` is `parse`
+followed by `matches`: a malformed pattern matches nothing, and `parse` says
+why.
 
 Two validators report the first fault in their input as an `Error` and a
 byte offset, or nothing when it is well-formed:

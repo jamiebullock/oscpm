@@ -221,11 +221,32 @@ constexpr Reach advanceByAlternatives(const Reach& reach, std::string_view part,
     return next;
 }
 
+constexpr bool isOpener(char byte) noexcept
+{
+    return byte == k::anyBytes || byte == k::anyByte || byte == k::setOpen || byte == k::listOpen;
+}
+
+constexpr bool hasOpener(std::string_view text) noexcept
+{
+    for (const char byte : text)
+    {
+        if (isOpener(byte))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 constexpr bool matchPart(std::string_view pattern, std::string_view part) noexcept
 {
     if (part.size() > kMaxAddressPartLength)
     {
         return false;
+    }
+    if (!hasOpener(pattern))
+    {
+        return pattern == part;
     }
     Reach reach(part.size());
     reach.set(0);
@@ -417,14 +438,23 @@ constexpr bool hasLeadingSlash(std::string_view text) noexcept
 
 constexpr bool isLiteralText(std::string_view pattern) noexcept
 {
+    std::size_t partLength = 0;
     for (std::size_t i = 0; i < pattern.size(); ++i)
     {
         const char byte = pattern[i];
-        if (byte == k::anyBytes || byte == k::anyByte || byte == k::setOpen || byte == k::listOpen)
+        if (isOpener(byte))
         {
             return false;
         }
-        if (byte == k::partSeparator && i + 1 < pattern.size() && pattern[i + 1] == k::partSeparator)
+        if (byte == k::partSeparator)
+        {
+            if (i + 1 < pattern.size() && pattern[i + 1] == k::partSeparator)
+            {
+                return false;
+            }
+            partLength = 0;
+        }
+        else if (++partLength > kMaxAddressPartLength)
         {
             return false;
         }
@@ -570,7 +600,7 @@ public:
     /// bounded by the product of the two lengths.
     constexpr bool matches(std::string_view address) const noexcept
     {
-        return detail::matchParsed(m_text, address);
+        return m_isLiteral ? address == m_text : detail::matchParsed(m_text, address);
     }
 
     /// The bytes this pattern was parsed from.
@@ -579,9 +609,9 @@ public:
         return m_text;
     }
 
-    /// Whether the pattern contains no '*', '?', '[' or '{' and no run of
-    /// two or more slashes, so that it matches only an address equal to its
-    /// text.
+    /// Whether the pattern contains no '*', '?', '[' or '{', no run of two
+    /// or more slashes and no part longer than `kMaxAddressPartLength`, so
+    /// that it matches only an address equal to its text.
     constexpr bool isLiteral() const noexcept
     {
         return m_isLiteral;
