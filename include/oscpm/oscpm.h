@@ -415,6 +415,61 @@ constexpr bool hasLeadingSlash(std::string_view text) noexcept
     return !text.empty() && text[0] == k::partSeparator;
 }
 
+constexpr bool isLiteralText(std::string_view pattern) noexcept
+{
+    for (std::size_t i = 0; i < pattern.size(); ++i)
+    {
+        const char byte = pattern[i];
+        if (byte == k::anyBytes || byte == k::anyByte || byte == k::setOpen || byte == k::listOpen)
+        {
+            return false;
+        }
+        if (byte == k::partSeparator && i + 1 < pattern.size() && pattern[i + 1] == k::partSeparator)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+constexpr bool matchParsed(std::string_view pattern, std::string_view address) noexcept
+{
+    if (!hasLeadingSlash(address))
+    {
+        return false;
+    }
+    PatternCursor patternPart(pattern);
+    AddressCursor addressPart(address);
+    PatternCursor patternAfterOperator = patternPart;
+    AddressCursor addressAtOperator = addressPart;
+    bool seenOperator = false;
+    while (!patternPart.exhausted() || !addressPart.exhausted())
+    {
+        if (!patternPart.exhausted() && patternPart.isOperator())
+        {
+            patternPart.advance();
+            patternAfterOperator = patternPart;
+            addressAtOperator = addressPart;
+            seenOperator = true;
+            continue;
+        }
+        if (!patternPart.exhausted() && !addressPart.exhausted() && matchPart(patternPart.part(), addressPart.part()))
+        {
+            patternPart.advance();
+            addressPart.advance();
+            continue;
+        }
+        if (!seenOperator || addressAtOperator.exhausted())
+        {
+            return false;
+        }
+        addressAtOperator.advance();
+        patternPart = patternAfterOperator;
+        addressPart = addressAtOperator;
+    }
+    return true;
+}
+
 }
 
 namespace oscpm
@@ -496,49 +551,111 @@ constexpr std::optional<ParseError> validateAddress(std::string_view address) no
     return std::nullopt;
 }
 
-/// Whether `pattern` matches `address`: the OSC 1.0 rules for '?', '*',
-/// '[...]' and '{a,b}', applied part by part, plus the OSC 1.1 '//'
-/// operator matching zero or more whole parts. A run of two or more slashes
-/// anywhere in the pattern is that operator. A pattern `validatePattern`
-/// faults matches nothing; the address is compared byte for byte and never
-/// validated. Allocation-free, with running time bounded by the product of
-/// the two lengths.
+class ParseResult;
+
+/// A validated address pattern. Holds a view of the caller's bytes, which
+/// must outlive every use; copying the value copies the view.
+class Pattern
+{
+public:
+    /// Parses `text`, yielding the pattern or the first fault by byte offset
+    /// as `validatePattern` reports it.
+    static constexpr ParseResult parse(std::string_view text) noexcept;
+
+    /// Whether this pattern matches `address`: the OSC 1.0 rules for '?',
+    /// '*', '[...]' and '{a,b}', applied part by part, plus the OSC 1.1 '//'
+    /// operator matching zero or more whole parts, which a run of two or
+    /// more slashes anywhere in the pattern denotes. The address is compared
+    /// byte for byte and never validated. Allocation-free, with running time
+    /// bounded by the product of the two lengths.
+    constexpr bool matches(std::string_view address) const noexcept
+    {
+        return detail::matchParsed(m_text, address);
+    }
+
+    /// The bytes this pattern was parsed from.
+    constexpr std::string_view text() const noexcept
+    {
+        return m_text;
+    }
+
+    /// Whether the pattern contains no '*', '?', '[' or '{' and no run of
+    /// two or more slashes, so that it matches only an address equal to its
+    /// text.
+    constexpr bool isLiteral() const noexcept
+    {
+        return m_isLiteral;
+    }
+
+private:
+    friend class ParseResult;
+
+    constexpr Pattern() noexcept = default;
+
+    constexpr explicit Pattern(std::string_view text) noexcept
+        : m_text(text)
+        , m_isLiteral(detail::isLiteralText(text))
+    {
+    }
+
+    std::string_view m_text;
+    bool m_isLiteral = false;
+};
+
+/// A `Pattern` or the `ParseError` that stopped it parsing.
+class ParseResult
+{
+public:
+    /// Whether parsing succeeded and `pattern()` holds the result.
+    constexpr explicit operator bool() const noexcept
+    {
+        return m_parsed;
+    }
+
+    /// The pattern; meaningful only when the result is true.
+    constexpr const Pattern& pattern() const noexcept
+    {
+        return m_pattern;
+    }
+
+    /// The fault; meaningful only when the result is false.
+    constexpr const ParseError& error() const noexcept
+    {
+        return m_error;
+    }
+
+private:
+    friend class Pattern;
+
+    constexpr explicit ParseResult(Pattern pattern) noexcept
+        : m_pattern(pattern)
+        , m_parsed(true)
+    {
+    }
+
+    constexpr explicit ParseResult(ParseError error) noexcept
+        : m_error(error)
+    {
+    }
+
+    Pattern m_pattern;
+    ParseError m_error { Error::MissingLeadingSlash, 0 };
+    bool m_parsed = false;
+};
+
+constexpr ParseResult Pattern::parse(std::string_view text) noexcept
+{
+    const std::optional<ParseError> fault = validatePattern(text);
+    return fault.has_value() ? ParseResult(*fault) : ParseResult(Pattern(text));
+}
+
+/// Parses `pattern` and tests it against `address`, as `Pattern::parse`
+/// followed by `Pattern::matches`. A malformed pattern matches nothing; use
+/// `Pattern::parse` to learn why.
 constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
-    if (validatePattern(pattern).has_value() || !detail::hasLeadingSlash(address))
-    {
-        return false;
-    }
-    detail::PatternCursor patternPart(pattern);
-    detail::AddressCursor addressPart(address);
-    detail::PatternCursor patternAfterOperator = patternPart;
-    detail::AddressCursor addressAtOperator = addressPart;
-    bool seenOperator = false;
-    while (!patternPart.exhausted() || !addressPart.exhausted())
-    {
-        if (!patternPart.exhausted() && patternPart.isOperator())
-        {
-            patternPart.advance();
-            patternAfterOperator = patternPart;
-            addressAtOperator = addressPart;
-            seenOperator = true;
-            continue;
-        }
-        if (!patternPart.exhausted() && !addressPart.exhausted() && detail::matchPart(patternPart.part(), addressPart.part()))
-        {
-            patternPart.advance();
-            addressPart.advance();
-            continue;
-        }
-        if (!seenOperator || addressAtOperator.exhausted())
-        {
-            return false;
-        }
-        addressAtOperator.advance();
-        patternPart = patternAfterOperator;
-        addressPart = addressAtOperator;
-    }
-    return true;
+    const ParseResult parsed = Pattern::parse(pattern);
+    return parsed && parsed.pattern().matches(address);
 }
 
 }

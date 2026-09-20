@@ -23,6 +23,32 @@ never throws and is `constexpr`, so a fixed pattern can be checked at compile
 time. Its running time is bounded by the product of the two lengths whatever
 the pattern contains.
 
+A pattern that is matched many times is parsed once into a `Pattern` value:
+
+```cpp
+constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
+static_assert(parsed);
+static_assert(parsed.pattern().matches("/synth/12/amp"));
+
+if (const auto result = oscpm::Pattern::parse(text))
+{
+    const oscpm::Pattern& pattern = result.pattern();
+    pattern.matches(message.address()); // any std::string_view
+}
+else
+{
+    result.error(); // an Error and a byte offset
+}
+```
+
+`Pattern::parse` returns a `ParseResult` holding either the pattern or the
+`ParseError` that stopped it parsing. A `Pattern` is a trivially copyable
+view of the bytes it was parsed from, which must outlive every use;
+`text()` returns them and `isLiteral()` says whether the pattern contains no
+`*`, `?`, `[`, `{` or slash run and so matches only an address equal to its
+text. `match` is `parse` followed by `matches`: a malformed pattern matches
+nothing, and `parse` says why.
+
 Two validators report the first fault in their input as an `Error` and a
 byte offset, or nothing when it is well-formed:
 

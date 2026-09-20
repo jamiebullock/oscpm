@@ -29,6 +29,7 @@ void checkCase(const CorpusCase& corpusCase)
     INFO("corpus line " << corpusCase.line << ": " << corpusCase.text);
 
     const std::optional<oscpm::ParseError> patternError = oscpm::validatePattern(corpusCase.pattern);
+    const oscpm::ParseResult parsed = oscpm::Pattern::parse(corpusCase.pattern);
     const bool matched = oscpm::match(corpusCase.pattern, corpusCase.address);
 
     if (corpusCase.expectation == Expectation::MalformedPattern)
@@ -36,11 +37,17 @@ void checkCase(const CorpusCase& corpusCase)
         REQUIRE(patternError.has_value());
         CHECK(errorName(patternError) == corpusCase.errorName);
         CHECK(patternError->offset == corpusCase.offset);
+        REQUIRE_FALSE(parsed);
+        CHECK(std::string(oscpm::toString(parsed.error().kind)) == corpusCase.errorName);
+        CHECK(parsed.error().offset == corpusCase.offset);
         CHECK_FALSE(matched);
         return;
     }
 
     REQUIRE_FALSE(patternError.has_value());
+    REQUIRE(parsed);
+    CHECK(parsed.pattern().text() == corpusCase.pattern);
+    const bool matchedByValue = parsed.pattern().matches(corpusCase.address);
     const std::optional<oscpm::ParseError> addressError = oscpm::validateAddress(corpusCase.address);
 
     if (corpusCase.expectation == Expectation::MalformedAddress)
@@ -49,11 +56,13 @@ void checkCase(const CorpusCase& corpusCase)
         CHECK(errorName(addressError) == corpusCase.errorName);
         CHECK(addressError->offset == corpusCase.offset);
         CHECK(matched == corpusCase.matchesBytewise);
+        CHECK(matchedByValue == corpusCase.matchesBytewise);
         return;
     }
 
     CHECK_FALSE(addressError.has_value());
     CHECK(matched == (corpusCase.expectation == Expectation::Match));
+    CHECK(matchedByValue == (corpusCase.expectation == Expectation::Match));
 }
 
 bool contains(const std::vector<CorpusCase>& cases, Expectation expectation)
@@ -79,7 +88,7 @@ TEST_CASE("the corpus exercises every kind of expectation")
     CHECK(contains(cases, Expectation::MalformedAddress));
 }
 
-TEST_CASE("every corpus case holds through match and both validators")
+TEST_CASE("every corpus case holds through parse, matches, match and both validators")
 {
     for (const CorpusCase& corpusCase : oscpm_test::loadCorpus(OSCPM_CORPUS_PATH))
     {

@@ -5,6 +5,12 @@
 
 include(FetchContent)
 
+# Catch2 defaults to C++14, which leaves its std::string_view support out of
+# the library the tests link against.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 FetchContent_Declare(
     Catch2
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
@@ -13,9 +19,11 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 add_executable(oscpm_tests
+    allocation_counter.cpp
     corpus.cpp
     corpus_tests.cpp
     match_tests.cpp
+    pattern_tests.cpp
     validation_tests.cpp
 )
 
