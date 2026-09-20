@@ -19,7 +19,8 @@ namespace oscpm
 /// matches, and `validateAddress` reports it as `PartTooLong`.
 constexpr std::size_t kMaxAddressPartLength = 4095;
 
-/// A fault in a pattern (the first three) or an address (the rest).
+/// A fault in a pattern (the first three), in an address (the next four)
+/// or in an `AddressSpace` operation (the last two).
 enum class Error
 {
     MissingLeadingSlash,
@@ -28,7 +29,9 @@ enum class Error
     TrailingSlash,
     EmptyPart,
     IllegalByte,
-    PartTooLong
+    PartTooLong,
+    Duplicate,
+    NotFound
 };
 
 /// A fault and the zero-based byte offset at which it was found.
@@ -57,6 +60,10 @@ constexpr const char* toString(Error error) noexcept
         return "IllegalByte";
     case Error::PartTooLong:
         return "PartTooLong";
+    case Error::Duplicate:
+        return "Duplicate";
+    case Error::NotFound:
+        return "NotFound";
     }
     return "";
 }

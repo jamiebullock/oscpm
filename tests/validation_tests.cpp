@@ -215,4 +215,6 @@ TEST_CASE("toString names every error")
     STATIC_CHECK(std::string_view(oscpm::toString(Error::EmptyPart)) == "EmptyPart");
     STATIC_CHECK(std::string_view(oscpm::toString(Error::IllegalByte)) == "IllegalByte");
     STATIC_CHECK(std::string_view(oscpm::toString(Error::PartTooLong)) == "PartTooLong");
+    STATIC_CHECK(std::string_view(oscpm::toString(Error::Duplicate)) == "Duplicate");
+    STATIC_CHECK(std::string_view(oscpm::toString(Error::NotFound)) == "NotFound");
 }
