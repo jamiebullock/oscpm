@@ -68,7 +68,7 @@
 "/synth/1/freq"     "/synth/1/fre"      nomatch
 "/synth/1/freq"     "/synth/10/freq"    nomatch
 
-## A pattern begins with a slash; a bare root or a single trailing slash is an empty part that matches nothing
+## A pattern begins with a slash; a bare root or a single trailing slash is an empty part that no well-formed address satisfies
 
 ""                  "/a"                malformed-pattern MissingLeadingSlash 0
 "a"                 "/a"                malformed-pattern MissingLeadingSlash 0
