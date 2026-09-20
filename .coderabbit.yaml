@@ -20,6 +20,11 @@ reviews:
 
         Contracts are documented on the header instead, where the declaration
         is.
+  # The project keeps comments to header contracts and none in .cpp files,
+  # so a docstring coverage threshold would fail every pull request.
+  pre_merge_checks:
+    docstrings:
+      mode: off
   auto_review:
     enabled: true
     drafts: false
