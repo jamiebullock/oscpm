@@ -11,7 +11,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
-#include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -160,8 +160,7 @@ TEST_CASE("parsing matching and validating allocate nothing")
 TEST_CASE("the allocation counter observes the heap")
 {
     const std::size_t before = oscpm_test::allocationCount();
-    const std::unique_ptr<int> allocated = std::make_unique<int>(1);
-    int* volatile escaped = allocated.get();
+    void* const allocated = ::operator new(sizeof(int));
     CHECK(oscpm_test::allocationCount() > before);
-    CHECK(*escaped == 1);
+    ::operator delete(allocated);
 }
