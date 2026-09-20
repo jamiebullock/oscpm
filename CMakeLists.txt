@@ -30,10 +30,16 @@ install(
     NAMESPACE oscpm::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/oscpm
 )
+# Semantic versioning: a minor release may break the API while the major is 0.
+if(PROJECT_VERSION_MAJOR EQUAL 0)
+    set(OSCPM_VERSION_COMPATIBILITY SameMinorVersion)
+else()
+    set(OSCPM_VERSION_COMPATIBILITY SameMajorVersion)
+endif()
 write_basic_package_version_file(
     oscpmConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
+    COMPATIBILITY ${OSCPM_VERSION_COMPATIBILITY}
 )
 install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/oscpmConfigVersion.cmake
