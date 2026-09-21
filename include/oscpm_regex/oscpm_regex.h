@@ -104,13 +104,11 @@ struct PairEqual
 namespace oscpm_regex
 {
 
-/// An OSC address pattern as a regular expression. Construction allocates,
-/// and so does every call to `matches`.
+/// Represents an OSC address pattern as a regular expression.
 class Pattern
 {
 public:
-    /// Translates and compiles `text`; a pattern the regex engine rejects
-    /// is invalid and matches nothing.
+    /// Translates and compiles `text`
     explicit Pattern(std::string_view text)
     {
         try
@@ -123,10 +121,10 @@ public:
         }
     }
 
-    /// Whether the pattern compiled.
+    /// @returns whether the pattern compiled.
     bool valid() const { return m_valid; }
 
-    /// Whether this pattern matches `address`.
+    /// @returns whether this pattern matches `address`.
     bool matches(std::string_view address) const
     {
         return m_valid && !address.empty() && address[0] == '/' && std::regex_match(address.begin(), address.end(), m_expression);
@@ -143,13 +141,9 @@ inline bool match(std::string_view pattern, std::string_view address)
     return Pattern(pattern).matches(address);
 }
 
-/// Memoises match verdicts by pattern and address pair. The first call for
-/// a pair compiles and matches, which allocates; every later call is a hash
-/// lookup that allocates nothing. When the memo holds `maxPairs` pairs it
-/// is emptied, so a working set larger than that recompiles on every
-/// message. A pair costs 130 to 190 bytes; the default holds 65 wildcard
-/// patterns against 1,000 addresses in about 10 MB. Not safe for
-/// concurrent use.
+/// OSC address pattern matcher
+///
+/// Implements simple caching which greatly speeds up repeat requests for the same match
 class Matcher
 {
 public:
@@ -160,7 +154,7 @@ public:
     {
     }
 
-    /// Whether `pattern` matches `address`, as `match`.
+    /// @returns whether `pattern` matches `address`, as `match`.
     bool match(std::string_view pattern, std::string_view address)
     {
         if (const auto verdict = m_verdicts.find(detail::PairView { pattern, address }); verdict != m_verdicts.end())
@@ -177,33 +171,30 @@ private:
     std::size_t m_maxPairs;
 };
 
-/// A dispatch table of methods keyed by address. A pattern equal to a
-/// registered address reaches that method by one hash lookup; any other
-/// pattern is put to a `Matcher` for every method, in no particular order.
-/// `add` and `remove` allocate. Not safe for concurrent use.
+/// A dispatch table of OSC methods keyed by address.
 template <typename T>
 class AddressSpace
 {
 public:
-    /// Registers `value` under `address`; false if the address is already
-    /// registered.
+    /// Registers `value` under `address`
+    /// @returns false if the address is already registered.
     bool add(std::string_view address, T value) { return m_methods.emplace(std::string(address), std::move(value)).second; }
 
-    /// Unregisters `address`; false if it is not registered.
+    /// Unregisters `address`
+    /// @returns false if it is not registered.
     bool remove(std::string_view address) { return m_methods.erase(std::string(address)) != 0; }
 
-    /// The number of registered methods.
+    /// @returns the number of registered methods.
     std::size_t size() const { return m_methods.size(); }
 
-    /// Calls `visitor(std::string_view address, T& value)` for every method
-    /// `pattern` matches and returns how many. The visitor must not add or
-    /// remove methods.
-    template <typename Visitor>
-    std::size_t dispatch(std::string_view pattern, Visitor&& visitor)
+    /// Calls `callback(std::string_view address, T& value)` for every method
+    /// `pattern` matches
+    template <typename Callback>
+    std::size_t dispatch(std::string_view pattern, Callback&& callback)
     {
         if (const auto method = m_methods.find(pattern); method != m_methods.end())
         {
-            visitor(std::string_view(method->first), method->second);
+            callback(std::string_view(method->first), method->second);
             return 1;
         }
         std::size_t matched = 0;
@@ -211,7 +202,7 @@ public:
         {
             if (m_matcher.match(pattern, address))
             {
-                visitor(std::string_view(address), value);
+                callback(std::string_view(address), value);
                 ++matched;
             }
         }
