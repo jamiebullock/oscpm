@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <cstddef>
 #include <functional>
 #include <regex>
@@ -14,7 +13,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 namespace oscpm_regex::detail
 {
@@ -164,38 +162,32 @@ private:
     std::unordered_map<detail::PairKey, bool, detail::PairHash, detail::PairEqual> m_verdicts;
 };
 
-/// A set of methods, each an address with a value of type `T`, that a
-/// pattern is dispatched to by asking a `Matcher` about every method in
-/// insertion order. `add` and `remove` allocate. Not safe for concurrent
-/// use.
+struct StringViewHash
+{
+    using is_transparent = void;
+    std::size_t operator()(std::string_view text) const noexcept { return std::hash<std::string_view> { }(text); }
+};
+
+/// A dispatch table of methods keyed by address. A pattern equal to a
+/// registered address reaches that method by one hash lookup; any other
+/// pattern is put to a `Matcher` for every method, in no particular order.
+/// `add` and `remove` allocate. Not safe for concurrent use.
 template <typename T>
 class AddressSpace
 {
 public:
     /// Registers `value` under `address`; false if the address is already
     /// registered.
-    bool add(std::string_view address, T value)
-    {
-        if (find(address) != m_methods.end())
-            return false;
-        m_methods.push_back(Method { std::string(address), std::move(value) });
-        return true;
-    }
+    bool add(std::string_view address, T value) { return m_methods.emplace(std::string(address), std::move(value)).second; }
 
     /// Unregisters `address`; false if it is not registered.
-    bool remove(std::string_view address)
-    {
-        const auto position = find(address);
-        if (position == m_methods.end())
-            return false;
-        m_methods.erase(position);
-        return true;
-    }
+    bool remove(std::string_view address) { return m_methods.erase(std::string(address)) != 0; }
 
     /// The number of registered methods.
     std::size_t size() const { return m_methods.size(); }
 
-    /// The matcher whose memo serves every dispatch.
+    /// The matcher whose memo serves every dispatch of a pattern that is
+    /// not itself a registered address.
     Matcher& matcher() { return m_matcher; }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method
@@ -204,12 +196,17 @@ public:
     template <typename Visitor>
     std::size_t dispatch(std::string_view pattern, Visitor&& visitor)
     {
-        std::size_t matched = 0;
-        for (Method& method : m_methods)
+        if (const auto method = m_methods.find(pattern); method != m_methods.end())
         {
-            if (m_matcher.match(pattern, method.address))
+            visitor(std::string_view(method->first), method->second);
+            return 1;
+        }
+        std::size_t matched = 0;
+        for (auto& [address, value] : m_methods)
+        {
+            if (m_matcher.match(pattern, address))
             {
-                visitor(std::string_view(method.address), method.value);
+                visitor(std::string_view(address), value);
                 ++matched;
             }
         }
@@ -217,19 +214,7 @@ public:
     }
 
 private:
-    struct Method
-    {
-        std::string address;
-        T value;
-    };
-
-    typename std::vector<Method>::iterator find(std::string_view address)
-    {
-        return std::find_if(m_methods.begin(), m_methods.end(), [address](const Method& method)
-            { return method.address == address; });
-    }
-
-    std::vector<Method> m_methods;
+    std::unordered_map<std::string, T, StringViewHash, std::equal_to<>> m_methods;
     Matcher m_matcher;
 };
 

@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 #include <new>
 #include <string>
@@ -85,14 +86,16 @@ TEST_CASE("remove unregisters an address that is registered")
     CHECK(visited(space, "/synth/1/freq", matched) == std::vector<std::string> { "/synth/1/freq" });
 }
 
-TEST_CASE("methods are visited in insertion order")
+TEST_CASE("a wildcard visits every method once, in no particular order")
 {
     AddressSpace<int> space;
     space.add("/c", 1);
     space.add("/a", 2);
     space.add("/b", 3);
     std::size_t matched = 0;
-    CHECK(visited(space, "/?", matched) == std::vector<std::string> { "/c", "/a", "/b" });
+    std::vector<std::string> addresses = visited(space, "/?", matched);
+    std::sort(addresses.begin(), addresses.end());
+    CHECK(addresses == std::vector<std::string> { "/a", "/b", "/c" });
     CHECK(matched == 3);
 }
 
@@ -110,7 +113,9 @@ TEST_CASE("a wildcard pattern reaches every matching method")
 {
     AddressSpace<int> space = synth();
     std::size_t matched = 0;
-    CHECK(visited(space, "/synth/*/freq", matched) == std::vector<std::string> { "/synth/1/freq", "/synth/2/freq" });
+    std::vector<std::string> addresses = visited(space, "/synth/*/freq", matched);
+    std::sort(addresses.begin(), addresses.end());
+    CHECK(addresses == std::vector<std::string> { "/synth/1/freq", "/synth/2/freq" });
     CHECK(matched == 2);
     CHECK(visited(space, "//gain", matched) == std::vector<std::string> { "/mixer/master/gain" });
 }
@@ -135,6 +140,15 @@ TEST_CASE("a change to the space is seen at once")
     space.remove("/synth/1/freq");
     visited(space, "/synth/*/freq", matched);
     CHECK(matched == 2);
+}
+
+TEST_CASE("a pattern equal to a registered address reaches it without the matcher")
+{
+    AddressSpace<int> space = synth();
+    std::size_t matched = 0;
+    CHECK(visited(space, "/synth/1/amp", matched) == std::vector<std::string> { "/synth/1/amp" });
+    CHECK(matched == 1);
+    CHECK(space.matcher().size() == 0);
 }
 
 TEST_CASE("a dispatch whose every pair is memoised allocates nothing")

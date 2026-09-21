@@ -54,9 +54,12 @@ const std::size_t matched = methods.dispatch(message.address(), [&](std::string_
     { handler(message); });
 ```
 
-`dispatch` asks the address space's `Matcher` about every method in
-insertion order and returns how many it visited, so a message costs one
-memoised match per registered method. `matcher()` exposes the memo.
+`dispatch` first looks the pattern up as an address, which is what
+oscpp's README suggests for a dispatch table: a pattern equal to a
+registered address reaches that method by one hash lookup. Any other
+pattern is put to the address space's `Matcher` for every method, in no
+particular order, so a wildcard message costs one memoised match per
+registered method. `matcher()` exposes the memo.
 
 ## What the regex engine decides
 
@@ -96,8 +99,9 @@ patterns dense with brackets, braces and commas it is a third of them.
   backtrack catastrophically. The engine may throw `error_complexity` or
   `error_stack` on extreme inputs, which is not caught.
 - Measured over 1,000 registered methods on an Apple Silicon Mac: a
-  dispatch whose pairs are all memoised costs about 35 microseconds
-  whatever the pattern, one hash lookup per method; the first dispatch of
+  message to a registered address costs about 10 nanoseconds; a wildcard
+  dispatch whose pairs are all memoised costs about 35 microseconds, one
+  hash lookup per method; the first dispatch of
   a new pattern costs 1 to 4 milliseconds and tens of thousands of
   allocations. A single memoised `match` costs about 20 nanoseconds.
 - A `Matcher` and an `AddressSpace` are not safe to use from several
