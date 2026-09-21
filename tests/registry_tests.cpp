@@ -56,7 +56,7 @@ namespace
 
 using oscpm_regex::AddressSpace;
 
-std::vector<std::string> visited(AddressSpace<int>& space, std::string_view pattern, std::size_t& matched)
+std::vector<std::string> dispatched(AddressSpace<int>& space, std::string_view pattern, std::size_t& matched)
 {
     std::vector<std::string> addresses;
     matched = space.dispatch(pattern, [&](std::string_view address, int&)
@@ -91,8 +91,8 @@ TEST_CASE("remove unregisters an address that is registered")
     CHECK_FALSE(space.remove("/synth/1/amp"));
     CHECK(space.size() == 3);
     std::size_t matched = 0;
-    CHECK(visited(space, "/synth/1/amp", matched).empty());
-    CHECK(visited(space, "/synth/1/freq", matched) == std::vector<std::string> { "/synth/1/freq" });
+    CHECK(dispatched(space, "/synth/1/amp", matched).empty());
+    CHECK(dispatched(space, "/synth/1/freq", matched) == std::vector<std::string> { "/synth/1/freq" });
 }
 
 TEST_CASE("a wildcard visits every method once, in no particular order")
@@ -102,7 +102,7 @@ TEST_CASE("a wildcard visits every method once, in no particular order")
     space.add("/a", 2);
     space.add("/b", 3);
     std::size_t matched = 0;
-    std::vector<std::string> addresses = visited(space, "/?", matched);
+    std::vector<std::string> addresses = dispatched(space, "/?", matched);
     std::sort(addresses.begin(), addresses.end());
     CHECK(addresses == std::vector<std::string> { "/a", "/b", "/c" });
     CHECK(matched == 3);
@@ -112,9 +112,9 @@ TEST_CASE("an exact address reaches exactly its method")
 {
     AddressSpace<int> space = synth();
     std::size_t matched = 0;
-    CHECK(visited(space, "/synth/2/freq", matched) == std::vector<std::string> { "/synth/2/freq" });
+    CHECK(dispatched(space, "/synth/2/freq", matched) == std::vector<std::string> { "/synth/2/freq" });
     CHECK(matched == 1);
-    CHECK(visited(space, "/synth/3/freq", matched).empty());
+    CHECK(dispatched(space, "/synth/3/freq", matched).empty());
     CHECK(matched == 0);
 }
 
@@ -122,18 +122,18 @@ TEST_CASE("a wildcard pattern reaches every matching method")
 {
     AddressSpace<int> space = synth();
     std::size_t matched = 0;
-    std::vector<std::string> addresses = visited(space, "/synth/*/freq", matched);
+    std::vector<std::string> addresses = dispatched(space, "/synth/*/freq", matched);
     std::sort(addresses.begin(), addresses.end());
     CHECK(addresses == std::vector<std::string> { "/synth/1/freq", "/synth/2/freq" });
     CHECK(matched == 2);
-    CHECK(visited(space, "//gain", matched) == std::vector<std::string> { "/mixer/master/gain" });
+    CHECK(dispatched(space, "//gain", matched) == std::vector<std::string> { "/mixer/master/gain" });
 }
 
 TEST_CASE("an invalid pattern reaches nothing")
 {
     AddressSpace<int> space = synth();
     std::size_t matched = 0;
-    CHECK(visited(space, "/synth/[1/freq", matched).empty());
+    CHECK(dispatched(space, "/synth/[1/freq", matched).empty());
     CHECK(matched == 0);
 }
 
@@ -141,13 +141,13 @@ TEST_CASE("a change to the space is seen at once")
 {
     AddressSpace<int> space = synth();
     std::size_t matched = 0;
-    visited(space, "/synth/*/freq", matched);
+    dispatched(space, "/synth/*/freq", matched);
     CHECK(matched == 2);
     space.add("/synth/3/freq", 5);
-    visited(space, "/synth/*/freq", matched);
+    dispatched(space, "/synth/*/freq", matched);
     CHECK(matched == 3);
     space.remove("/synth/1/freq");
-    visited(space, "/synth/*/freq", matched);
+    dispatched(space, "/synth/*/freq", matched);
     CHECK(matched == 2);
 }
 
@@ -202,7 +202,7 @@ TEST_CASE("the memo is emptied when it reaches its limit")
     CHECK(g_allocations > before);
 }
 
-TEST_CASE("the visitor can change the value")
+TEST_CASE("the callback can change the value")
 {
     AddressSpace<int> space = synth();
     space.dispatch("/synth/1/freq", [](std::string_view, int& value)
