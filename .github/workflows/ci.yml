@@ -102,7 +102,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'fuzz/*.cpp' | xargs clang-format --style=file --dry-run --Werror
+          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'fuzz/*.cpp' 'examples/*.cpp' | xargs clang-format --style=file --dry-run --Werror
 
   fuzz:
     name: Fuzz under ASan and UBSan
@@ -121,8 +121,8 @@ jobs:
 
       # Naming the fuzz target fails the build when the libFuzzer probe
       # skipped it, so the job cannot pass without running the fuzzer.
-      - name: Build the tests and the fuzz target
-        run: cmake --build --preset release --target oscpm_tests oscpm_pattern_fuzz
+      - name: Build the tests, the example and the fuzz target
+        run: cmake --build --preset release --target oscpm_tests oscpm_dispatch oscpm_pattern_fuzz
 
       - name: Run the tests under the sanitizers, check the seeds and run each once
         run: ctest --preset release
