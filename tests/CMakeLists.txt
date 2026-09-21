@@ -18,6 +18,7 @@ FetchContent_MakeAvailable(Catch2)
 
 add_executable(oscpm_regex_tests
     match_tests.cpp
+    matcher_tests.cpp
     registry_tests.cpp
 )
 

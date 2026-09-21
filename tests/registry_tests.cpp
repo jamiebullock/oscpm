@@ -156,14 +156,24 @@ TEST_CASE("a repeated pattern is served from the cache and a change is seen at o
     CHECK(matched == 2);
 }
 
-TEST_CASE("the exact path and a cache hit allocate nothing")
+TEST_CASE("a dispatch whose every pair is memoised allocates nothing")
 {
     AddressSpace<int> registry = synth();
     const auto noop = [](std::string_view, int&) { };
     registry.dispatch("/synth/*/freq", noop);
+    registry.dispatch("/synth/1/freq", noop);
     const std::size_t before = g_allocations;
     registry.dispatch("/synth/1/freq", noop);
     registry.dispatch("/synth/*/freq", noop);
+    CHECK(g_allocations == before);
+}
+
+TEST_CASE("a memoised verdict allocates nothing")
+{
+    oscpm_regex::Matcher matcher;
+    matcher.match("/synth/*/freq", "/synth/1/freq");
+    const std::size_t before = g_allocations;
+    CHECK(matcher.match("/synth/*/freq", "/synth/1/freq"));
     CHECK(g_allocations == before);
 }
 

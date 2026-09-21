@@ -73,6 +73,7 @@ namespace k
     constexpr std::string_view alternativesOpen = "(?:";
     constexpr char alternativesSeparator = '|';
     constexpr char alternativesClose = ')';
+    constexpr std::size_t hashMixer = 0x9E3779B9;
 }
 
 constexpr std::size_t npos = std::string_view::npos;
@@ -283,6 +284,43 @@ struct StringViewHash
     std::size_t operator()(const std::string& text) const noexcept { return std::hash<std::string_view> { }(text); }
 };
 
+struct PairKey
+{
+    std::string pattern;
+    std::string address;
+};
+
+struct PairView
+{
+    std::string_view pattern;
+    std::string_view address;
+};
+
+struct PairHash
+{
+    using is_transparent = void;
+
+    std::size_t operator()(PairView pair) const noexcept
+    {
+        const std::size_t patternHash = std::hash<std::string_view> { }(pair.pattern);
+        const std::size_t addressHash = std::hash<std::string_view> { }(pair.address);
+        return patternHash ^ (addressHash + k::hashMixer + (patternHash << 6) + (patternHash >> 2));
+    }
+
+    std::size_t operator()(const PairKey& pair) const noexcept { return (*this)(PairView { pair.pattern, pair.address }); }
+};
+
+struct PairEqual
+{
+    using is_transparent = void;
+
+    bool operator()(const PairKey& left, const PairKey& right) const noexcept { return left.pattern == right.pattern && left.address == right.address; }
+
+    bool operator()(const PairKey& left, PairView right) const noexcept { return left.pattern == right.pattern && left.address == right.address; }
+
+    bool operator()(PairView left, const PairKey& right) const noexcept { return left.pattern == right.pattern && left.address == right.address; }
+};
+
 }
 
 namespace oscpm_regex
@@ -367,21 +405,66 @@ inline bool match(std::string_view pattern, std::string_view address)
     return Pattern(pattern).matches(address);
 }
 
+/// Memoises match verdicts. The first call for a pattern compiles it and
+/// the first call for a pattern and address pair matches it, both of which
+/// allocate; every later call for the same pair is a hash lookup that
+/// allocates nothing. A malformed pattern matches nothing and is memoised
+/// as such. Either table is emptied when it reaches its limit. Not safe
+/// for concurrent use.
+class Matcher
+{
+public:
+    /// Whether `pattern` matches `address`, as `Pattern::matches`.
+    bool match(std::string_view pattern, std::string_view address)
+    {
+        if (const auto verdict = m_verdicts.find(detail::PairView { pattern, address }); verdict != m_verdicts.end())
+            return verdict->second;
+        const bool matched = compiled(pattern).matches(address);
+        if (m_verdicts.size() >= kMaxCachedVerdicts)
+            m_verdicts.clear();
+        m_verdicts.emplace(detail::PairKey { std::string(pattern), std::string(address) }, matched);
+        return matched;
+    }
+
+    /// The compiled form of `pattern`, kept for later calls.
+    const Pattern& compiled(std::string_view pattern)
+    {
+        if (const auto known = m_patterns.find(pattern); known != m_patterns.end())
+            return known->second;
+        if (m_patterns.size() >= kMaxCachedPatterns)
+            m_patterns.clear();
+        return m_patterns.emplace(std::string(pattern), Pattern(pattern)).first->second;
+    }
+
+    /// How many pattern and address pairs are memoised.
+    std::size_t size() const { return m_verdicts.size(); }
+
+    /// Forgets every memoised verdict and compiled pattern.
+    void clear()
+    {
+        m_verdicts.clear();
+        m_patterns.clear();
+    }
+
+    static constexpr std::size_t kMaxCachedPatterns = 4096;
+    static constexpr std::size_t kMaxCachedVerdicts = 65536;
+
+private:
+    std::unordered_map<std::string, Pattern, detail::StringViewHash, std::equal_to<>> m_patterns;
+    std::unordered_map<detail::PairKey, bool, detail::PairHash, detail::PairEqual> m_verdicts;
+};
+
 /// A set of methods, each a well-formed address with a value of type `T`,
 /// that a pattern is dispatched to. Addresses are kept in bytewise order
-/// and visited in that order. A literal pattern is found by binary search
-/// and a pattern seen since the last `add` or `remove` is replayed from a
-/// cache, neither of which allocates; any other pattern is compiled and
-/// matched against every method, which allocates, and its result is kept
-/// for replay. The cache holds `kMaxCachedPatterns` results and is emptied
-/// when full, so a working set larger than that never replays. Not safe
+/// and visited in that order. A dispatch asks a `Matcher` about every
+/// method in turn, so it costs one memoised match per method: a hash
+/// lookup each once the pattern has been seen against every address, and
+/// a regex match each before that. `add` and `remove` allocate. Not safe
 /// for concurrent use.
 template <typename T>
 class AddressSpace
 {
 public:
-    using MethodIndex = std::size_t;
-
     /// How many methods a dispatch visited, and the fault that stopped the
     /// pattern compiling, in which case it visited none.
     struct DispatchResult
@@ -400,7 +483,6 @@ public:
         if (position != m_methods.end() && position->address == address)
             return Error::Duplicate;
         m_methods.insert(position, Method { std::string(address), std::move(value) });
-        m_cache.clear();
         return std::nullopt;
     }
 
@@ -414,15 +496,14 @@ public:
         if (position == m_methods.end() || position->address != address)
             return Error::NotFound;
         m_methods.erase(position);
-        m_cache.clear();
         return std::nullopt;
     }
 
     /// The number of registered methods.
     std::size_t size() const { return m_methods.size(); }
 
-    /// Forgets every cached pattern result.
-    void invalidateCache() { m_cache.clear(); }
+    /// The matcher whose memo serves every dispatch.
+    Matcher& matcher() { return m_matcher; }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method
     /// `pattern` matches, in bytewise address order. The visitor must not add
@@ -430,61 +511,22 @@ public:
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
-        if (detail::isLiteral(pattern))
-            return dispatchLiteral(pattern, visitor);
-        if (const auto cached = m_cache.find(pattern); cached != m_cache.end())
-            return replay(cached->second, visitor);
-        return matchEveryMethod(pattern, visitor);
-    }
-
-    static constexpr std::size_t kMaxCachedPatterns = 4096;
-
-private:
-    template <typename Visitor>
-    DispatchResult dispatchLiteral(std::string_view address, Visitor& visitor)
-    {
-        const auto position = lowerBound(address);
-        if (position == m_methods.end() || position->address != address)
-            return { 0, std::nullopt };
-        visitor(position->address, position->value);
-        return { 1, std::nullopt };
-    }
-
-    template <typename Visitor>
-    DispatchResult replay(const std::vector<MethodIndex>& matched, Visitor& visitor)
-    {
-        for (const MethodIndex index : matched)
-            visitor(m_methods[index].address, m_methods[index].value);
-        return { matched.size(), std::nullopt };
-    }
-
-    template <typename Visitor>
-    DispatchResult matchEveryMethod(std::string_view pattern, Visitor& visitor)
-    {
-        const Pattern compiled(pattern);
+        const Pattern& compiled = m_matcher.compiled(pattern);
         if (!compiled.valid())
             return { 0, compiled.error() };
-        std::vector<MethodIndex> matched;
-        for (MethodIndex index = 0; index < m_methods.size(); ++index)
+        std::size_t matched = 0;
+        for (Method& method : m_methods)
         {
-            if (compiled.matches(m_methods[index].address))
+            if (m_matcher.match(pattern, method.address))
             {
-                visitor(m_methods[index].address, m_methods[index].value);
-                matched.push_back(index);
+                visitor(std::string_view(method.address), method.value);
+                ++matched;
             }
         }
-        const std::size_t numMatched = matched.size();
-        remember(pattern, std::move(matched));
-        return { numMatched, std::nullopt };
+        return { matched, std::nullopt };
     }
 
-    void remember(std::string_view pattern, std::vector<MethodIndex> matched)
-    {
-        if (m_cache.size() >= kMaxCachedPatterns)
-            m_cache.clear();
-        m_cache.emplace(std::string(pattern), std::move(matched));
-    }
-
+private:
     struct Method
     {
         std::string address;
@@ -498,7 +540,7 @@ private:
     }
 
     std::vector<Method> m_methods;
-    std::unordered_map<std::string, std::vector<MethodIndex>, detail::StringViewHash, std::equal_to<>> m_cache;
+    Matcher m_matcher;
 };
 
 }

@@ -6,9 +6,10 @@ Header-only C++20 OpenSoundControl (OSC) address pattern matching built on
 oscpm-regex translates each OSC address pattern, the `?`, `*`, `[...]` and
 `{a,b}` syntax of OSC 1.0 plus the `//` operator of OSC 1.1, into an
 anchored ECMAScript regular expression and matches it with the standard
-library's engine. An address space keeps its methods in address order, finds a
-literal pattern by binary search, and replays a pattern it has seen before
-from a cache. It depends on nothing outside the standard library.
+library's engine. A matcher memoises the verdict for every pattern and
+address pair it has seen, and an address space dispatches by asking the
+matcher about each of its methods. It depends on nothing outside the
+standard library.
 
 ## Integration
 
@@ -43,6 +44,19 @@ and is matched many times. A pattern that does not compile reports one of
 nothing. `validateAddress` reports the first fault in an address, or
 nothing when it is well-formed.
 
+A `Matcher` memoises verdicts:
+
+```cpp
+oscpm_regex::Matcher matcher;
+matcher.match("/synth/*/freq", "/synth/1/freq"); // compiles, matches, remembers
+matcher.match("/synth/*/freq", "/synth/1/freq"); // a hash lookup
+```
+
+The first call for a pattern compiles it and the first call for a pattern
+and address pair matches it; every later call for the same pair is a hash
+lookup. The matcher keeps up to 4,096 compiled patterns and 65,536
+verdicts, and empties a table when it reaches its limit.
+
 ## Address space
 
 ```cpp
@@ -56,25 +70,27 @@ result.matched; // how many methods were visited
 result.error;   // why the pattern did not compile, in which case none were
 ```
 
-`dispatch` finds a literal pattern by binary search, replays a pattern it
-has seen since the last `add` or `remove` from a cache, and otherwise
-compiles the pattern and matches it against every method, visiting them in
-bytewise address order. The cache holds up to 4,096 patterns and is emptied
-when full.
+`dispatch` asks the address space's `Matcher` about every method in
+bytewise address order, so a message costs one memoised match per
+registered method: a regex match each the first time a pattern meets an
+address, and a hash lookup each after that. `matcher()` exposes the memo.
 
 ## Guarantees and their limits
 
-- The exact path and a cache hit allocate nothing, which the tests assert.
-- A first sight of a wildcard pattern compiles a `std::regex` and calls
-  `std::regex_match` once per method; both allocate, thousands of times
-  against a thousand methods. There is no allocation-free cold path.
+- A memoised verdict allocates nothing, and so does a dispatch whose
+  every pattern and address pair is memoised, which the tests assert.
+- A first sight of a pattern compiles a `std::regex`, and a first sight of
+  a pattern and address pair calls `std::regex_match`; both allocate,
+  thousands of times when a new pattern meets a thousand methods. There is
+  no allocation-free cold path.
 - Matching time is bounded by the regex engine; libc++'s does not
   backtrack catastrophically, so hostile patterns cost milliseconds, not
   seconds. The engine may throw `error_complexity` or `error_stack` on
   extreme inputs, which `matches` reports as no match.
 - `Pattern` owns its compiled expression; the text it was built from need
   not outlive it.
-- An `AddressSpace` is not safe to use from several threads at once.
+- A `Matcher` and an `AddressSpace` are not safe to use from several
+  threads at once.
 
 ## Matching rules
 
