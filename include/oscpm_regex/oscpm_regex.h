@@ -371,11 +371,11 @@ inline bool match(std::string_view pattern, std::string_view address)
 /// that a pattern is dispatched to. Addresses are kept in bytewise order
 /// and visited in that order. A literal pattern is found by binary search
 /// and a pattern seen since the last `add` or `remove` is replayed from a
-/// cache, neither of which allocates; any other pattern is compiled and matched against every
-/// method, which allocates, and its result is kept for replay. The cache
-/// holds `kMaxCachedPatterns` results and is emptied when full, so a
-/// working set larger than that never replays. Not safe for concurrent
-/// use.
+/// cache, neither of which allocates; any other pattern is compiled and
+/// matched against every method, which allocates, and its result is kept
+/// for replay. The cache holds `kMaxCachedPatterns` results and is emptied
+/// when full, so a working set larger than that never replays. Not safe
+/// for concurrent use.
 template <typename T>
 class AddressSpace
 {
