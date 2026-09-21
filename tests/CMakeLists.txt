@@ -9,12 +9,13 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(DOCTEST_NO_INSTALL ON)
 FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG 317ac1ed4c0bb6e6b91eafc817e05c488feffcb3 # v3.16.0
+    doctest
+    GIT_REPOSITORY https://github.com/doctest/doctest.git
+    GIT_TAG 1da23a3e8119ec5cce4f9388e91b065e20bf06f5 # v2.4.12
 )
-FetchContent_MakeAvailable(Catch2)
+FetchContent_MakeAvailable(doctest)
 
 add_executable(oscpm_regex_tests
     match_tests.cpp
@@ -23,7 +24,7 @@ add_executable(oscpm_regex_tests
 
 target_link_libraries(oscpm_regex_tests PRIVATE
     oscpm_regex::oscpm_regex
-    Catch2::Catch2WithMain
+    doctest::doctest_with_main
 )
 
 target_compile_options(oscpm_regex_tests PRIVATE
@@ -31,5 +32,5 @@ target_compile_options(oscpm_regex_tests PRIVATE
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
 )
 
-include(Catch)
-catch_discover_tests(oscpm_regex_tests)
+include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
+doctest_discover_tests(oscpm_regex_tests)

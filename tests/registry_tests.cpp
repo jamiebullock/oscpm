@@ -6,7 +6,7 @@
 
 #include <oscpm_regex/oscpm_regex.h>
 
-#include <catch2/catch_test_macros.hpp>
+#include <doctest/doctest.h>
 
 #include <algorithm>
 #include <cstdlib>
