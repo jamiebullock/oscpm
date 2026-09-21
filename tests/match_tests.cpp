@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Zlib
  */
 
-#include <oscpm_regex/oscpm_regex.h>
+#include <oscpm/oscpm.h>
 
 #include <doctest/doctest.h>
 
-using oscpm_regex::match;
-using oscpm_regex::Pattern;
+using oscpm::match;
+using oscpm::Pattern;
 
 TEST_CASE("a literal pattern matches only its own text")
 {

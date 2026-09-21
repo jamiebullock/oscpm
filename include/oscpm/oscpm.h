@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace oscpm_regex::detail
+namespace oscpm::detail
 {
 
 inline std::string translatePart(std::string_view part)
@@ -101,7 +101,7 @@ struct PairEqual
 
 }
 
-namespace oscpm_regex
+namespace oscpm
 {
 
 /// Represents an OSC address pattern as a regular expression.
@@ -159,7 +159,7 @@ public:
     {
         if (const auto verdict = m_verdicts.find(detail::PairView { pattern, address }); verdict != m_verdicts.end())
             return verdict->second;
-        const bool matched = oscpm_regex::match(pattern, address);
+        const bool matched = oscpm::match(pattern, address);
         if (m_verdicts.size() >= m_maxPairs)
             m_verdicts.clear();
         m_verdicts.emplace(detail::PairKey { std::string(pattern), std::string(address) }, matched);

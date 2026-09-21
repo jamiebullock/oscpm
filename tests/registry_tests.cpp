@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Zlib
  */
 
-#include <oscpm_regex/oscpm_regex.h>
+#include <oscpm/oscpm.h>
 
 #include <doctest/doctest.h>
 
@@ -54,7 +54,7 @@ void operator delete(void* memory, std::size_t) noexcept
 namespace
 {
 
-using oscpm_regex::AddressSpace;
+using oscpm::AddressSpace;
 
 std::vector<std::string> dispatched(AddressSpace<int>& space, std::string_view pattern, std::size_t& matched)
 {
@@ -174,7 +174,7 @@ TEST_CASE("a dispatch whose every pair is memoised allocates nothing")
 
 TEST_CASE("a memoised verdict allocates nothing and an invalid pattern is memoised as matching nothing")
 {
-    oscpm_regex::Matcher matcher;
+    oscpm::Matcher matcher;
     matcher.match("/synth/*/freq", "/synth/1/freq");
     matcher.match("/synth/[1", "/synth/1");
     const std::size_t before = g_allocations;
@@ -190,7 +190,7 @@ TEST_CASE("a memoised verdict allocates nothing and an invalid pattern is memois
 
 TEST_CASE("the memo is emptied when it reaches its limit")
 {
-    oscpm_regex::Matcher matcher(2);
+    oscpm::Matcher matcher(2);
     matcher.match("/a", "/a");
     matcher.match("/b", "/b");
     std::size_t before = g_allocations;
