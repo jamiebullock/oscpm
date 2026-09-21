@@ -36,8 +36,9 @@ With CMake 3.25 or later, any of these gives the target `oscpm::oscpm`:
   has no git history to read the version from, so pass
   `-DOSCPM_VERSION=<version>` when configuring it.
 
-The tests, example and fuzz target are built only when oscpm is the top-level
-project, so a consumer compiles nothing.
+The tests and example are built by default only when oscpm is the top-level
+project, and the fuzz target only on request, so a consumer compiles nothing
+unless it turns them on.
 
 ## Matching
 
@@ -141,7 +142,8 @@ and filters the incoming addresses through a stored pattern.
 ## Guarantees
 
 `match`, `Pattern::parse`, `Pattern::matches`, `validatePattern`,
-`validateAddress`, `AddressSpace::lookup` and `AddressSpace::forEach`:
+`validateAddress`, `AddressSpace::lookup` and `AddressSpace::forEach`, the
+last two apart from whatever the visitor they call does:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
