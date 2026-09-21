@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <functional>
 #include <regex>
@@ -56,6 +57,12 @@ inline std::string translate(std::string_view pattern)
     }
     return expression;
 }
+
+struct StringViewHash
+{
+    using is_transparent = void;
+    std::size_t operator()(std::string_view text) const noexcept { return std::hash<std::string_view> { }(text); }
+};
 
 struct PairKey
 {
@@ -162,12 +169,6 @@ private:
     std::unordered_map<detail::PairKey, bool, detail::PairHash, detail::PairEqual> m_verdicts;
 };
 
-struct StringViewHash
-{
-    using is_transparent = void;
-    std::size_t operator()(std::string_view text) const noexcept { return std::hash<std::string_view> { }(text); }
-};
-
 /// A dispatch table of methods keyed by address. A pattern equal to a
 /// registered address reaches that method by one hash lookup; any other
 /// pattern is put to a `Matcher` for every method, in no particular order.
@@ -214,7 +215,7 @@ public:
     }
 
 private:
-    std::unordered_map<std::string, T, StringViewHash, std::equal_to<>> m_methods;
+    std::unordered_map<std::string, T, detail::StringViewHash, std::equal_to<>> m_methods;
     Matcher m_matcher;
 };
 
