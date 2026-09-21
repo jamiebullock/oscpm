@@ -124,7 +124,7 @@ jobs:
       - name: Build the tests, the example and the fuzz target
         run: cmake --build --preset release --target oscpm_tests oscpm_dispatch oscpm_pattern_fuzz
 
-      - name: Run the tests under the sanitizers, check the seeds and run each once
+      - name: Run the tests under the sanitizers and every seed once
         run: ctest --preset release
 
       - name: Fuzz for one minute

@@ -3,18 +3,13 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
-# Generates the fuzz seed corpus from corpus/matching.txt:
+# Writes one seed per corpus case, holding the pattern, a newline and the
+# address, plus one seed with a part one byte beyond PART_LIMIT:
 #
 #   cmake -DCORPUS=<matching.txt> -DSEEDS=<output directory> -DPART_LIMIT=<bytes> -P seed_corpus.cmake
 #
-# Every case becomes one seed named after its corpus line, holding the
-# pattern, a newline, and the address: the input format pattern_fuzz.cpp
-# reads. The expectation is left to the conformance tests. The output
-# directory is recreated from scratch so that no seed outlives its case.
-#
-# The corpus is walked with string(FIND), not as a CMake list: an unbalanced
-# '[' in a list element, which many cases contain, makes CMake fold the
-# elements after it into that one.
+# The corpus is walked with string(FIND), because an unbalanced '[' in a
+# CMake list element folds the elements after it into that one.
 
 if(NOT CORPUS OR NOT SEEDS OR NOT PART_LIMIT)
     message(FATAL_ERROR
@@ -25,7 +20,8 @@ endif()
 file(REMOVE_RECURSE "${SEEDS}")
 file(MAKE_DIRECTORY "${SEEDS}")
 
-file(READ "${CORPUS}" rest)
+file(READ "${CORPUS}" corpus)
+set(rest "${corpus}")
 
 set(lineNumber 0)
 set(seedCount 0)
@@ -47,11 +43,13 @@ while(NOT rest STREQUAL "")
     endif()
 endwhile()
 
-if(seedCount EQUAL 0)
-    message(FATAL_ERROR "no cases found in ${CORPUS}")
+# Every case line, and only a case line, opens with a double quote.
+string(REGEX MATCHALL "\n[ \t]*\"" caseOpenings "\n${corpus}")
+list(LENGTH caseOpenings caseCount)
+if(caseCount EQUAL 0 OR NOT seedCount EQUAL caseCount)
+    message(FATAL_ERROR "${seedCount} seeds written for ${caseCount} cases in ${CORPUS}")
 endif()
 
-# One seed the corpus does not carry: a part one byte beyond PART_LIMIT.
 # libFuzzer grows inputs slowly from small seeds and in a minute never
 # reaches the length check on its own.
 set(longPart "")

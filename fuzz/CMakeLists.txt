@@ -3,13 +3,11 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
-# The seed corpus is generated at build time from corpus/matching.txt, so it
-# tracks the conformance corpus without a checked-in copy.
+# The seeds are generated at build time from corpus/matching.txt.
 set(OSCPM_FUZZ_SEEDS_DIR ${CMAKE_CURRENT_BINARY_DIR}/seeds)
 set(OSCPM_FUZZ_SEEDS_STAMP ${CMAKE_CURRENT_BINARY_DIR}/seeds.stamp)
 
-# Must equal oscpm::kMaxAddressPartLength; the scripts write and check a seed
-# whose part is one byte longer.
+# Must equal oscpm::kMaxAddressPartLength.
 set(OSCPM_FUZZ_PART_LIMIT 4095)
 
 set(OSCPM_FUZZ_SCRIPT_ARGS
@@ -31,11 +29,6 @@ add_custom_command(
 )
 
 add_custom_target(oscpm_fuzz_seeds ALL DEPENDS ${OSCPM_FUZZ_SEEDS_STAMP})
-
-add_test(NAME oscpm_fuzz_seeds
-    COMMAND ${CMAKE_COMMAND} ${OSCPM_FUZZ_SCRIPT_ARGS}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_seeds.cmake
-)
 
 # libFuzzer ships with LLVM clang but not with Apple clang, GCC or MSVC, so
 # the target is enabled by a link probe of the exact flags it needs.
