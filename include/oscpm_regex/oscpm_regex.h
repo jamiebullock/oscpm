@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -355,9 +356,10 @@ inline bool match(std::string_view pattern, std::string_view address)
 }
 
 /// A set of methods, each a well-formed address with a value of type `T`,
-/// that a pattern is dispatched to. An exact address and a pattern seen
-/// since the last `add` or `remove` are served from hash maps without
-/// allocating; any other pattern is compiled and matched against every
+/// that a pattern is dispatched to. Addresses are kept in bytewise order
+/// and visited in that order. A literal pattern is found by binary search
+/// and a pattern seen since the last `add` or `remove` is replayed from a
+/// cache, neither of which allocates; any other pattern is compiled and matched against every
 /// method, which allocates, and its result is kept for replay. The cache
 /// holds `kMaxCachedPatterns` results and is emptied when full, so a
 /// working set larger than that never replays. Not safe for concurrent
@@ -366,7 +368,7 @@ template <typename T>
 class Registry
 {
 public:
-    using MethodIndex = std::uint32_t;
+    using MethodIndex = std::size_t;
 
     /// How many methods a dispatch visited, and whether the pattern was
     /// malformed, in which case it visited none.
@@ -380,10 +382,12 @@ public:
     /// or already registered.
     bool add(std::string_view address, T value)
     {
-        if (!isValidAddress(address) || m_index.find(address) != m_index.end())
+        if (!isValidAddress(address))
             return false;
-        m_methods.push_back(Method { std::string(address), std::move(value) });
-        m_index.emplace(m_methods.back().address, static_cast<MethodIndex>(m_methods.size() - 1));
+        const auto position = lowerBound(address);
+        if (position != m_methods.end() && position->address == address)
+            return false;
+        m_methods.insert(position, Method { std::string(address), std::move(value) });
         m_cache.clear();
         return true;
     }
@@ -391,17 +395,10 @@ public:
     /// Unregisters `address`; false if it is not registered.
     bool remove(std::string_view address)
     {
-        const auto method = m_index.find(address);
-        if (method == m_index.end())
+        const auto position = lowerBound(address);
+        if (position == m_methods.end() || position->address != address)
             return false;
-        const MethodIndex index = method->second, last = static_cast<MethodIndex>(m_methods.size() - 1);
-        m_index.erase(method);
-        if (index != last)
-        {
-            m_methods[index] = std::move(m_methods[last]);
-            m_index.find(m_methods[index].address)->second = index;
-        }
-        m_methods.pop_back();
+        m_methods.erase(position);
         m_cache.clear();
         return true;
     }
@@ -413,7 +410,8 @@ public:
     void invalidateCache() { m_cache.clear(); }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method
-    /// `pattern` matches. The visitor must not add or remove methods.
+    /// `pattern` matches, in bytewise address order. The visitor must not add
+    /// or remove methods.
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
@@ -430,10 +428,10 @@ private:
     template <typename Visitor>
     DispatchResult dispatchLiteral(std::string_view address, Visitor& visitor)
     {
-        const auto method = m_index.find(address);
-        if (method == m_index.end())
+        const auto position = lowerBound(address);
+        if (position == m_methods.end() || position->address != address)
             return { 0, false };
-        visitor(m_methods[method->second].address, m_methods[method->second].value);
+        visitor(position->address, position->value);
         return { 1, false };
     }
 
@@ -478,8 +476,13 @@ private:
         T value;
     };
 
+    typename std::vector<Method>::iterator lowerBound(std::string_view address)
+    {
+        return std::lower_bound(m_methods.begin(), m_methods.end(), address, [](const Method& method, std::string_view candidate)
+            { return method.address < candidate; });
+    }
+
     std::vector<Method> m_methods;
-    std::unordered_map<std::string, MethodIndex, detail::StringViewHash, std::equal_to<>> m_index;
     std::unordered_map<std::string, std::vector<MethodIndex>, detail::StringViewHash, std::equal_to<>> m_cache;
 };
 

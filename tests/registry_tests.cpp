@@ -90,6 +90,19 @@ TEST_CASE("remove unregisters an address that is registered")
     CHECK(visited(registry, "/synth/1/freq", matched, malformed) == std::vector<std::string> { "/synth/1/freq" });
 }
 
+TEST_CASE("methods are visited in bytewise address order whatever the insertion order")
+{
+    Registry<int> registry;
+    registry.add("/c", 1);
+    registry.add("/a", 2);
+    registry.add("/b", 3);
+    std::size_t matched = 0;
+    bool malformed = false;
+    CHECK(visited(registry, "/?", matched, malformed) == std::vector<std::string> { "/a", "/b", "/c" });
+    registry.remove("/b");
+    CHECK(visited(registry, "/?", matched, malformed) == std::vector<std::string> { "/a", "/c" });
+}
+
 TEST_CASE("an exact address reaches exactly its method")
 {
     Registry<int> registry = synth();
@@ -109,7 +122,7 @@ TEST_CASE("a wildcard pattern reaches every matching method")
     bool malformed = false;
     const auto addresses = visited(registry, "/synth/*/freq", matched, malformed);
     CHECK(matched == 2);
-    CHECK(addresses.size() == 2);
+    CHECK(addresses == std::vector<std::string> { "/synth/1/freq", "/synth/2/freq" });
     CHECK(visited(registry, "//gain", matched, malformed) == std::vector<std::string> { "/mixer/master/gain" });
 }
 

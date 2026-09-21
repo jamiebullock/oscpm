@@ -6,9 +6,9 @@ Header-only C++20 OpenSoundControl (OSC) address pattern matching built on
 oscpm-regex translates each OSC address pattern, the `?`, `*`, `[...]` and
 `{a,b}` syntax of OSC 1.0 plus the `//` operator of OSC 1.1, into an
 anchored ECMAScript regular expression and matches it with the standard
-library's engine. A registry adds a hash map for exact addresses and a cache
-of pattern results, so that an address seen before costs one hash. It
-depends on nothing outside the standard library.
+library's engine. A registry keeps its methods in address order, finds a
+literal pattern by binary search, and replays a pattern it has seen before
+from a cache. It depends on nothing outside the standard library.
 
 ## Integration
 
@@ -55,10 +55,11 @@ result.matched;   // how many methods were visited
 result.malformed; // the pattern did not compile, and none were
 ```
 
-`dispatch` looks a literal pattern up in a hash map of addresses, replays a
-pattern it has seen since the last `add` or `remove` from a cache, and
-otherwise compiles the pattern and matches it against every method. The
-cache holds up to 4,096 patterns and is emptied when full.
+`dispatch` finds a literal pattern by binary search, replays a pattern it
+has seen since the last `add` or `remove` from a cache, and otherwise
+compiles the pattern and matches it against every method, visiting them in
+bytewise address order. The cache holds up to 4,096 patterns and is emptied
+when full.
 
 ## Guarantees and their limits
 
