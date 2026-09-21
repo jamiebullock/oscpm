@@ -51,6 +51,7 @@ namespace k
     constexpr char listClose = '}';
     constexpr char listSeparator = ',';
     constexpr std::string_view operatorBytes = "*?[{";
+    constexpr std::string_view descendantOperator = "//";
     constexpr std::string_view reservedInAddress = "#*,?[]{}";
     constexpr unsigned char firstPrintableAscii = 0x21;
     constexpr unsigned char lastPrintableAscii = 0x7E;
@@ -76,6 +77,11 @@ inline bool isPrintableAscii(char byte)
 inline bool isReservedInAddress(char byte)
 {
     return k::reservedInAddress.find(byte) != npos;
+}
+
+inline bool isLiteral(std::string_view pattern)
+{
+    return !pattern.empty() && pattern.find_first_of(k::operatorBytes) == npos && pattern.find(k::descendantOperator) == npos && pattern.back() != k::partSeparator;
 }
 
 inline void appendEscapedByte(std::string& expression, char byte)
@@ -352,7 +358,10 @@ inline bool match(std::string_view pattern, std::string_view address)
 /// that a pattern is dispatched to. An exact address and a pattern seen
 /// since the last `add` or `remove` are served from hash maps without
 /// allocating; any other pattern is compiled and matched against every
-/// method, which allocates. Not safe for concurrent use.
+/// method, which allocates, and its result is kept for replay. The cache
+/// holds `kMaxCachedPatterns` results and is emptied when full, so a
+/// working set larger than that never replays. Not safe for concurrent
+/// use.
 template <typename T>
 class Registry
 {
@@ -408,20 +417,37 @@ public:
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
-        if (pattern.find_first_of(detail::k::operatorBytes) == detail::npos && pattern.find("//") == detail::npos && !pattern.empty() && pattern.back() != detail::k::partSeparator)
-        {
-            const auto method = m_index.find(pattern);
-            if (method == m_index.end())
-                return { 0, false };
-            visitor(m_methods[method->second].address, m_methods[method->second].value);
-            return { 1, false };
-        }
+        if (detail::isLiteral(pattern))
+            return dispatchLiteral(pattern, visitor);
         if (const auto cached = m_cache.find(pattern); cached != m_cache.end())
-        {
-            for (const MethodIndex index : cached->second)
-                visitor(m_methods[index].address, m_methods[index].value);
-            return { cached->second.size(), false };
-        }
+            return replay(cached->second, visitor);
+        return matchEveryMethod(pattern, visitor);
+    }
+
+    static constexpr std::size_t kMaxCachedPatterns = 4096;
+
+private:
+    template <typename Visitor>
+    DispatchResult dispatchLiteral(std::string_view address, Visitor& visitor)
+    {
+        const auto method = m_index.find(address);
+        if (method == m_index.end())
+            return { 0, false };
+        visitor(m_methods[method->second].address, m_methods[method->second].value);
+        return { 1, false };
+    }
+
+    template <typename Visitor>
+    DispatchResult replay(const std::vector<MethodIndex>& matched, Visitor& visitor)
+    {
+        for (const MethodIndex index : matched)
+            visitor(m_methods[index].address, m_methods[index].value);
+        return { matched.size(), false };
+    }
+
+    template <typename Visitor>
+    DispatchResult matchEveryMethod(std::string_view pattern, Visitor& visitor)
+    {
         const Pattern compiled(pattern);
         if (!compiled.valid())
             return { 0, true };
@@ -434,15 +460,17 @@ public:
                 matched.push_back(index);
             }
         }
-        if (m_cache.size() >= kMaxCachedPatterns)
-            m_cache.clear();
         const std::size_t numMatched = matched.size();
-        m_cache.emplace(std::string(pattern), std::move(matched));
+        remember(pattern, std::move(matched));
         return { numMatched, false };
     }
 
-private:
-    static constexpr std::size_t kMaxCachedPatterns = 4096;
+    void remember(std::string_view pattern, std::vector<MethodIndex> matched)
+    {
+        if (m_cache.size() >= kMaxCachedPatterns)
+            m_cache.clear();
+        m_cache.emplace(std::string(pattern), std::move(matched));
+    }
 
     struct Method
     {
