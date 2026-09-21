@@ -91,6 +91,11 @@ address, and a hash lookup each after that. `matcher()` exposes the memo.
   not outlive it.
 - A `Matcher` and an `AddressSpace` are not safe to use from several
   threads at once.
+- Measured over 1,000 registered methods on an Apple Silicon Mac: a
+  dispatch whose pairs are all memoised costs about 35 microseconds
+  whatever the pattern, one hash lookup per method; the first dispatch of
+  a new pattern costs 0.3 to 3 milliseconds and thousands of allocations.
+  A single memoised `match` costs about 20 nanoseconds.
 
 ## Matching rules
 
