@@ -112,15 +112,18 @@ oscpm::AddressSpace<Handler> methods;
 methods.add("/synth/1/freq", setFrequency); // Duplicate or a validateAddress fault
 methods.remove("/synth/1/freq");            // NotFound or a validateAddress fault
 
-if (const auto parsed = oscpm::Pattern::parse(message.address()))
+const oscpm::DispatchResult result = methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
+    { handler(message); });
+if (result.error)
 {
-    methods.lookup(parsed.pattern(), [&](std::string_view address, Handler& handler)
-        { handler(message); });
+    result.error->kind; // the pattern did not parse and nothing was visited
 }
 ```
 
-`lookup` visits every matching method in bytewise address order and returns
-how many it visited; `forEach` visits them all. A literal pattern is a binary
+`dispatch` is `Pattern::parse` followed by `lookup`, returning the number of
+methods visited and the parse fault together; `lookup` takes an already
+parsed `Pattern` for a pattern that is reused. Both visit every matching
+method in bytewise address order; `forEach` visits them all. A literal pattern is a binary
 search. Any other pattern is matched against every method, so a cold lookup
 costs O(N) in the number of methods; by default the result is then memoised
 until the next `add` or `remove`, so repeating the same pattern costs a hash
@@ -142,8 +145,9 @@ and filters the incoming addresses through a stored pattern.
 ## Guarantees
 
 `match`, `Pattern::parse`, `Pattern::matches`, `validatePattern`,
-`validateAddress`, `AddressSpace::lookup` and `AddressSpace::forEach`, the
-last two apart from whatever the visitor they call does:
+`validateAddress`, `AddressSpace::lookup`, `AddressSpace::dispatch` and
+`AddressSpace::forEach`, the last three apart from whatever the visitor they
+call does:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;

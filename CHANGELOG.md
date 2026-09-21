@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.7 - 2026-09-21
+
+### Added
+
+- `AddressSpace::dispatch` and `DispatchResult`: `Pattern::parse` followed by `lookup` in one call, taking the pattern as bytes and returning the number of methods visited together with the parse fault when there is one.
+
 ## 0.2.6 - 2026-09-21
 
 ### Breaking changes

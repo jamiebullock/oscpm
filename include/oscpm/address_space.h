@@ -25,6 +25,15 @@ namespace oscpm
 /// every time.
 constexpr std::size_t kMaxMemoPatternLength = 256;
 
+/// What `AddressSpace::dispatch` did: the number of methods visited, and
+/// the fault that stopped the pattern parsing, in which case nothing was
+/// visited.
+struct DispatchResult
+{
+    std::size_t matched;
+    std::optional<ParseError> error;
+};
+
 /// A set of OSC methods, each a well-formed address with a value of type
 /// `T`, that a pattern is dispatched to. Addresses are kept in bytewise
 /// order. A literal pattern is found by binary search; any other is
@@ -32,7 +41,8 @@ constexpr std::size_t kMaxMemoPatternLength = 256;
 /// `add` or `remove` when `Memo` is true. The memo has `1 << CacheBits`
 /// entries and keeps a result of at most `InlineResults` methods for a
 /// pattern of at most `kMaxMemoPatternLength` bytes. `add` and `remove`
-/// allocate; `lookup` and `forEach` never do. A moved-from space is empty
+/// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
+/// space is empty
 /// and usable, without a memo until it is assigned to. Not safe for
 /// concurrent use.
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 64>
@@ -96,6 +106,36 @@ public:
     std::size_t lookup(const Pattern& pattern, Visitor&& visitor) const
     {
         return lookupIn(m_methods, pattern, visitor);
+    }
+
+    /// Parses `pattern` and calls `visitor(std::string_view address, T& value)`
+    /// for every method it matches, in bytewise address order, as
+    /// `Pattern::parse` followed by `lookup`. A malformed pattern visits
+    /// nothing and is reported. The visitor must not add or remove methods.
+    template <typename Visitor>
+    DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
+    {
+        const ParseResult parsed = Pattern::parse(pattern);
+        if (!parsed)
+        {
+            return DispatchResult { 0, parsed.error() };
+        }
+        return DispatchResult { lookupIn(m_methods, parsed.pattern(), visitor), std::nullopt };
+    }
+
+    /// Parses `pattern` and calls `visitor(std::string_view address, const T& value)`
+    /// for every method it matches, in bytewise address order, as
+    /// `Pattern::parse` followed by `lookup`. A malformed pattern visits
+    /// nothing and is reported.
+    template <typename Visitor>
+    DispatchResult dispatch(std::string_view pattern, Visitor&& visitor) const
+    {
+        const ParseResult parsed = Pattern::parse(pattern);
+        if (!parsed)
+        {
+            return DispatchResult { 0, parsed.error() };
+        }
+        return DispatchResult { lookupIn(m_methods, parsed.pattern(), visitor), std::nullopt };
     }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method
