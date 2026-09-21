@@ -68,6 +68,7 @@ TEST_CASE("the descendant operator matches zero or more whole parts")
 
 TEST_CASE("a malformed pattern reports why and matches nothing")
 {
+    CHECK_FALSE(Pattern("/synth").error());
     CHECK(Pattern("synth").error() == Error::MissingLeadingSlash);
     CHECK(Pattern("/synth/[1").error() == Error::UnterminatedClass);
     CHECK(Pattern("/synth/{1").error() == Error::UnterminatedBraces);

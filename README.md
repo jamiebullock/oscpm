@@ -32,7 +32,7 @@ if (pattern.valid())
 }
 else
 {
-    pattern.error(); // an oscpm_regex::Error
+    pattern.error(); // a std::optional<oscpm_regex::Error>
 }
 ```
 

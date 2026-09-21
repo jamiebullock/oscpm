@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <regex>
 #include <string>
 #include <string_view>
@@ -24,7 +25,6 @@ namespace oscpm_regex
 /// regex engine refused.
 enum class Error : std::uint8_t
 {
-    None,
     MissingLeadingSlash,
     IllegalByte,
     UnterminatedClass,
@@ -166,7 +166,7 @@ inline void appendByteClass(std::string& expression, const ByteSet& members)
     expression += k::setClose;
 }
 
-inline Error appendPart(std::string& expression, std::string_view part)
+inline std::optional<Error> appendPart(std::string& expression, std::string_view part)
 {
     std::size_t i = 0;
     while (i < part.size())
@@ -216,19 +216,25 @@ inline Error appendPart(std::string& expression, std::string_view part)
             ++i;
         }
     }
-    return Error::None;
+    return std::nullopt;
 }
 
-inline Error translatePattern(std::string_view pattern, std::string& expression)
+struct Translation
 {
-    expression.clear();
+    std::optional<Error> error;
+    std::string expression;
+};
+
+inline Translation translatePattern(std::string_view pattern)
+{
     if (pattern.empty() || pattern[0] != k::partSeparator)
-        return Error::MissingLeadingSlash;
+        return { Error::MissingLeadingSlash, { } };
     for (const char byte : pattern)
     {
         if (!isPrintableAscii(byte))
-            return Error::IllegalByte;
+            return { Error::IllegalByte, { } };
     }
+    Translation translation;
     std::size_t i = 1;
     bool insideDescendantOperator = false;
     for (;;)
@@ -238,21 +244,21 @@ inline Error translatePattern(std::string_view pattern, std::string& expression)
         if (part.empty())
         {
             if (!insideDescendantOperator)
-                expression += k::descendantExpression;
+                translation.expression += k::descendantExpression;
             insideDescendantOperator = true;
         }
         else
         {
-            expression += k::partSeparator;
-            if (const Error error = appendPart(expression, part); error != Error::None)
-                return error;
+            translation.expression += k::partSeparator;
+            if (const std::optional<Error> error = appendPart(translation.expression, part))
+                return { error, { } };
             insideDescendantOperator = false;
         }
         if (separator == npos)
             break;
         i = separator + 1;
     }
-    return Error::None;
+    return translation;
 }
 
 struct StringViewHash
@@ -288,18 +294,19 @@ inline bool isValidAddress(std::string_view address)
 class Pattern
 {
 public:
+    /// An invalid pattern that matches nothing.
     Pattern() = default;
 
-    /// Compiles `text`; `valid` and `error` report the outcome.
+    /// Compiles `text`; `error` reports why that failed.
     explicit Pattern(std::string_view text)
     {
-        std::string expression;
-        m_error = detail::translatePattern(text, expression);
-        if (m_error != Error::None)
+        const detail::Translation translation = detail::translatePattern(text);
+        m_error = translation.error;
+        if (m_error)
             return;
         try
         {
-            m_expression = std::regex(expression, std::regex::ECMAScript);
+            m_expression = std::regex(translation.expression, std::regex::ECMAScript);
         }
         catch (const std::regex_error&)
         {
@@ -308,10 +315,10 @@ public:
     }
 
     /// Whether the pattern compiled.
-    bool valid() const { return m_error == Error::None; }
+    bool valid() const { return !m_error.has_value(); }
 
-    /// Why the pattern did not compile, or `Error::None`.
-    Error error() const { return m_error; }
+    /// Why the pattern did not compile, or nothing when it did.
+    std::optional<Error> error() const { return m_error; }
 
     /// Whether this pattern matches `address`, byte for byte. False for an
     /// invalid pattern, for an address without a leading '/', and for an
@@ -332,7 +339,7 @@ public:
 
 private:
     std::regex m_expression;
-    Error m_error = Error::MissingLeadingSlash;
+    std::optional<Error> m_error = Error::MissingLeadingSlash;
 };
 
 /// Compiles `pattern` and tests it against `address`.
