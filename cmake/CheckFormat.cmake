@@ -3,11 +3,9 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
-# add_clang_format_check(SOURCES <files>...)
-#
-# Adds `check-format`, part of the default build, which fails when any of the
-# files differs from what clang-format would produce, and `format`, which
-# rewrites them in place. Requires clang-format on the PATH.
+# add_clang_format_check(SOURCES <files>...) adds `check-format`, part of the
+# default build, which fails on a formatting difference, and `format`, which
+# rewrites the files in place.
 
 function(add_clang_format_check)
     cmake_parse_arguments(ARG "" "" "SOURCES" ${ARGN})

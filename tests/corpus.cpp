@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <ios>
+#include <regex>
 #include <sstream>
 #include <utility>
 
@@ -19,81 +20,40 @@ namespace oscpm_test
 namespace
 {
 
-    std::string quotedField(const std::string& line, std::size_t& position, int lineNumber)
-    {
-        const std::size_t open = line.find('"', position);
-        if (open == std::string::npos)
-        {
-            FAIL("corpus line " << lineNumber << ": expected a quoted field: " << line);
-        }
-        const std::size_t close = line.find('"', open + 1);
-        if (close == std::string::npos)
-        {
-            FAIL("corpus line " << lineNumber << ": unterminated quoted field: " << line);
-        }
-        position = close + 1;
-        return line.substr(open + 1, close - open - 1);
-    }
+    const std::regex kCaseLine(R"re(^[ \t]*"([^"]*)"[ \t]*"([^"]*)"[ \t]*(.*?)[ \t]*$)re");
 
-    bool matchWord(const std::string& word, int lineNumber, const std::string& line)
+    bool parseExpectation(const std::string& words, CorpusCase& corpusCase)
     {
-        if (word == "match")
+        std::istringstream stream(words);
+        std::string kind;
+        std::string outcome;
+        stream >> kind;
+        if (kind == "match" || kind == "nomatch")
         {
-            return true;
+            corpusCase.expectation = kind == "match" ? Expectation::Match : Expectation::NoMatch;
+            corpusCase.matchesBytewise = kind == "match";
         }
-        if (word == "nomatch")
-        {
-            return false;
-        }
-        FAIL("corpus line " << lineNumber << ": expected match or nomatch, got '" << word << "': " << line);
-        return false;
-    }
-
-    CorpusCase parseCase(const std::string& line, int lineNumber, std::size_t first)
-    {
-        CorpusCase corpusCase;
-        corpusCase.line = lineNumber;
-        corpusCase.text = line;
-        std::size_t position = first;
-        corpusCase.pattern = quotedField(line, position, lineNumber);
-        corpusCase.address = quotedField(line, position, lineNumber);
-
-        std::istringstream rest(line.substr(position));
-        std::string expectation;
-        rest >> expectation;
-        if (expectation == "match" || expectation == "nomatch")
-        {
-            corpusCase.matchesBytewise = matchWord(expectation, lineNumber, line);
-            corpusCase.expectation = corpusCase.matchesBytewise ? Expectation::Match : Expectation::NoMatch;
-        }
-        else if (expectation == "malformed-pattern")
+        else if (kind == "malformed-pattern")
         {
             corpusCase.expectation = Expectation::MalformedPattern;
-            if (!(rest >> corpusCase.errorName >> corpusCase.offset))
-            {
-                FAIL("corpus line " << lineNumber << ": malformed-pattern needs <Error> <offset>: " << line);
-            }
+            stream >> corpusCase.errorName >> corpusCase.offset;
         }
-        else if (expectation == "malformed-address")
+        else if (kind == "malformed-address")
         {
             corpusCase.expectation = Expectation::MalformedAddress;
-            std::string outcome;
-            if (!(rest >> corpusCase.errorName >> corpusCase.offset >> outcome))
+            stream >> corpusCase.errorName >> corpusCase.offset >> outcome;
+            corpusCase.matchesBytewise = outcome == "match";
+            if (outcome != "match" && outcome != "nomatch")
             {
-                FAIL("corpus line " << lineNumber << ": malformed-address needs <Error> <offset> <match|nomatch>: " << line);
+                return false;
             }
-            corpusCase.matchesBytewise = matchWord(outcome, lineNumber, line);
         }
         else
         {
-            FAIL("corpus line " << lineNumber << ": unknown expectation '" << expectation << "': " << line);
+            return false;
         }
         std::string trailing;
-        if (rest >> trailing)
-        {
-            FAIL("corpus line " << lineNumber << ": unexpected trailing text '" << trailing << "': " << line);
-        }
-        return corpusCase;
+        return !stream.fail() && !(stream >> trailing);
     }
 
 }
@@ -121,7 +81,17 @@ std::vector<CorpusCase> loadCorpus(const char* path)
         {
             continue;
         }
-        cases.push_back(parseCase(line, lineNumber, first));
+        std::smatch fields;
+        CorpusCase corpusCase;
+        if (!std::regex_match(line, fields, kCaseLine) || !parseExpectation(fields[3], corpusCase))
+        {
+            FAIL("corpus line " << lineNumber << " is not a case: " << line);
+        }
+        corpusCase.line = lineNumber;
+        corpusCase.text = line;
+        corpusCase.pattern = fields[1];
+        corpusCase.address = fields[2];
+        cases.push_back(std::move(corpusCase));
     }
     if (cases.empty())
     {

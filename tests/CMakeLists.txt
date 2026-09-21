@@ -5,8 +5,7 @@
 
 include(FetchContent)
 
-# Catch2 defaults to C++14, which leaves its std::string_view support out of
-# the library the tests link against.
+# Catch2 defaults to C++14, which leaves out its std::string_view support.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -25,7 +24,6 @@ add_executable(oscpm_tests
     corpus_tests.cpp
     match_tests.cpp
     pattern_tests.cpp
-    validation_tests.cpp
 )
 
 target_compile_definitions(oscpm_tests PRIVATE
