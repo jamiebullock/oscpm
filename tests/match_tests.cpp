@@ -386,6 +386,23 @@ TEST_CASE("a pattern with many brace lists completes in bounded time")
     CHECK(seconds < kGenerousSeconds);
 }
 
+TEST_CASE("a brace list with thousands of empty members completes in bounded time")
+{
+    const std::string address = "/" + std::string(200, 'a') + "c";
+    std::string pattern = "/{";
+    for (int i = 0; i < 2000; ++i)
+    {
+        pattern += ",";
+    }
+    pattern += "}b";
+
+    bool result = true;
+    const double seconds = secondsTaken([&]
+        { result = match(pattern, address); });
+    CHECK_FALSE(result);
+    CHECK(seconds < kGenerousSeconds);
+}
+
 TEST_CASE("a pattern with many // operators completes in bounded time")
 {
     std::string address;
