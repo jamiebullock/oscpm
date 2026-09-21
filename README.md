@@ -6,7 +6,7 @@ Header-only C++20 OpenSoundControl (OSC) address pattern matching built on
 oscpm-regex translates each OSC address pattern, the `?`, `*`, `[...]` and
 `{a,b}` syntax of OSC 1.0 plus the `//` operator of OSC 1.1, into an
 anchored ECMAScript regular expression and matches it with the standard
-library's engine. A registry keeps its methods in address order, finds a
+library's engine. An address space keeps its methods in address order, finds a
 literal pattern by binary search, and replays a pattern it has seen before
 from a cache. It depends on nothing outside the standard library.
 
@@ -40,19 +40,20 @@ else
 and is matched many times. A pattern that does not compile reports one of
 `MissingLeadingSlash`, `IllegalByte`, `UnterminatedClass`,
 `UnterminatedBraces`, `NestedBraces` or `RegexRejected`, and matches
-nothing. `isValidAddress` applies the OSC address rules to an address.
+nothing. `validateAddress` reports the first fault in an address, or
+nothing when it is well-formed.
 
-## Registry
+## Address space
 
 ```cpp
-oscpm_regex::Registry<Handler> methods;
-methods.add("/synth/1/freq", setFrequency); // false if malformed or already registered
-methods.remove("/synth/1/freq");            // false if not registered
+oscpm_regex::AddressSpace<Handler> methods;
+methods.add("/synth/1/freq", setFrequency); // Duplicate or a validateAddress fault
+methods.remove("/synth/1/freq");            // NotFound or a validateAddress fault
 
 const auto result = methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
     { handler(message); });
-result.matched;   // how many methods were visited
-result.malformed; // the pattern did not compile, and none were
+result.matched; // how many methods were visited
+result.error;   // why the pattern did not compile, in which case none were
 ```
 
 `dispatch` finds a literal pattern by binary search, replays a pattern it
@@ -73,7 +74,7 @@ when full.
   extreme inputs, which `matches` reports as no match.
 - `Pattern` owns its compiled expression; the text it was built from need
   not outlive it.
-- A `Registry` is not safe to use from several threads at once.
+- An `AddressSpace` is not safe to use from several threads at once.
 
 ## Matching rules
 

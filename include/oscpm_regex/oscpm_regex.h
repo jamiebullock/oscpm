@@ -22,8 +22,12 @@
 namespace oscpm_regex
 {
 
-/// Why a pattern failed to compile. `RegexRejected` is a translation the
-/// regex engine refused.
+/// A fault in a pattern, in an address or in an `AddressSpace` operation.
+/// `MissingLeadingSlash` and `IllegalByte` are reported for both a pattern
+/// and an address; `UnterminatedClass`, `UnterminatedBraces`,
+/// `NestedBraces` and `RegexRejected`, a translation the regex engine
+/// refused, only for a pattern; `TrailingSlash` and `EmptyPart` only for an
+/// address; `Duplicate` and `NotFound` by `add` and `remove`.
 enum class Error : std::uint8_t
 {
     MissingLeadingSlash,
@@ -31,7 +35,11 @@ enum class Error : std::uint8_t
     UnterminatedClass,
     UnterminatedBraces,
     NestedBraces,
-    RegexRejected
+    RegexRejected,
+    TrailingSlash,
+    EmptyPart,
+    Duplicate,
+    NotFound
 };
 
 }
@@ -280,20 +288,24 @@ struct StringViewHash
 namespace oscpm_regex
 {
 
-/// Whether `address` is a well-formed OSC address: a leading '/', no
-/// trailing or doubled '/', and only printable ASCII other than `#*,?[]{}`.
-inline bool isValidAddress(std::string_view address)
+/// The first fault in `address`, or nothing when it is a well-formed OSC
+/// address: `MissingLeadingSlash`, `TrailingSlash` (the bare "/" included),
+/// `EmptyPart` for two adjacent slashes, `IllegalByte` for a byte outside
+/// printable ASCII or one of `#*,?[]{}`.
+inline std::optional<Error> validateAddress(std::string_view address)
 {
-    if (address.empty() || address[0] != detail::k::partSeparator || address.back() == detail::k::partSeparator)
-        return false;
+    if (address.empty() || address[0] != detail::k::partSeparator)
+        return Error::MissingLeadingSlash;
+    if (address.back() == detail::k::partSeparator)
+        return Error::TrailingSlash;
     for (std::size_t i = 1; i < address.size(); ++i)
     {
-        if (!detail::isPrintableAscii(address[i]) || detail::isReservedInAddress(address[i]))
-            return false;
         if (address[i] == detail::k::partSeparator && address[i - 1] == detail::k::partSeparator)
-            return false;
+            return Error::EmptyPart;
+        if (!detail::isPrintableAscii(address[i]) || detail::isReservedInAddress(address[i]))
+            return Error::IllegalByte;
     }
-    return true;
+    return std::nullopt;
 }
 
 /// An OSC address pattern compiled to a regular expression. Construction
@@ -365,42 +377,45 @@ inline bool match(std::string_view pattern, std::string_view address)
 /// working set larger than that never replays. Not safe for concurrent
 /// use.
 template <typename T>
-class Registry
+class AddressSpace
 {
 public:
     using MethodIndex = std::size_t;
 
-    /// How many methods a dispatch visited, and whether the pattern was
-    /// malformed, in which case it visited none.
+    /// How many methods a dispatch visited, and the fault that stopped the
+    /// pattern compiling, in which case it visited none.
     struct DispatchResult
     {
         std::size_t matched;
-        bool malformed;
+        std::optional<Error> error;
     };
 
-    /// Registers `value` under `address`; false if the address is malformed
-    /// or already registered.
-    bool add(std::string_view address, T value)
+    /// Registers `value` under `address`. Fails with the `validateAddress`
+    /// fault, or `Duplicate` when the address is already registered.
+    std::optional<Error> add(std::string_view address, T value)
     {
-        if (!isValidAddress(address))
-            return false;
+        if (const std::optional<Error> fault = validateAddress(address))
+            return fault;
         const auto position = lowerBound(address);
         if (position != m_methods.end() && position->address == address)
-            return false;
+            return Error::Duplicate;
         m_methods.insert(position, Method { std::string(address), std::move(value) });
         m_cache.clear();
-        return true;
+        return std::nullopt;
     }
 
-    /// Unregisters `address`; false if it is not registered.
-    bool remove(std::string_view address)
+    /// Unregisters `address`. Fails with the `validateAddress` fault, or
+    /// `NotFound` when the address is not registered.
+    std::optional<Error> remove(std::string_view address)
     {
+        if (const std::optional<Error> fault = validateAddress(address))
+            return fault;
         const auto position = lowerBound(address);
         if (position == m_methods.end() || position->address != address)
-            return false;
+            return Error::NotFound;
         m_methods.erase(position);
         m_cache.clear();
-        return true;
+        return std::nullopt;
     }
 
     /// The number of registered methods.
@@ -430,9 +445,9 @@ private:
     {
         const auto position = lowerBound(address);
         if (position == m_methods.end() || position->address != address)
-            return { 0, false };
+            return { 0, std::nullopt };
         visitor(position->address, position->value);
-        return { 1, false };
+        return { 1, std::nullopt };
     }
 
     template <typename Visitor>
@@ -440,7 +455,7 @@ private:
     {
         for (const MethodIndex index : matched)
             visitor(m_methods[index].address, m_methods[index].value);
-        return { matched.size(), false };
+        return { matched.size(), std::nullopt };
     }
 
     template <typename Visitor>
@@ -448,7 +463,7 @@ private:
     {
         const Pattern compiled(pattern);
         if (!compiled.valid())
-            return { 0, true };
+            return { 0, compiled.error() };
         std::vector<MethodIndex> matched;
         for (MethodIndex index = 0; index < m_methods.size(); ++index)
         {
@@ -460,7 +475,7 @@ private:
         }
         const std::size_t numMatched = matched.size();
         remember(pattern, std::move(matched));
-        return { numMatched, false };
+        return { numMatched, std::nullopt };
     }
 
     void remember(std::string_view pattern, std::vector<MethodIndex> matched)

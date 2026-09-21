@@ -11,9 +11,9 @@
 #include <string>
 
 using oscpm_regex::Error;
-using oscpm_regex::isValidAddress;
 using oscpm_regex::match;
 using oscpm_regex::Pattern;
+using oscpm_regex::validateAddress;
 
 TEST_CASE("a literal pattern matches only its own text")
 {
@@ -91,16 +91,16 @@ TEST_CASE("a pattern built once matches many addresses")
     CHECK_FALSE(pattern.matches(""));
 }
 
-TEST_CASE("isValidAddress applies the OSC address rules")
+TEST_CASE("validateAddress reports the first fault in an address")
 {
-    CHECK(isValidAddress("/a"));
-    CHECK(isValidAddress("/synth/1/freq"));
-    CHECK_FALSE(isValidAddress(""));
-    CHECK_FALSE(isValidAddress("a"));
-    CHECK_FALSE(isValidAddress("/"));
-    CHECK_FALSE(isValidAddress("/a/"));
-    CHECK_FALSE(isValidAddress("/a//b"));
-    CHECK_FALSE(isValidAddress("/a b"));
-    CHECK_FALSE(isValidAddress("/a*"));
-    CHECK_FALSE(isValidAddress("/#bundle"));
+    CHECK_FALSE(validateAddress("/a"));
+    CHECK_FALSE(validateAddress("/synth/1/freq"));
+    CHECK(validateAddress("") == Error::MissingLeadingSlash);
+    CHECK(validateAddress("a") == Error::MissingLeadingSlash);
+    CHECK(validateAddress("/") == Error::TrailingSlash);
+    CHECK(validateAddress("/a/") == Error::TrailingSlash);
+    CHECK(validateAddress("/a//b") == Error::EmptyPart);
+    CHECK(validateAddress("/a b") == Error::IllegalByte);
+    CHECK(validateAddress("/a*") == Error::IllegalByte);
+    CHECK(validateAddress("/#bundle") == Error::IllegalByte);
 }
