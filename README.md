@@ -71,16 +71,12 @@ else
 
 `Pattern::parse` returns a `ParseResult` holding either the pattern or the
 `ParseError` that stopped it parsing. A `Pattern` is a trivially copyable
-view of the bytes it was parsed from, which must outlive every use;
-`text()` returns them and `isLiteral()` says whether the pattern contains no
-`*`, `?`, `[`, `{` or slash run and no part longer than
-`kMaxAddressPartLength`, and so matches only an address equal to its text,
-which `matches` then decides with a single comparison. `match` is `parse`
-followed by `matches`: a malformed pattern matches nothing, and `parse` says
-why.
+view of the bytes it was parsed from, which must outlive every use. `match`
+is `parse` followed by `matches`: a malformed pattern matches nothing, and
+`parse` says why.
 
-Two validators report the first fault in their input as an `Error` and a
-byte offset, or nothing when it is well-formed:
+`validatePattern` and `validateAddress` report the first fault in their
+input as an `Error` and a byte offset, or nothing when it is well-formed:
 
 ```cpp
 if (const auto fault = oscpm::validatePattern("/synth/[1-3")) // UnterminatedClass at 7
@@ -90,15 +86,10 @@ if (const auto fault = oscpm::validatePattern("/synth/[1-3")) // UnterminatedCla
 oscpm::validateAddress("/synth/1/"); // TrailingSlash at 8
 ```
 
-`validatePattern` rejects only a pattern that does not start with `/`
-(`MissingLeadingSlash`) or leaves a `[` or `{` unclosed within its part
-(`UnterminatedClass`, `UnterminatedBraces`); every other pattern parses.
-`validateAddress` applies the OSC address rules: a leading `/`
-(`MissingLeadingSlash`), no trailing `/` (`TrailingSlash`), no empty part
-(`EmptyPart`), only printable ASCII other than `#*,?[]{}` and space
-(`IllegalByte`), and no part longer than `kMaxAddressPartLength` bytes
-(`PartTooLong`). `match` rejects a pattern `validatePattern` faults and never
-validates the address, which is compared byte for byte.
+A pattern is rejected only for a missing leading `/` or a `[` or `{` left
+unclosed within its part; an address for any breach of the OSC address
+rules. `match` never validates the address, which is compared byte for byte.
+The header documents each fault and `isLiteral`.
 
 ## Address space
 
