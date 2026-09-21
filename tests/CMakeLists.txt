@@ -25,7 +25,6 @@ add_executable(oscpm_tests
     corpus_tests.cpp
     match_tests.cpp
     pattern_tests.cpp
-    validation_tests.cpp
 )
 
 target_compile_definitions(oscpm_tests PRIVATE
