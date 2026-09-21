@@ -6,9 +6,9 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <functional>
 #include <regex>
 #include <string>
@@ -86,53 +86,71 @@ inline void appendEscapedByte(std::string& expression, char byte)
     expression += k::hexDigits[value & 0x0F];
 }
 
-inline void classMembers(std::string_view body, bool (&members)[k::numByteValues])
+class ByteSet
 {
-    std::memset(members, 0, sizeof members);
-    bool negate = false;
-    std::size_t i = 0;
-    if (!body.empty() && body[0] == k::setNegate)
+public:
+    bool contains(unsigned char value) const { return m_members[value]; }
+
+    void insert(unsigned char value) { m_members[value] = true; }
+
+    void insertRange(unsigned char first, unsigned char last)
     {
-        negate = true;
-        i = 1;
+        for (unsigned value = first; value <= last; ++value)
+            m_members[value] = true;
     }
+
+    void erase(unsigned char value) { m_members[value] = false; }
+
+    void complement()
+    {
+        for (bool& member : m_members)
+            member = !member;
+    }
+
+private:
+    std::array<bool, k::numByteValues> m_members { };
+};
+
+inline ByteSet classMembers(std::string_view body)
+{
+    ByteSet members;
+    const bool negate = !body.empty() && body[0] == k::setNegate;
+    std::size_t i = negate ? 1 : 0;
     while (i < body.size())
     {
         const auto first = static_cast<unsigned char>(body[i]);
         if (i + 2 < body.size() && body[i + 1] == k::rangeSeparator)
         {
-            const auto last = static_cast<unsigned char>(body[i + 2]);
-            for (unsigned value = first; value <= last; ++value)
-                members[value] = true;
+            members.insertRange(first, static_cast<unsigned char>(body[i + 2]));
             i += 3;
         }
         else
         {
-            members[first] = true;
+            members.insert(first);
             ++i;
         }
     }
     if (negate)
     {
-        for (bool& member : members)
-            member = !member;
-        members[static_cast<unsigned char>(k::partSeparator)] = false;
+        members.complement();
+        members.erase(static_cast<unsigned char>(k::partSeparator));
     }
+    return members;
 }
 
-inline void appendByteClass(std::string& expression, const bool (&members)[k::numByteValues])
+inline void appendByteClass(std::string& expression, const ByteSet& members)
 {
     expression += k::setOpen;
     bool hasMembers = false;
     for (unsigned value = 0; value < k::numByteValues;)
     {
-        if (!members[value])
+        if (!members.contains(static_cast<unsigned char>(value)))
         {
             ++value;
             continue;
         }
         unsigned rangeEnd = value;
-        while (rangeEnd + 1 < k::numByteValues && members[rangeEnd + 1])
+        while (rangeEnd + 1 < k::numByteValues && members.contains(static_cast<unsigned char>(rangeEnd + 1)))
             ++rangeEnd;
         appendEscapedByte(expression, static_cast<char>(value));
         if (rangeEnd > value)
@@ -170,9 +188,7 @@ inline Error appendPart(std::string& expression, std::string_view part)
             const std::size_t close = part.find(k::setClose, i + 1 + (negate ? 1 : 0));
             if (close == npos)
                 return Error::UnterminatedClass;
-            bool members[k::numByteValues];
-            classMembers(part.substr(i + 1, close - i - 1), members);
-            appendByteClass(expression, members);
+            appendByteClass(expression, classMembers(part.substr(i + 1, close - i - 1)));
             i = close + 1;
         }
         else if (byte == k::listOpen)
