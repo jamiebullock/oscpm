@@ -1,15 +1,16 @@
 # oscpm-regex
 
 Header-only C++20 OpenSoundControl (OSC) address pattern matching built on
-`std::regex`.
+`std::regex`, in the most direct way possible.
 
-oscpm-regex translates each OSC address pattern, the `?`, `*`, `[...]` and
-`{a,b}` syntax of OSC 1.0 plus the `//` operator of OSC 1.1, into an
-anchored ECMAScript regular expression and matches it with the standard
-library's engine. A matcher memoises the verdict for every pattern and
-address pair it has seen, and an address space dispatches by asking the
-matcher about each of its methods. It depends on nothing outside the
-standard library.
+oscpm-regex rewrites an OSC address pattern character by character into an
+ECMAScript regular expression, `?` to `[^/]`, `*` to `[^/]*`, `{a,b}` to
+`(?:a|b)`, `[!` to `[^`, an empty part to `(?:/[^/]*)*`, and hands
+everything else to the regex engine: character classes, ranges, and the
+decision of what is malformed. A `Matcher` memoises the verdict for every
+pattern and address pair it has seen, and an `AddressSpace` dispatches by
+asking the matcher about each of its methods. It depends on nothing outside
+the standard library.
 
 ## Integration
 
@@ -27,86 +28,76 @@ oscpm_regex::match("/synth/*/freq", "/synth/1/freq"); // true
 oscpm_regex::match("/synth//freq", "/synth/1/osc/freq"); // true
 
 const oscpm_regex::Pattern pattern("/synth/[1-3]/{freq,amp}");
-if (pattern.valid())
-{
-    pattern.matches("/synth/2/amp"); // true
-}
-else
-{
-    pattern.error(); // a std::optional<oscpm_regex::Error>
-}
-```
+pattern.valid();                 // false if the regex engine rejected it
+pattern.matches("/synth/2/amp"); // true
 
-`match` compiles the pattern and tests it once. A `Pattern` compiles once
-and is matched many times. A pattern that does not compile reports one of
-`MissingLeadingSlash`, `IllegalByte`, `UnterminatedClass`,
-`UnterminatedBraces`, `NestedBraces` or `RegexRejected`, and matches
-nothing. `validateAddress` reports the first fault in an address, or
-nothing when it is well-formed.
-
-A `Matcher` memoises verdicts:
-
-```cpp
 oscpm_regex::Matcher matcher;
 matcher.match("/synth/*/freq", "/synth/1/freq"); // compiles, matches, remembers
 matcher.match("/synth/*/freq", "/synth/1/freq"); // a hash lookup
 ```
 
-The first call for a pattern compiles it and the first call for a pattern
-and address pair matches it; every later call for the same pair is a hash
-lookup. The matcher keeps up to 4,096 compiled patterns and 65,536
-verdicts, and empties a table when it reaches its limit.
+`match` compiles the pattern and tests it once. A `Pattern` compiles once
+and is matched many times; a pattern the regex engine rejects is invalid
+and matches nothing. A `Matcher` memoises the verdict of every pattern and
+address pair: the first call for a pair compiles and matches, every later
+call for the same pair is a hash lookup. The memo grows without bound
+until `clear`.
 
 ## Address space
 
 ```cpp
 oscpm_regex::AddressSpace<Handler> methods;
-methods.add("/synth/1/freq", setFrequency); // Duplicate or a validateAddress fault
-methods.remove("/synth/1/freq");            // NotFound or a validateAddress fault
+methods.add("/synth/1/freq", setFrequency); // false if already registered
+methods.remove("/synth/1/freq");            // false if not registered
 
-const auto result = methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
+const std::size_t matched = methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
     { handler(message); });
-result.matched; // how many methods were visited
-result.error;   // why the pattern did not compile, in which case none were
 ```
 
 `dispatch` asks the address space's `Matcher` about every method in
-bytewise address order, so a message costs one memoised match per
-registered method: a regex match each the first time a pattern meets an
-address, and a hash lookup each after that. `matcher()` exposes the memo.
+insertion order and returns how many it visited, so a message costs one
+memoised match per registered method. `matcher()` exposes the memo.
+
+## What the regex engine decides
+
+Because the translation carries no OSC rules of its own, the engine's
+reading stands wherever the OSC 1.0 specification is silent, and it differs
+from a hand-written matcher in these ways, found by running both corpora
+of the oscpm comparison through it:
+
+- A pattern without a leading `/` is not rejected; `a` matches `/a`.
+- A space, `#` or non-ASCII byte in a pattern is a literal, so `/a b`
+  matches the address `/a b`.
+- A negated class matches `/`: `/[!x]` matches `//`.
+- `?` and `*` inside a class are wildcards, so `[*]` and `[?]` become
+  broken expressions and the pattern is invalid.
+- A `]`, `}` or `,` outside its construct makes the pattern invalid or
+  changes its meaning, where a hand-written matcher treats it as a literal:
+  `/a,b` matches `/a` and `/b`.
+- A wildcard or class inside braces works: `{a*,b}` matches `ax`.
+- Braces nest: `{a,{b,c}}` matches `a`, `b` or `c`.
+- A reversed range such as `[z-a]` compiles and matches nothing.
+
+On the two corpora that is 40 of 472 and 37 of 453 cases; on random
+patterns dense with brackets, braces and commas it is a third of them.
 
 ## Guarantees and their limits
 
-- A memoised verdict allocates nothing, and so does a dispatch whose
-  every pattern and address pair is memoised, which the tests assert.
-- A first sight of a pattern compiles a `std::regex`, and a first sight of
-  a pattern and address pair calls `std::regex_match`; both allocate,
-  thousands of times when a new pattern meets a thousand methods. There is
-  no allocation-free cold path.
+- A memoised verdict allocates nothing, and so does a dispatch whose every
+  pattern and address pair is memoised, which the tests assert.
+- The first sight of a pattern and address pair compiles a `std::regex`
+  and calls `std::regex_match`; both allocate. A new pattern against a
+  thousand methods compiles a thousand times.
 - Matching time is bounded by the regex engine; libc++'s does not
-  backtrack catastrophically, so hostile patterns cost milliseconds, not
-  seconds. The engine may throw `error_complexity` or `error_stack` on
-  extreme inputs, which `matches` reports as no match.
-- `Pattern` owns its compiled expression; the text it was built from need
-  not outlive it.
-- A `Matcher` and an `AddressSpace` are not safe to use from several
-  threads at once.
+  backtrack catastrophically. The engine may throw `error_complexity` or
+  `error_stack` on extreme inputs, which is not caught.
 - Measured over 1,000 registered methods on an Apple Silicon Mac: a
   dispatch whose pairs are all memoised costs about 35 microseconds
   whatever the pattern, one hash lookup per method; the first dispatch of
-  a new pattern costs 0.3 to 3 milliseconds and thousands of allocations.
-  A single memoised `match` costs about 20 nanoseconds.
-
-## Matching rules
-
-A pattern and an address are split into parts on `/`. Within a part, `?`
-matches any one byte, `*` any run of bytes, `[abc]` and `[a-z]` one byte
-from the class with `!` negating, and `{foo,bar}` one of the listed
-strings. None of them matches `/`. An empty part is the `//` operator and
-matches zero or more whole parts: `/a//c` matches `/a/c` and `/a/b/c`;
-consecutive empty parts collapse, and a trailing `/` is a trailing `//`, so
-`/a/` matches `/a` and everything beneath it. Matching is by byte and
-case-sensitive. A pattern must be printable ASCII.
+  a new pattern costs 1 to 4 milliseconds and tens of thousands of
+  allocations. A single memoised `match` costs about 20 nanoseconds.
+- A `Matcher` and an `AddressSpace` are not safe to use from several
+  threads at once.
 
 ## Building
 

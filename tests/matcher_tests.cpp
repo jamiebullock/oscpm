@@ -8,7 +8,6 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-using oscpm_regex::Error;
 using oscpm_regex::Matcher;
 
 TEST_CASE("a matcher memoises each pattern and address pair once")
@@ -23,16 +22,15 @@ TEST_CASE("a matcher memoises each pattern and address pair once")
     CHECK(matcher.size() == 3);
 }
 
-TEST_CASE("a matcher compiles a pattern once and reports its fault")
+TEST_CASE("an invalid pattern is memoised as matching nothing")
 {
     Matcher matcher;
-    CHECK(matcher.compiled("/synth/[1-3]/{freq,amp}").valid());
-    CHECK(&matcher.compiled("/synth/[1-3]/{freq,amp}") == &matcher.compiled("/synth/[1-3]/{freq,amp}"));
-    CHECK(matcher.compiled("/synth/[1").error() == Error::UnterminatedClass);
     CHECK_FALSE(matcher.match("/synth/[1", "/synth/1"));
+    CHECK_FALSE(matcher.match("/synth/[1", "/synth/1"));
+    CHECK(matcher.size() == 1);
 }
 
-TEST_CASE("clear forgets every verdict and pattern")
+TEST_CASE("clear forgets every verdict")
 {
     Matcher matcher;
     matcher.match("/a", "/a");
