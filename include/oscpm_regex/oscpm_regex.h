@@ -145,28 +145,36 @@ inline bool match(std::string_view pattern, std::string_view address)
 
 /// Memoises match verdicts by pattern and address pair. The first call for
 /// a pair compiles and matches, which allocates; every later call is a hash
-/// lookup that allocates nothing. Not safe for concurrent use.
+/// lookup that allocates nothing. When the memo holds `maxPairs` pairs it
+/// is emptied, so a working set larger than that recompiles on every
+/// message. A pair costs 130 to 190 bytes; the default holds 65 wildcard
+/// patterns against 1,000 addresses in about 10 MB. Not safe for
+/// concurrent use.
 class Matcher
 {
 public:
+    static constexpr std::size_t kDefaultMaxPairs = 65536;
+
+    explicit Matcher(std::size_t maxPairs = kDefaultMaxPairs)
+        : m_maxPairs(maxPairs)
+    {
+    }
+
     /// Whether `pattern` matches `address`, as `match`.
     bool match(std::string_view pattern, std::string_view address)
     {
         if (const auto verdict = m_verdicts.find(detail::PairView { pattern, address }); verdict != m_verdicts.end())
             return verdict->second;
         const bool matched = oscpm_regex::match(pattern, address);
+        if (m_verdicts.size() >= m_maxPairs)
+            m_verdicts.clear();
         m_verdicts.emplace(detail::PairKey { std::string(pattern), std::string(address) }, matched);
         return matched;
     }
 
-    /// How many pairs are memoised.
-    std::size_t size() const { return m_verdicts.size(); }
-
-    /// Forgets every memoised verdict.
-    void clear() { m_verdicts.clear(); }
-
 private:
     std::unordered_map<detail::PairKey, bool, detail::PairHash, detail::PairEqual> m_verdicts;
+    std::size_t m_maxPairs;
 };
 
 /// A dispatch table of methods keyed by address. A pattern equal to a
@@ -186,10 +194,6 @@ public:
 
     /// The number of registered methods.
     std::size_t size() const { return m_methods.size(); }
-
-    /// The matcher whose memo serves every dispatch of a pattern that is
-    /// not itself a registered address.
-    Matcher& matcher() { return m_matcher; }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method
     /// `pattern` matches and returns how many. The visitor must not add or

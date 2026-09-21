@@ -142,13 +142,13 @@ TEST_CASE("a change to the space is seen at once")
     CHECK(matched == 2);
 }
 
-TEST_CASE("a pattern equal to a registered address reaches it without the matcher")
+TEST_CASE("a pattern equal to a registered address reaches it by one lookup, allocating nothing even the first time")
 {
     AddressSpace<int> space = synth();
-    std::size_t matched = 0;
-    CHECK(visited(space, "/synth/1/amp", matched) == std::vector<std::string> { "/synth/1/amp" });
-    CHECK(matched == 1);
-    CHECK(space.matcher().size() == 0);
+    const auto noop = [](std::string_view, int&) { };
+    const std::size_t before = g_allocations;
+    CHECK(space.dispatch("/synth/1/amp", noop) == 1);
+    CHECK(g_allocations == before);
 }
 
 TEST_CASE("a dispatch whose every pair is memoised allocates nothing")
@@ -163,13 +163,34 @@ TEST_CASE("a dispatch whose every pair is memoised allocates nothing")
     CHECK(g_allocations == before);
 }
 
-TEST_CASE("a memoised verdict allocates nothing")
+TEST_CASE("a memoised verdict allocates nothing and an invalid pattern is memoised as matching nothing")
 {
     oscpm_regex::Matcher matcher;
     matcher.match("/synth/*/freq", "/synth/1/freq");
+    matcher.match("/synth/[1", "/synth/1");
     const std::size_t before = g_allocations;
     CHECK(matcher.match("/synth/*/freq", "/synth/1/freq"));
+    CHECK_FALSE(matcher.match("/synth/*/freq", "/synth/1/amp"));
+    CHECK_FALSE(matcher.match("/synth/[1", "/synth/1"));
+    CHECK(g_allocations > before);
+    const std::size_t warm = g_allocations;
+    CHECK(matcher.match("/synth/*/freq", "/synth/1/freq"));
+    CHECK_FALSE(matcher.match("/synth/[1", "/synth/1"));
+    CHECK(g_allocations == warm);
+}
+
+TEST_CASE("the memo is emptied when it reaches its limit")
+{
+    oscpm_regex::Matcher matcher(2);
+    matcher.match("/a", "/a");
+    matcher.match("/b", "/b");
+    std::size_t before = g_allocations;
+    CHECK(matcher.match("/a", "/a"));
     CHECK(g_allocations == before);
+    matcher.match("/c", "/c");
+    before = g_allocations;
+    CHECK(matcher.match("/a", "/a"));
+    CHECK(g_allocations > before);
 }
 
 TEST_CASE("the visitor can change the value")

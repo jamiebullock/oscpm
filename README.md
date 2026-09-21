@@ -40,8 +40,10 @@ matcher.match("/synth/*/freq", "/synth/1/freq"); // a hash lookup
 and is matched many times; a pattern the regex engine rejects is invalid
 and matches nothing. A `Matcher` memoises the verdict of every pattern and
 address pair: the first call for a pair compiles and matches, every later
-call for the same pair is a hash lookup. The memo grows without bound
-until `clear`.
+call for the same pair is a hash lookup. The memo holds 65,536 pairs by
+default, about 10 MB, or the number given to the constructor, and is
+emptied when it reaches that, so a working set larger than the limit
+recompiles on every message.
 
 ## Address space
 
@@ -59,7 +61,7 @@ oscpp's README suggests for a dispatch table: a pattern equal to a
 registered address reaches that method by one hash lookup. Any other
 pattern is put to the address space's `Matcher` for every method, in no
 particular order, so a wildcard message costs one memoised match per
-registered method. `matcher()` exposes the memo.
+registered method.
 
 ## What the regex engine decides
 
