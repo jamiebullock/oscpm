@@ -32,6 +32,11 @@ void* operator new(std::size_t size)
     throw std::bad_alloc();
 }
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
 void operator delete(void* memory) noexcept
 {
     std::free(memory);
@@ -41,6 +46,10 @@ void operator delete(void* memory, std::size_t) noexcept
 {
     std::free(memory);
 }
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 namespace
 {
