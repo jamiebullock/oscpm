@@ -190,6 +190,7 @@ public:
     /// Calls `callback(std::string_view address, T& value)` for every method
     /// `pattern` matches
     template <typename Callback>
+        requires std::invocable<Callback, std::string_view, T&>
     std::size_t dispatch(std::string_view pattern, Callback&& callback)
     {
         if (const auto method = m_methods.find(pattern); method != m_methods.end())
