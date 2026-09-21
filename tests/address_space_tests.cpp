@@ -48,6 +48,15 @@ Addresses lookupAddresses(const Space& space, std::string_view pattern)
 }
 
 template <typename Space>
+Addresses dispatchAddresses(const Space& space, std::string_view pattern, oscpm::DispatchResult& result)
+{
+    Addresses found;
+    result = space.dispatch(pattern, [&](std::string_view address, const auto&)
+        { found.emplace_back(address); });
+    return found;
+}
+
+template <typename Space>
 Addresses allAddresses(const Space& space)
 {
     Addresses found;
@@ -144,6 +153,69 @@ TEST_CASE("lookup returns the number of methods visited and lets the visitor cha
     space.forEach([&](std::string_view address, const int& value)
         { values[std::string(address)] = value; });
     CHECK(values == std::map<std::string, int> { { "/a/1", 10 }, { "/a/2", 10 }, { "/b/1", 0 } });
+}
+
+TEST_CASE("dispatch parses the pattern and visits what lookup visits")
+{
+    AddressSpace<int> space;
+    populate(space, { "/synth/1/freq", "/synth/1/amp", "/synth/2/freq", "/mixer/gain" });
+    for (const char* pattern : { "/synth/1/freq", "/synth/*/freq", "//amp", "/synth/3/*" })
+    {
+        INFO("pattern " << pattern);
+        oscpm::DispatchResult result { 0, std::nullopt };
+        const Addresses dispatched = dispatchAddresses(space, pattern, result);
+        const Addresses looked = lookupAddresses(space, pattern);
+        CHECK(dispatched == looked);
+        CHECK(result.matched == looked.size());
+        CHECK_FALSE(result.error.has_value());
+    }
+}
+
+TEST_CASE("dispatch reports a malformed pattern and visits nothing")
+{
+    AddressSpace<int> space;
+    populate(space, { "/synth/1/freq" });
+    const AddressSpace<int>& constSpace = space;
+    const struct
+    {
+        const char* pattern;
+        Error kind;
+        std::size_t offset;
+    } cases[] = {
+        { "synth/1/freq", Error::MissingLeadingSlash, 0 },
+        { "/synth/[1/freq", Error::UnterminatedClass, 7 },
+        { "/synth/{1/freq", Error::UnterminatedBraces, 7 },
+    };
+    for (const auto& malformed : cases)
+    {
+        INFO("pattern " << malformed.pattern);
+        std::size_t visits = 0;
+        const oscpm::DispatchResult mutableResult = space.dispatch(malformed.pattern, [&](std::string_view, int&)
+            { ++visits; });
+        const oscpm::DispatchResult constResult = constSpace.dispatch(malformed.pattern, [&](std::string_view, const int&)
+            { ++visits; });
+        CHECK(visits == 0);
+        for (const oscpm::DispatchResult& result : { mutableResult, constResult })
+        {
+            CHECK(result.matched == 0);
+            REQUIRE(result.error.has_value());
+            CHECK(result.error->kind == malformed.kind);
+            CHECK(result.error->offset == malformed.offset);
+        }
+    }
+}
+
+TEST_CASE("dispatch through a const space passes a const value")
+{
+    AddressSpace<int> space;
+    populate(space, { "/a/1", "/a/2" });
+    const AddressSpace<int>& constSpace = space;
+    int sum = 0;
+    const oscpm::DispatchResult result = constSpace.dispatch("/a/*", [&](std::string_view, const int& value)
+        { sum += value + 1; });
+    CHECK(result.matched == 2);
+    CHECK_FALSE(result.error.has_value());
+    CHECK(sum == 2);
 }
 
 TEST_CASE("a repeated lookup gives the same result and a change to the space is seen at once")
@@ -258,10 +330,17 @@ TEST_CASE("lookup and forEach allocate nothing")
     space.lookup(wildcard, count);
     space.lookup(unmemoised, count);
     space.forEach(count);
+    const oscpm::DispatchResult literalResult = space.dispatch("/synth/42/freq", count);
+    const oscpm::DispatchResult wildcardResult = space.dispatch("/synth/?/freq", count);
+    const oscpm::DispatchResult malformedResult = space.dispatch("/synth/[4/freq", count);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);
-    CHECK(visited == 1 + 10 + 10 + 100 + 100);
+    CHECK(visited == 1 + 10 + 10 + 100 + 100 + 1 + 10);
+    CHECK(literalResult.matched == 1);
+    CHECK(wildcardResult.matched == 10);
+    CHECK(malformedResult.matched == 0);
+    CHECK(malformedResult.error.has_value());
 }
 
 TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says")
@@ -269,6 +348,7 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
     AddressSpace<int> space;
     std::set<std::string> registered;
     std::vector<std::string> patterns;
+    std::vector<oscpm_test::CorpusCase> malformed;
     for (const oscpm_test::CorpusCase& corpusCase : oscpm_test::loadCorpus(OSCPM_CORPUS_PATH))
     {
         if (!oscpm::validateAddress(corpusCase.address) && registered.insert(corpusCase.address).second)
@@ -279,12 +359,32 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
         {
             patterns.push_back(corpusCase.pattern);
         }
+        else if (corpusCase.expectation == oscpm_test::Expectation::MalformedPattern)
+        {
+            malformed.push_back(corpusCase);
+        }
     }
     REQUIRE(space.size() == registered.size());
+    REQUIRE_FALSE(malformed.empty());
     for (const std::string& pattern : patterns)
     {
         INFO("pattern " << pattern);
-        CHECK(lookupAddresses(space, pattern) == expectedMatches(registered, pattern));
+        const Addresses expected = expectedMatches(registered, pattern);
+        CHECK(lookupAddresses(space, pattern) == expected);
+        oscpm::DispatchResult result { 0, std::nullopt };
+        CHECK(dispatchAddresses(space, pattern, result) == expected);
+        CHECK(result.matched == expected.size());
+        CHECK_FALSE(result.error.has_value());
+    }
+    for (const oscpm_test::CorpusCase& corpusCase : malformed)
+    {
+        INFO("corpus line " << corpusCase.line << ": " << corpusCase.text);
+        oscpm::DispatchResult result { 0, std::nullopt };
+        CHECK(dispatchAddresses(space, corpusCase.pattern, result).empty());
+        CHECK(result.matched == 0);
+        REQUIRE(result.error.has_value());
+        CHECK(std::string(oscpm::toString(result.error->kind)) == corpusCase.errorName);
+        CHECK(result.error->offset == corpusCase.offset);
     }
 }
 

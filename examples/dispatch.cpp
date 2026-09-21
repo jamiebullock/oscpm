@@ -52,20 +52,18 @@ std::size_t buildBundle(void* buffer, std::size_t size)
 void dispatch(const OSCPP::Server::Message& message, oscpm::AddressSpace<Parameter>& parameters, const oscpm::Pattern& frequencyWatch)
 {
     const std::string_view address = message.address();
-    const oscpm::ParseResult parsed = oscpm::Pattern::parse(address);
-    if (!parsed)
-    {
-        std::printf("%-26s rejected: %s at byte %zu\n", message.address(), oscpm::toString(parsed.error().kind), parsed.error().offset);
-        return;
-    }
-
     OSCPP::Server::ArgStream arguments(message.args());
     const float value = arguments.float32();
-    const std::size_t numSet = parameters.lookup(parsed.pattern(), [&](std::string_view method, Parameter& parameter)
+    const oscpm::DispatchResult result = parameters.dispatch(address, [&](std::string_view method, Parameter& parameter)
         {
             parameter.value = value;
             std::printf("%-26s sets %.*s to %g\n", message.address(), static_cast<int>(method.size()), method.data(), static_cast<double>(value)); });
-    if (numSet == 0)
+    if (result.error)
+    {
+        std::printf("%-26s rejected: %s at byte %zu\n", message.address(), oscpm::toString(result.error->kind), result.error->offset);
+        return;
+    }
+    if (result.matched == 0)
     {
         std::printf("%-26s matches no method\n", message.address());
     }
