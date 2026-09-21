@@ -1,13 +1,8 @@
 name: Tag on develop
 
-# develop is the release branch: every push to it is tagged with the version
-# its commits imply, and that tag is the only place the version is written
-# down. CMake reads it back with git describe.
-#
-# The version moves by a patch for each push. A minor or a major is a decision
-# rather than a consequence, so neither happens unless a commit subject since
-# the last tag says (MINOR) or (MAJOR). Conventional Commit prefixes describe
-# the change and mean nothing here.
+# Every push to develop is tagged; the tag is the only place the version is
+# written down. Each push moves the patch, and a minor or major only when a
+# commit subject since the last tag says (MINOR) or (MAJOR).
 
 on:
   push:
@@ -16,7 +11,6 @@ on:
 permissions:
   contents: write
 
-# Two pushes in quick succession would otherwise race to create the same tag.
 concurrency:
   group: tag-on-develop
   cancel-in-progress: false
@@ -29,9 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          fetch-depth: 0   # the version is computed from the whole history
-          # The token is used by the push step alone, so it is not left in
-          # the workspace where the version step's action could read it.
+          fetch-depth: 0
+          # The token is used by the push step alone, so the version step's
+          # action cannot read it from the workspace.
           persist-credentials: false
 
       - name: Determine version
@@ -40,12 +34,10 @@ jobs:
         with:
           tag_prefix: "v"
           version_format: "${major}.${minor}.${patch}"
-          # Literal, not regular expressions: the parentheses are part of the
-          # marker, so prose mentioning a major version cannot trigger one.
+          # Literal: the parentheses are part of the marker, so prose that
+          # mentions a major version cannot trigger one.
           major_pattern: "(MAJOR)"
           minor_pattern: "(MINOR)"
-          # Subjects only: a marker is a decision, and a decision belongs in
-          # the line everyone reads.
           search_commit_body: false
 
       - name: Tag and push version
@@ -55,9 +47,6 @@ jobs:
           TAG="${{ steps.version.outputs.version_tag }}"
           echo "Tag to create: $TAG"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            # Already tagged is fine when it is this commit that carries it, and
-            # a mistake worth stopping for when it is another: two commits
-            # cannot both be the release.
             EXISTING="$(git rev-list -n 1 "$TAG")"
             if [ "$EXISTING" = "$GITHUB_SHA" ]; then
               echo "Tag $TAG already points at this commit."

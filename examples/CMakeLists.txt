@@ -5,8 +5,7 @@
 
 include(FetchContent)
 
-# SYSTEM makes oscpp's headers system includes for the example, so its
-# warnings do not fail the build.
+# SYSTEM keeps oscpp's own warnings out of the example's build.
 FetchContent_Declare(
     oscpp
     GIT_REPOSITORY https://github.com/kaoskorobase/oscpp.git

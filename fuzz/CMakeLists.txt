@@ -30,8 +30,7 @@ add_custom_command(
 
 add_custom_target(oscpm_fuzz_seeds ALL DEPENDS ${OSCPM_FUZZ_SEEDS_STAMP})
 
-# libFuzzer ships with LLVM clang but not with Apple clang, GCC or MSVC, so
-# the target is enabled by a link probe of the exact flags it needs.
+# libFuzzer ships with LLVM clang only, so a link probe decides.
 set(OSCPM_FUZZ_SANITIZE -fsanitize=fuzzer,address,undefined)
 
 include(CheckCXXSourceCompiles)
@@ -53,9 +52,7 @@ if(NOT OSCPM_HAVE_LIBFUZZER)
     return()
 endif()
 
-# libFuzzer writes the inputs it discovers here, so a run can be resumed and
-# a finding is kept; the seeds are read from their own directory and never
-# modified.
+# libFuzzer writes the inputs it discovers here; the seeds are never modified.
 set(OSCPM_FUZZ_CORPUS_DIR ${CMAKE_CURRENT_BINARY_DIR}/corpus)
 file(MAKE_DIRECTORY ${OSCPM_FUZZ_CORPUS_DIR})
 
@@ -71,7 +68,6 @@ target_compile_options(oscpm_pattern_fuzz PRIVATE
 target_link_options(oscpm_pattern_fuzz PRIVATE ${OSCPM_FUZZ_SANITIZE})
 add_dependencies(oscpm_pattern_fuzz oscpm_fuzz_seeds)
 
-# Every seed once, under the sanitizers, with no mutation.
 add_test(NAME oscpm_pattern_fuzz_seeds
     COMMAND oscpm_pattern_fuzz -runs=0 ${OSCPM_FUZZ_SEEDS_DIR}
 )

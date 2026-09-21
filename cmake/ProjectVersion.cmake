@@ -3,15 +3,9 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
-# The project version, taken from the most recent git tag. Tags are the only
-# place a released version is written down, so nothing in the tree can
-# disagree with them. A build between releases reports the release it
-# followed, which is what `git describe --abbrev=0` gives.
-#
-# OSCPM_VERSION may be set by the caller, for a build from an archive with no
-# repository to ask. It has a name of its own because a parent project's
-# project() call has already set PROJECT_VERSION when oscpm is added to
-# another build.
+# The project version from the most recent v* tag, or OSCPM_VERSION when the
+# caller sets it for a build from an archive. Its own name, because a parent
+# project() call has already set PROJECT_VERSION when oscpm is a subproject.
 
 if(NOT DEFINED OSCPM_VERSION)
     find_package(Git QUIET)
@@ -31,8 +25,6 @@ if(NOT DEFINED OSCPM_VERSION)
     endif()
 
     if(NOT OSCPM_VERSION OR OSCPM_VERSION STREQUAL "")
-        # A shallow clone, a checkout with no tags fetched, or an archive. The
-        # build works; it just cannot say which release it is.
         set(OSCPM_VERSION "0.0.0")
         message(WARNING "No version tag found: building as ${OSCPM_VERSION}. "
                         "A clone needs its tags for the version to be real.")

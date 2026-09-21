@@ -10,8 +10,8 @@ on:
 permissions:
   contents: read
 
-# A pull request's runs share a group, so a new push cancels the superseded
-# one. A push to develop gets a group of its own and is never cancelled.
+# A new push to a pull request cancels its superseded run; a push to develop
+# is never cancelled.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -44,8 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          # The version comes from the most recent tag, and checkout fetches
-          # none by default: without this every build reports 0.0.0.
+          # The version comes from the tags; a default checkout has none.
           fetch-depth: 0
           persist-credentials: false
 
@@ -57,23 +56,19 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ninja
 
-      # Ninja needs cl.exe on the PATH, which only a Visual Studio developer
-      # environment arranges. The job uses the Ninja preset so it does not
-      # depend on which Visual Studio release the runner image carries.
+      # Puts cl.exe on the PATH for Ninja, whichever Visual Studio the image
+      # carries.
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         if: runner.os == 'Windows'
         with:
           arch: x64
 
-      # Formatting is checked by the job below with a pinned clang-format;
-      # the runners' own versions differ from it and from each other.
       - name: Configure
         run: cmake --preset ${{ matrix.preset }} -DOSCPM_CHECK_FORMAT=OFF ${{ matrix.configure_args }}
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
 
-      # ctest reports success having run nothing when no test is registered.
       - name: Check the test suite is registered
         shell: bash
         run: |
@@ -95,8 +90,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Pinned to the version the tree is formatted with; clang-format's
-      # output changes between releases, so a local check must use the same.
+      # clang-format's output changes between releases; the tree is formatted
+      # with this one.
       - name: Install clang-format
         run: pip install clang-format==22.1.0
 
@@ -119,8 +114,7 @@ jobs:
       - name: Configure
         run: cmake --preset release -DCMAKE_CXX_COMPILER=clang++ -DOSCPM_BUILD_FUZZERS=ON -DOSCPM_SANITIZE=ON -DOSCPM_CHECK_FORMAT=OFF
 
-      # Naming the fuzz target fails the build when the libFuzzer probe
-      # skipped it, so the job cannot pass without running the fuzzer.
+      # Naming the fuzz target fails the build if the libFuzzer probe skipped it.
       - name: Build the tests, the example and the fuzz target
         run: cmake --build --preset release --target oscpm_tests oscpm_dispatch oscpm_pattern_fuzz
 
