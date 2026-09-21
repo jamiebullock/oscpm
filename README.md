@@ -19,7 +19,7 @@ With CMake 3.25 or later, any of these gives the target `oscpm::oscpm`:
   include(FetchContent)
   FetchContent_Declare(oscpm
       GIT_REPOSITORY https://github.com/jamiebullock/oscpm.git
-      GIT_TAG        v0.2.0)
+      GIT_TAG        v0.2.6)
   FetchContent_MakeAvailable(oscpm)
   target_link_libraries(app PRIVATE oscpm::oscpm)
   ```

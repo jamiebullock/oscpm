@@ -1,0 +1,26 @@
+# Changelog
+
+## 0.2.6 - 2026-09-21
+
+### Breaking changes
+
+- `isValidAddress` and `isValidPattern` are removed. `validateAddress` and `validatePattern` replace them, returning `std::optional<ParseError>`: the first fault by byte offset as an `Error` and its offset, or nothing when the input is well-formed.
+- `match` rejects a malformed pattern before matching. A pattern without a leading `/` never matches, and a `[` or `{` left unclosed within its part never matches; every other pattern parses. An address without a leading `/` never matches.
+- A trailing run of two or more slashes is the `//` operator, so `/a//` matches `/a` and every descendant of it. A single trailing `/` is still an empty part.
+- A `{` inside a brace list is a literal byte and the first `}` closes the list: `{a,{b,c}}` is the members `a`, `{b` and `c` followed by a literal `}`. Such a pattern used to match nothing.
+- A byte outside printable ASCII, a `#` or a space in a pattern is a literal that no address can contain. `isValidPattern` used to reject it; `match` compared it as it does now.
+
+### Added
+
+- `Error`, `ParseError` and `toString`.
+- `Pattern`, a validated pattern parsed once and matched many times: `Pattern::parse` returns a `ParseResult` holding the pattern or its `ParseError`; `matches`, `text` and `isLiteral`. `match` is `parse` followed by `matches`.
+- A literal pattern is matched by a single comparison, and a pattern part with no `*`, `?`, `[` or `{` by `==`.
+- `AddressSpace` in `oscpm/address_space.h`: methods in bytewise address order, `add` and `remove` reporting `Duplicate` and `NotFound`, `lookup` fanning a pattern out to every matching method with a memo of recent wildcard lookups, and `forEach`.
+- `corpus/matching.txt`, the conformance corpus, replayed by the test suite through `match`, `Pattern::matches`, both validators and the address space.
+- A libFuzzer target behind `OSCPM_BUILD_FUZZERS`, seeded from the corpus, run under AddressSanitizer and UndefinedBehaviorSanitizer in CI; `OSCPM_SANITIZE` builds the tests under the same sanitizers.
+- `examples/dispatch.cpp` behind `OSCPM_BUILD_EXAMPLES`, dispatching an oscpp bundle through an address space.
+- The installed package config accepts the same minor version while the major version is 0.
+
+## 0.1.0 - 2026-09-19
+
+- `match`, `isValidAddress`, `isValidPattern` and `kMaxAddressPartLength`.
