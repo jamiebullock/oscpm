@@ -76,7 +76,11 @@ of the oscpm comparison through it:
   `/a,b` matches `/a` and `/b`.
 - A wildcard or class inside braces works: `{a*,b}` matches `ax`.
 - Braces nest: `{a,{b,c}}` matches `a`, `b` or `c`.
-- A reversed range such as `[z-a]` compiles and matches nothing.
+
+A reversed range such as `[z-a]` matches nothing, as in glob and in the
+hand-written matchers; libc++ compiles it as an empty class, and a standard
+library that rejects it instead makes the pattern invalid, which also
+matches nothing.
 
 On the two corpora that is 40 of 472 and 37 of 453 cases; on random
 patterns dense with brackets, braces and commas it is a third of them.
