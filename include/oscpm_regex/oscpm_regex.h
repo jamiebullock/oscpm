@@ -8,7 +8,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <regex>
@@ -39,173 +38,212 @@ enum class Error : std::uint8_t
 namespace oscpm_regex::detail
 {
 
-inline void hex(std::string& out, unsigned char c)
+namespace k
 {
-    char buf[5];
-    std::snprintf(buf, sizeof buf, "\\x%02X", c);
-    out += buf;
+    constexpr char partSeparator = '/';
+    constexpr char anyByte = '?';
+    constexpr char anyBytes = '*';
+    constexpr char setOpen = '[';
+    constexpr char setClose = ']';
+    constexpr char setNegate = '!';
+    constexpr char rangeSeparator = '-';
+    constexpr char listOpen = '{';
+    constexpr char listClose = '}';
+    constexpr char listSeparator = ',';
+    constexpr std::string_view operatorBytes = "*?[{";
+    constexpr std::string_view reservedInAddress = "#*,?[]{}";
+    constexpr unsigned char firstPrintableAscii = 0x21;
+    constexpr unsigned char lastPrintableAscii = 0x7E;
+    constexpr std::size_t numByteValues = 256;
+    constexpr std::string_view hexDigits = "0123456789ABCDEF";
+    constexpr std::string_view anyByteExpression = "[^/]";
+    constexpr std::string_view anyBytesExpression = "[^/]*";
+    constexpr std::string_view descendantExpression = "(?:/[^/]*)*";
+    constexpr std::string_view noByteExpression = "^\\x00-\\xFF";
+    constexpr std::string_view alternativesOpen = "(?:";
+    constexpr char alternativesSeparator = '|';
+    constexpr char alternativesClose = ')';
 }
 
-inline void literal(std::string& out, char c) { hex(out, static_cast<unsigned char>(c)); }
+constexpr std::size_t npos = std::string_view::npos;
 
-inline void classSet(std::string_view body, bool (&set)[256])
+inline bool isPrintableAscii(char byte)
 {
-    std::memset(set, 0, sizeof set);
+    const auto value = static_cast<unsigned char>(byte);
+    return value >= k::firstPrintableAscii && value <= k::lastPrintableAscii;
+}
+
+inline bool isReservedInAddress(char byte)
+{
+    return k::reservedInAddress.find(byte) != npos;
+}
+
+inline void appendEscapedByte(std::string& expression, char byte)
+{
+    const auto value = static_cast<unsigned char>(byte);
+    expression += "\\x";
+    expression += k::hexDigits[value >> 4];
+    expression += k::hexDigits[value & 0x0F];
+}
+
+inline void classMembers(std::string_view body, bool (&members)[k::numByteValues])
+{
+    std::memset(members, 0, sizeof members);
     bool negate = false;
     std::size_t i = 0;
-    if (!body.empty() && body[0] == '!')
+    if (!body.empty() && body[0] == k::setNegate)
     {
         negate = true;
         i = 1;
     }
     while (i < body.size())
     {
-        const auto lo = static_cast<unsigned char>(body[i]);
-        if (i + 2 < body.size() && body[i + 1] == '-')
+        const auto first = static_cast<unsigned char>(body[i]);
+        if (i + 2 < body.size() && body[i + 1] == k::rangeSeparator)
         {
-            const auto hi = static_cast<unsigned char>(body[i + 2]);
-            for (unsigned c = lo; c <= hi; ++c)
-                set[c] = true;
+            const auto last = static_cast<unsigned char>(body[i + 2]);
+            for (unsigned value = first; value <= last; ++value)
+                members[value] = true;
             i += 3;
         }
         else
         {
-            set[lo] = true;
+            members[first] = true;
             ++i;
         }
     }
     if (negate)
     {
-        for (bool& b : set)
-            b = !b;
-        set[static_cast<unsigned char>('/')] = false;
+        for (bool& member : members)
+            member = !member;
+        members[static_cast<unsigned char>(k::partSeparator)] = false;
     }
 }
 
-inline void appendClass(std::string& out, const bool (&set)[256])
+inline void appendByteClass(std::string& expression, const bool (&members)[k::numByteValues])
 {
-    out += '[';
-    bool any = false;
-    for (unsigned c = 0; c < 256;)
+    expression += k::setOpen;
+    bool hasMembers = false;
+    for (unsigned value = 0; value < k::numByteValues;)
     {
-        if (!set[c])
+        if (!members[value])
         {
-            ++c;
+            ++value;
             continue;
         }
-        unsigned d = c;
-        while (d + 1 < 256 && set[d + 1])
-            ++d;
-        hex(out, static_cast<unsigned char>(c));
-        if (d > c)
+        unsigned rangeEnd = value;
+        while (rangeEnd + 1 < k::numByteValues && members[rangeEnd + 1])
+            ++rangeEnd;
+        appendEscapedByte(expression, static_cast<char>(value));
+        if (rangeEnd > value)
         {
-            out += '-';
-            hex(out, static_cast<unsigned char>(d));
+            expression += k::rangeSeparator;
+            appendEscapedByte(expression, static_cast<char>(rangeEnd));
         }
-        any = true;
-        c = d + 1;
+        hasMembers = true;
+        value = rangeEnd + 1;
     }
-    if (!any)
-        out += "^\\x00-\\xFF"; // a class that no byte is in
-    out += ']';
+    if (!hasMembers)
+        expression += k::noByteExpression;
+    expression += k::setClose;
 }
 
-inline Error translatePart(std::string_view seg, std::string& out)
+inline Error appendPart(std::string& expression, std::string_view part)
 {
     std::size_t i = 0;
-    while (i < seg.size())
+    while (i < part.size())
     {
-        const char c = seg[i];
-        if (c == '?')
+        const char byte = part[i];
+        if (byte == k::anyByte)
         {
-            out += "[^/]";
+            expression += k::anyByteExpression;
             ++i;
         }
-        else if (c == '*')
+        else if (byte == k::anyBytes)
         {
-            out += "[^/]*";
+            expression += k::anyBytesExpression;
             ++i;
         }
-        else if (c == '[')
+        else if (byte == k::setOpen)
         {
-            const std::size_t close = seg.find(']', i + 1 + (i + 1 < seg.size() && seg[i + 1] == '!' ? 1 : 0));
-            if (close == std::string_view::npos)
+            const bool negate = i + 1 < part.size() && part[i + 1] == k::setNegate;
+            const std::size_t close = part.find(k::setClose, i + 1 + (negate ? 1 : 0));
+            if (close == npos)
                 return Error::UnterminatedClass;
-            bool set[256];
-            classSet(seg.substr(i + 1, close - i - 1), set);
-            appendClass(out, set);
+            bool members[k::numByteValues];
+            classMembers(part.substr(i + 1, close - i - 1), members);
+            appendByteClass(expression, members);
             i = close + 1;
         }
-        else if (c == '{')
+        else if (byte == k::listOpen)
         {
-            const std::size_t close = seg.find('}', i + 1);
-            if (close == std::string_view::npos)
+            const std::size_t close = part.find(k::listClose, i + 1);
+            if (close == npos)
                 return Error::UnterminatedBraces;
-            const std::string_view body = seg.substr(i + 1, close - i - 1);
-            if (body.find('{') != std::string_view::npos)
+            const std::string_view body = part.substr(i + 1, close - i - 1);
+            if (body.find(k::listOpen) != npos)
                 return Error::NestedBraces;
-            out += "(?:";
-            for (const char b : body)
+            expression += k::alternativesOpen;
+            for (const char member : body)
             {
-                if (b == ',')
-                    out += '|';
+                if (member == k::listSeparator)
+                    expression += k::alternativesSeparator;
                 else
-                    literal(out, b);
+                    appendEscapedByte(expression, member);
             }
-            out += ')';
+            expression += k::alternativesClose;
             i = close + 1;
         }
         else
         {
-            literal(out, c);
+            appendEscapedByte(expression, byte);
             ++i;
         }
     }
     return Error::None;
 }
 
-inline Error translate(std::string_view pattern, std::string& out)
+inline Error translatePattern(std::string_view pattern, std::string& expression)
 {
-    out.clear();
-    if (pattern.empty() || pattern[0] != '/')
+    expression.clear();
+    if (pattern.empty() || pattern[0] != k::partSeparator)
         return Error::MissingLeadingSlash;
-    for (const char c : pattern)
+    for (const char byte : pattern)
     {
-        const auto u = static_cast<unsigned char>(c);
-        if (u < 0x21 || u > 0x7E)
+        if (!isPrintableAscii(byte))
             return Error::IllegalByte;
     }
     std::size_t i = 1;
-    bool lastWasSlash2 = false;
+    bool insideDescendantOperator = false;
     for (;;)
     {
-        const std::size_t slash = pattern.find('/', i);
-        const std::string_view seg = pattern.substr(i, slash == std::string_view::npos ? std::string_view::npos : slash - i);
-        if (seg.empty())
+        const std::size_t separator = pattern.find(k::partSeparator, i);
+        const std::string_view part = pattern.substr(i, separator == npos ? npos : separator - i);
+        if (part.empty())
         {
-            if (!lastWasSlash2)
-                out += "(?:/[^/]*)*";
-            lastWasSlash2 = true;
+            if (!insideDescendantOperator)
+                expression += k::descendantExpression;
+            insideDescendantOperator = true;
         }
         else
         {
-            out += '/';
-            if (const Error e = translatePart(seg, out); e != Error::None)
-                return e;
-            lastWasSlash2 = false;
+            expression += k::partSeparator;
+            if (const Error error = appendPart(expression, part); error != Error::None)
+                return error;
+            insideDescendantOperator = false;
         }
-        if (slash == std::string_view::npos)
+        if (separator == npos)
             break;
-        i = slash + 1;
+        i = separator + 1;
     }
     return Error::None;
 }
 
-struct TransparentHash
+struct StringViewHash
 {
     using is_transparent = void;
-    std::size_t operator()(std::string_view s) const noexcept { return std::hash<std::string_view> { }(s); }
-    std::size_t operator()(const std::string& s) const noexcept { return std::hash<std::string_view> { }(s); }
+    std::size_t operator()(std::string_view text) const noexcept { return std::hash<std::string_view> { }(text); }
+    std::size_t operator()(const std::string& text) const noexcept { return std::hash<std::string_view> { }(text); }
 };
 
 }
@@ -213,18 +251,17 @@ struct TransparentHash
 namespace oscpm_regex
 {
 
-/// Whether `a` is a well-formed OSC address: a leading '/', no trailing or
-/// doubled '/', and only printable ASCII other than `#*,?[]{}`.
-inline bool isValidAddress(std::string_view a)
+/// Whether `address` is a well-formed OSC address: a leading '/', no
+/// trailing or doubled '/', and only printable ASCII other than `#*,?[]{}`.
+inline bool isValidAddress(std::string_view address)
 {
-    if (a.empty() || a[0] != '/' || a.back() == '/')
+    if (address.empty() || address[0] != detail::k::partSeparator || address.back() == detail::k::partSeparator)
         return false;
-    for (std::size_t i = 1; i < a.size(); ++i)
+    for (std::size_t i = 1; i < address.size(); ++i)
     {
-        const auto c = static_cast<unsigned char>(a[i]);
-        if (c < 0x21 || c > 0x7E || std::strchr("#*,?[]{}", static_cast<char>(c)))
+        if (!detail::isPrintableAscii(address[i]) || detail::isReservedInAddress(address[i]))
             return false;
-        if (a[i] == '/' && a[i - 1] == '/')
+        if (address[i] == detail::k::partSeparator && address[i - 1] == detail::k::partSeparator)
             return false;
     }
     return true;
@@ -240,13 +277,13 @@ public:
     /// Compiles `text`; `valid` and `error` report the outcome.
     explicit Pattern(std::string_view text)
     {
-        std::string rx;
-        m_error = detail::translate(text, rx);
+        std::string expression;
+        m_error = detail::translatePattern(text, expression);
         if (m_error != Error::None)
             return;
         try
         {
-            m_re = std::regex(rx, std::regex::ECMAScript);
+            m_expression = std::regex(expression, std::regex::ECMAScript);
         }
         catch (const std::regex_error&)
         {
@@ -265,25 +302,28 @@ public:
     /// input the regex engine gives up on.
     bool matches(std::string_view address) const
     {
-        if (!valid() || address.empty() || address[0] != '/')
+        if (!valid() || address.empty() || address[0] != detail::k::partSeparator)
             return false;
         try
         {
-            return std::regex_match(address.data(), address.data() + address.size(), m_re);
+            return std::regex_match(address.data(), address.data() + address.size(), m_expression);
         }
         catch (const std::regex_error&)
         {
-            return false;
-        } // error_complexity or error_stack
+            return false; // error_complexity or error_stack
+        }
     }
 
 private:
-    std::regex m_re;
+    std::regex m_expression;
     Error m_error = Error::MissingLeadingSlash;
 };
 
 /// Compiles `pattern` and tests it against `address`.
-inline bool match(std::string_view pattern, std::string_view address) { return Pattern(pattern).matches(address); }
+inline bool match(std::string_view pattern, std::string_view address)
+{
+    return Pattern(pattern).matches(address);
+}
 
 /// A set of methods, each a well-formed address with a value of type `T`,
 /// that a pattern is dispatched to. An exact address and a pattern seen
@@ -294,11 +334,11 @@ template <typename T>
 class Registry
 {
 public:
-    using MethodId = std::uint32_t;
+    using MethodIndex = std::uint32_t;
 
     /// How many methods a dispatch visited, and whether the pattern was
     /// malformed, in which case it visited none.
-    struct Result
+    struct DispatchResult
     {
         std::size_t matched;
         bool malformed;
@@ -311,7 +351,7 @@ public:
         if (!isValidAddress(address) || m_index.find(address) != m_index.end())
             return false;
         m_methods.push_back(Method { std::string(address), std::move(value) });
-        m_index.emplace(m_methods.back().address, static_cast<MethodId>(m_methods.size() - 1));
+        m_index.emplace(m_methods.back().address, static_cast<MethodIndex>(m_methods.size() - 1));
         m_cache.clear();
         return true;
     }
@@ -319,15 +359,15 @@ public:
     /// Unregisters `address`; false if it is not registered.
     bool remove(std::string_view address)
     {
-        const auto it = m_index.find(address);
-        if (it == m_index.end())
+        const auto method = m_index.find(address);
+        if (method == m_index.end())
             return false;
-        const MethodId id = it->second, last = static_cast<MethodId>(m_methods.size() - 1);
-        m_index.erase(it);
-        if (id != last)
+        const MethodIndex index = method->second, last = static_cast<MethodIndex>(m_methods.size() - 1);
+        m_index.erase(method);
+        if (index != last)
         {
-            m_methods[id] = std::move(m_methods[last]);
-            m_index.find(m_methods[id].address)->second = id;
+            m_methods[index] = std::move(m_methods[last]);
+            m_index.find(m_methods[index].address)->second = index;
         }
         m_methods.pop_back();
         m_cache.clear();
@@ -343,50 +383,53 @@ public:
     /// Calls `visitor(std::string_view address, T& value)` for every method
     /// `pattern` matches. The visitor must not add or remove methods.
     template <typename Visitor>
-    Result dispatch(std::string_view pattern, Visitor&& visitor)
+    DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
-        if (pattern.find_first_of("*?[{") == std::string_view::npos && pattern.find("//") == std::string_view::npos
-            && !pattern.empty() && pattern.back() != '/')
+        if (pattern.find_first_of(detail::k::operatorBytes) == detail::npos && pattern.find("//") == detail::npos && !pattern.empty() && pattern.back() != detail::k::partSeparator)
         {
-            const auto it = m_index.find(pattern);
-            if (it == m_index.end())
+            const auto method = m_index.find(pattern);
+            if (method == m_index.end())
                 return { 0, false };
-            visitor(m_methods[it->second].address, m_methods[it->second].value);
+            visitor(m_methods[method->second].address, m_methods[method->second].value);
             return { 1, false };
         }
-        if (const auto hit = m_cache.find(pattern); hit != m_cache.end())
+        if (const auto cached = m_cache.find(pattern); cached != m_cache.end())
         {
-            for (const MethodId id : hit->second)
-                visitor(m_methods[id].address, m_methods[id].value);
-            return { hit->second.size(), false };
+            for (const MethodIndex index : cached->second)
+                visitor(m_methods[index].address, m_methods[index].value);
+            return { cached->second.size(), false };
         }
-        const Pattern p(pattern);
-        if (!p.valid())
+        const Pattern compiled(pattern);
+        if (!compiled.valid())
             return { 0, true };
-        std::vector<MethodId> ids;
-        for (MethodId id = 0; id < m_methods.size(); ++id)
-            if (p.matches(m_methods[id].address))
+        std::vector<MethodIndex> matched;
+        for (MethodIndex index = 0; index < m_methods.size(); ++index)
+        {
+            if (compiled.matches(m_methods[index].address))
             {
-                visitor(m_methods[id].address, m_methods[id].value);
-                ids.push_back(id);
+                visitor(m_methods[index].address, m_methods[index].value);
+                matched.push_back(index);
             }
-        if (m_cache.size() >= kCacheCap)
+        }
+        if (m_cache.size() >= kMaxCachedPatterns)
             m_cache.clear();
-        const std::size_t n = ids.size();
-        m_cache.emplace(std::string(pattern), std::move(ids));
-        return { n, false };
+        const std::size_t numMatched = matched.size();
+        m_cache.emplace(std::string(pattern), std::move(matched));
+        return { numMatched, false };
     }
 
 private:
-    static constexpr std::size_t kCacheCap = 4096;
+    static constexpr std::size_t kMaxCachedPatterns = 4096;
+
     struct Method
     {
         std::string address;
         T value;
     };
+
     std::vector<Method> m_methods;
-    std::unordered_map<std::string, MethodId, detail::TransparentHash, std::equal_to<>> m_index;
-    std::unordered_map<std::string, std::vector<MethodId>, detail::TransparentHash, std::equal_to<>> m_cache;
+    std::unordered_map<std::string, MethodIndex, detail::StringViewHash, std::equal_to<>> m_index;
+    std::unordered_map<std::string, std::vector<MethodIndex>, detail::StringViewHash, std::equal_to<>> m_cache;
 };
 
 }
