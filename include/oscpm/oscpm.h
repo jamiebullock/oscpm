@@ -109,8 +109,7 @@ namespace oscpm
 class Pattern
 {
 public:
-    /// Translates and compiles `text`, which begins with '/' and names at
-    /// least one part
+    /// Translates and compiles `text` to a regex ignoring malformed patterns
     explicit Pattern(std::string_view text)
     {
         if (text.size() < 2 || text[0] != '/')
@@ -125,12 +124,10 @@ public:
         }
     }
 
-    /// @returns whether the pattern is usable: it begins with '/', names at
-    /// least one part, and its expression compiled.
+    /// @returns whether the pattern is valid. see README for spec
     bool valid() const { return m_valid; }
 
-    /// @returns whether this pattern matches `address`; false when the engine
-    /// gives up on the pair with `error_complexity` or `error_stack`.
+    /// @returns whether this pattern matches `address`.
     bool matches(std::string_view address) const
     {
         if (!m_valid || address.empty() || address[0] != '/')
