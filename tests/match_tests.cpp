@@ -8,7 +8,10 @@
 
 #include <doctest/doctest.h>
 
+#include <string>
+
 using oscpm::match;
+using oscpm::Matcher;
 using oscpm::Pattern;
 
 TEST_CASE("a literal pattern matches only its own text")
@@ -76,4 +79,30 @@ TEST_CASE("a pattern built once matches many addresses")
     CHECK_FALSE(pattern.matches("/synth/1/pan"));
     CHECK_FALSE(pattern.matches("synth/1/freq"));
     CHECK_FALSE(pattern.matches(""));
+}
+
+TEST_CASE("a pair the regex engine gives up on matches nothing and does not throw")
+{
+    const std::string manyAs = "/" + std::string(200, 'a') + "c";
+    const std::string stars = "/*a*a*b";
+
+    std::string manyParts;
+    for (int i = 0; i < 40; ++i)
+        manyParts += "/a";
+    manyParts += "/c";
+    const std::string descendants = "//a//a//a//b";
+
+    CHECK_NOTHROW(match(stars, manyAs));
+    CHECK_FALSE(match(stars, manyAs));
+    CHECK_NOTHROW(match(descendants, manyParts));
+    CHECK_FALSE(match(descendants, manyParts));
+
+    const Pattern pattern(stars);
+    REQUIRE(pattern.valid());
+    CHECK_NOTHROW(pattern.matches(manyAs));
+    CHECK_FALSE(pattern.matches(manyAs));
+
+    Matcher matcher;
+    CHECK_FALSE(matcher.match(stars, manyAs));
+    CHECK_FALSE(matcher.match(stars, manyAs));
 }

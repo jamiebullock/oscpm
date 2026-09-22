@@ -125,10 +125,20 @@ public:
     /// @returns whether the pattern compiled.
     bool valid() const { return m_valid; }
 
-    /// @returns whether this pattern matches `address`.
+    /// @returns whether this pattern matches `address`; false when the engine
+    /// gives up on the pair with `error_complexity` or `error_stack`.
     bool matches(std::string_view address) const
     {
-        return m_valid && !address.empty() && address[0] == '/' && std::regex_match(address.begin(), address.end(), m_expression);
+        if (!m_valid || address.empty() || address[0] != '/')
+            return false;
+        try
+        {
+            return std::regex_match(address.begin(), address.end(), m_expression);
+        }
+        catch (const std::regex_error&)
+        {
+            return false;
+        }
     }
 
 private:

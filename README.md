@@ -89,9 +89,20 @@ instead makes the pattern invalid, which also matches nothing.
 - The first sight of a pattern and address pair compiles a `std::regex`
   and calls `std::regex_match`; both allocate. A new pattern against a
   thousand methods compiles a thousand times.
-- Matching time is bounded by the regex engine; libc++'s does not
-  backtrack catastrophically. The engine may throw `error_complexity` or
-  `error_stack` on extreme inputs, which is not caught.
+- Whether matching time is bounded is a property of the standard library,
+  not of oscpm. `matches` catches every `regex_error`, so wherever the engine
+  abandons a pair the result is no match, which is a false negative for a
+  pair that would have matched.
+- libc++ abandons a pair cheaply, raising `error_complexity` once its step
+  count passes 4,096 times the address length: 5 to 25 milliseconds on the
+  patterns below. The MSVC STL also abandons them, with `error_stack` or
+  `error_complexity`, but only after 60 milliseconds to 1.3 seconds.
+- libstdc++ has no such limit, so on GCC matching time is not bounded at all:
+  `/*a*a*b` against a 200-byte part takes 55 milliseconds, `/*a*a*a*b` 2.7
+  seconds, `/*a*a*a*a*b` 102 seconds, `/{a,aa}` repeated 32 times 116
+  seconds, and `/{a,}` repeated 50 times does not finish. A caller that takes
+  patterns from an untrusted source needs its own limit on their length and
+  operator count.
 - Measured over 1,000 registered methods on an Apple Silicon Mac: a
   message to a registered address costs about 10 nanoseconds; a wildcard
   dispatch whose pairs are all memoised costs about 35 microseconds, one
