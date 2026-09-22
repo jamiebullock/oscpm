@@ -1,6 +1,6 @@
 # oscpm
 
-oscpm is a header-only [Open Sound Contro](https://opensoundcontrol.stanford.edu/spec-1_0.html)
+oscpm is a header-only [Open Sound Control](https://opensoundcontrol.stanford.edu/spec-1_0.html)
 address pattern matcher.
 
 The main classes are a `Matcher` that supplies a match decision for every
@@ -32,8 +32,7 @@ matcher.match("/synth/*/freq", "/synth/1/freq"); // a hash lookup
 ```
 
 `match` compiles the pattern and tests it once. A `Pattern` compiles once
-and is matched many times; a pattern the regex engine rejects is invalid
-and matches nothing. A `Matcher` memoises the verdict of every pattern and
+and is matched many times. A `Matcher` memoises the verdict of every pattern and
 address pair: the first call for a pair compiles and matches, every later
 call for the same pair is a hash lookup. The memo holds 65,536 pairs by
 default, about 10 MB. This can be overridden by argument to the constructor.
@@ -53,17 +52,14 @@ const std::size_t matched = methods.dispatch(message.address(), [&](std::string_
 
 `dispatch` first looks the pattern up as an address: a pattern equal to a
 registered address reaches that method by one hash lookup. Any other
-pattern is put to the address space's `Matcher` for every method, in no
-particular order, so a wildcard message costs one memoised match per
+pattern is put to the address space's `Matcher` for every method,
+so a wildcard message costs one memoised match per
 registered method.
 
-## Where matching departs from the specification
+## Specification compliance
 
-oscpm rewrites the pattern as a regular expression and lets the engine match
-it, so it carries no OSC rules of its own and validates neither side;
-`Pattern::valid` reports only that the rewritten expression compiled. Four
-departures show up on legal addresses, either against the specification or
-where it leaves a question open:
+oscpm conforms to the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0.html)
+except in the follow scenarios:
 
 - The pattern's structure is not checked. Its first byte is never examined, so
   `xsynth/1` matches `/synth/1`, and an empty part anywhere is the descendant
