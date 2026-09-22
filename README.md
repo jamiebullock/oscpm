@@ -109,6 +109,11 @@ instead makes the pattern invalid, which also matches nothing.
   `/{a,}` repeated 50 times does not finish. A caller that takes patterns
   from an untrusted source needs its own limit on their length and operator
   count.
+- A budget is per pair, so `AddressSpace::dispatch` pays it once per
+  registered method. Measured over 1,000 methods whose addresses are 58 bytes,
+  the pattern `/synth/*/*a*a*a*b` returns no match in 2.9 seconds on libc++,
+  and 0.06 milliseconds on every later message once the memo holds those
+  pairs. A sender that varies such patterns pays the first cost each time.
 - Measured over 1,000 registered methods on an Apple Silicon Mac: a
   message to a registered address costs about 10 nanoseconds; a wildcard
   dispatch whose pairs are all memoised costs about 35 microseconds, one
