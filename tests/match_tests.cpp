@@ -60,6 +60,28 @@ TEST_CASE("the descendant operator matches zero or more whole parts")
     CHECK(match("/a/", "/a/b"));
 }
 
+TEST_CASE("a pattern begins with a slash and names at least one part")
+{
+    CHECK_FALSE(Pattern("").valid());
+    CHECK_FALSE(Pattern("/").valid());
+    CHECK_FALSE(Pattern("a").valid());
+    CHECK_FALSE(Pattern("synth/1").valid());
+    CHECK_FALSE(Pattern("xsynth/1").valid());
+    CHECK_FALSE(match("xsynth/1", "/synth/1"));
+    CHECK_FALSE(match("/", "/a/b/c"));
+    CHECK_FALSE(match("", "/a"));
+    CHECK(Pattern("/a").valid());
+}
+
+TEST_CASE("the descendant operator alone matches every address")
+{
+    CHECK(Pattern("//").valid());
+    CHECK(match("//", "/a"));
+    CHECK(match("//", "/a/b/c"));
+    CHECK(match("/a/", "/a"));
+    CHECK(match("/a/", "/a/b/c"));
+}
+
 TEST_CASE("a pattern the regex engine rejects is invalid and matches nothing")
 {
     CHECK_FALSE(Pattern("/synth/[1").valid());

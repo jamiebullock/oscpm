@@ -23,7 +23,7 @@ oscpm::match("/synth/*/freq", "/synth/1/freq"); // true
 oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true
 
 const oscpm::Pattern pattern("/synth/[1-3]/{freq,amp}");
-pattern.valid();                 // false if the regex engine rejected it
+pattern.valid();                 // false if the pattern is malformed
 pattern.matches("/synth/2/amp"); // true
 
 oscpm::Matcher matcher;
@@ -58,13 +58,19 @@ registered method.
 
 ## Specification compliance
 
-oscpm conforms to the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0.html)
-except in the follow scenarios:
+oscpm implements the [OSC 1.0
+specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) and the
+`//` operator OSC 1.1 took from XPath, which matches zero or more whole parts:
+`/a//c` matches `/a/c` and `/a/b/c`, and `//` on its own matches every
+address. Any run of two or more slashes is that operator, and so is a trailing
+slash, so `/a/` matches `/a` and everything below it.
 
-- The pattern's structure is not checked. Its first byte is never examined, so
-  `xsynth/1` matches `/synth/1`, and an empty part anywhere is the descendant
-  operator, so `/a/` matches `/a` and everything below it and `/` alone
-  matches every address.
+A pattern begins with `/` and names at least one part. One that does not is
+malformed, and a malformed pattern matches nothing.
+
+Three departures from the specification remain, all of which show up on legal
+addresses:
+
 - A negated class matches the part separator, so `/a[!x]b` matches `/a/b`,
   where the specification says no wildcard spans parts.
 - A comma outside braces alternates the whole pattern rather than the part, so
