@@ -1,16 +1,11 @@
 # oscpm
 
-Header-only C++20 OpenSoundControl (OSC) address pattern matching built on
-`std::regex`, in the most direct way possible.
+oscpm is a header-only [Open Sound Contro](https://opensoundcontrol.stanford.edu/spec-1_0.html)
+address pattern matcher.
 
-oscpm rewrites an OSC address pattern character by character into an
-ECMAScript regular expression, `?` to `[^/]`, `*` to `[^/]*`, `{a,b}` to
-`(?:a|b)`, `[!` to `[^`, an empty part to `(?:/[^/]*)*`, and hands
-everything else to the regex engine: character classes, ranges, and the
-decision of what is malformed. A `Matcher` memoises the verdict for every
-pattern and address pair it has seen, and an `AddressSpace` dispatches by
-asking the matcher about each of its methods. It depends on nothing outside
-the standard library.
+The main classes are a `Matcher` that supplies a match decision for every
+pattern and address pair it receives, and an `AddressSpace` which dispatches registered callbacks
+based on address and pattern matches.
 
 ## Integration
 
@@ -41,8 +36,8 @@ and is matched many times; a pattern the regex engine rejects is invalid
 and matches nothing. A `Matcher` memoises the verdict of every pattern and
 address pair: the first call for a pair compiles and matches, every later
 call for the same pair is a hash lookup. The memo holds 65,536 pairs by
-default, about 10 MB, or the number given to the constructor, and is
-emptied when it reaches that, so a working set larger than the limit
+default, about 10 MB. This can be overridden by argument to the constructor.
+The cache empties when it reaches the limit, so a working set larger than the limit
 recompiles on every message.
 
 ## Address space
