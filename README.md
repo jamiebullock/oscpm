@@ -59,14 +59,8 @@ registered method.
 ## Specification compliance
 
 oscpm implements the [OSC 1.0
-specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) and the
-`//` operator OSC 1.1 took from XPath, which matches zero or more whole parts:
-`/a//c` matches `/a/c` and `/a/b/c`, and `//` on its own matches every
-address. Any run of two or more slashes is that operator, and so is a trailing
-slash, so `/a/` matches `/a` and everything below it.
-
-The specification asks only that a pattern begin with `/`. A pattern that does
-not is malformed here, and a malformed pattern matches nothing.
+specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) with the
+`//` operator OSC 1.1 took from XPath, which matches zero or more whole parts.
 
 Four departures from the specification remain:
 
@@ -96,25 +90,8 @@ Allocation:
 
 Time:
 
-- Matching time is not bounded. The expensive shape is `*` separated by
-  literals within one part: where the match runs to completion, `/*a*a*a*b`
-  against a 200-byte part takes about three seconds and `/*a*a*a*a*b` over a
-  minute.
-- Builds against libc++ or the Microsoft standard library, the defaults on
-  macOS and Windows, abandon a match that costs too much and report no match
-  even where it would have matched. libstdc++, the default on Linux, runs it
-  to completion instead. So a pattern that is merely slow on one platform can
-  be answered wrongly on another.
-- `dispatch` pays that cost once per registered method, so one such message
-  against a thousand methods takes seconds to return nothing; later messages
-  carrying the same pattern are cache hits.
-- Accept patterns from elsewhere only under your own limit on their length and
-  wildcard count.
+- Matching time is not bounded.
 
-Speed, over 1,000 registered methods on an Apple Silicon Mac: a message to a
-registered address costs about 10 nanoseconds, a wildcard message whose pairs
-are cached about 35 microseconds, and the first wildcard message carrying a new
-pattern 1 to 4 milliseconds.
 
 A `Matcher` and an `AddressSpace` are not safe to use from several threads at
 once.
