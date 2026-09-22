@@ -89,20 +89,26 @@ instead makes the pattern invalid, which also matches nothing.
 - The first sight of a pattern and address pair compiles a `std::regex`
   and calls `std::regex_match`; both allocate. A new pattern against a
   thousand methods compiles a thousand times.
-- Whether matching time is bounded is a property of the standard library,
-  not of oscpm. `matches` catches every `regex_error`, so wherever the engine
-  abandons a pair the result is no match, which is a false negative for a
-  pair that would have matched.
-- libc++ abandons a pair cheaply, raising `error_complexity` once its step
-  count passes 4,096 times the address length: 5 to 25 milliseconds on the
-  patterns below. The MSVC STL also abandons them, with `error_stack` or
-  `error_complexity`, but only after 60 milliseconds to 1.3 seconds.
-- libstdc++ has no such limit, so on GCC matching time is not bounded at all:
-  `/*a*a*b` against a 200-byte part takes 55 milliseconds, `/*a*a*a*b` 2.7
-  seconds, `/*a*a*a*a*b` 102 seconds, `/{a,aa}` repeated 32 times 116
-  seconds, and `/{a,}` repeated 50 times does not finish. A caller that takes
-  patterns from an untrusted source needs its own limit on their length and
-  operator count.
+- Whether matching time is bounded, and whether a pair is decided at all, is
+  a property of the standard library rather than of oscpm. `matches` catches
+  every `regex_error`, so a pair the engine abandons reads as no match.
+- libc++ abandons a pair once its step count passes 4,096 times the address
+  length, in 5 to 25 milliseconds. The MSVC STL abandons one after ten
+  million node visits or a thousand levels of recursion, in 1 millisecond to
+  1.3 seconds. libstdc++ has no limit and decides every pair, given time.
+- A pair that would have matched but exceeds a budget therefore reads as no
+  match, and the three libraries can answer the same input differently.
+  `/*a` repeated 20 times then `*b` against a part of 200 `a`s ending in `b`
+  matches: libstdc++ returns true in 62 milliseconds, libc++ and the MSVC STL
+  return false. `//a` repeated three times then `//b` against a 200-part
+  address matches: libstdc++ returns true, the MSVC STL returns false after
+  1.5 milliseconds.
+- Where there is no budget there is no bound: on libstdc++ `/*a*a*b` against
+  a 200-byte part takes 55 milliseconds, `/*a*a*a*b` 2.7 seconds,
+  `/*a*a*a*a*b` 102 seconds, `/{a,aa}` repeated 32 times 116 seconds, and
+  `/{a,}` repeated 50 times does not finish. A caller that takes patterns
+  from an untrusted source needs its own limit on their length and operator
+  count.
 - Measured over 1,000 registered methods on an Apple Silicon Mac: a
   message to a registered address costs about 10 nanoseconds; a wildcard
   dispatch whose pairs are all memoised costs about 35 microseconds, one

@@ -106,3 +106,19 @@ TEST_CASE("a pair the regex engine gives up on matches nothing and does not thro
     CHECK_FALSE(matcher.match(stars, manyAs));
     CHECK_FALSE(matcher.match(stars, manyAs));
 }
+
+TEST_CASE("a pair the engine may abandon never throws, whatever it decides")
+{
+    std::string stars = "/";
+    for (int i = 0; i < 20; ++i)
+        stars += "*a";
+    stars += "*b";
+    const std::string matching = "/" + std::string(200, 'a') + "b";
+
+    CHECK_NOTHROW(match(stars, matching));
+    CHECK_NOTHROW(Pattern(stars).matches(matching));
+
+    Matcher matcher;
+    CHECK_NOTHROW(matcher.match(stars, matching));
+    CHECK(matcher.match(stars, matching) == match(stars, matching));
+}
