@@ -57,66 +57,63 @@ pattern is put to the address space's `Matcher` for every method, in no
 particular order, so a wildcard message costs one memoised match per
 registered method.
 
-## What the regex engine decides
+## Where matching departs from the specification
 
-Because the translation carries no OSC rules of its own, the engine's
-reading stands wherever the OSC 1.0 specification is silent:
+oscpm rewrites the pattern as a regular expression and lets the engine match
+it, so it carries no OSC rules of its own and validates neither side;
+`Pattern::valid` reports only that the rewritten expression compiled. Four
+departures show up on legal addresses, either against the specification or
+where it leaves a question open:
 
-- A pattern without a leading `/` is not rejected; `a` matches `/a`.
-- A space, `#` or non-ASCII byte in a pattern is a literal, so `/a b`
-  matches the address `/a b`.
-- A negated class matches `/`: `/[!x]` matches `//`.
-- `?` and `*` inside a class are wildcards, so `[*]` and `[?]` become
-  broken expressions and the pattern is invalid.
-- A `]`, `}` or `,` outside its construct makes the pattern invalid or
-  changes its meaning: `/a,b` matches `/a` and `/b`.
-- A wildcard or class inside braces works: `{a*,b}` matches `ax`.
-- Braces nest: `{a,{b,c}}` matches `a`, `b` or `c`.
-
-A reversed range such as `[z-a]` matches nothing, as in glob; libc++
-compiles it as an empty class, and a standard library that rejects it
-instead makes the pattern invalid, which also matches nothing.
+- The pattern's structure is not checked. Its first byte is never examined, so
+  `xsynth/1` matches `/synth/1`, and an empty part anywhere is the descendant
+  operator, so `/a/` matches `/a` and everything below it and `/` alone
+  matches every address.
+- A negated class matches the part separator, so `/a[!x]b` matches `/a/b`,
+  where the specification says no wildcard spans parts.
+- A comma outside braces alternates the whole pattern rather than the part, so
+  `/synth/1,/other` matches both `/synth/1` and `/other`.
+- Inside braces, wildcards and classes are live and braces nest, so `/{a*,b}`
+  matches `/ax` and `/{a,{b,c}}` matches `/b`. The specification calls the
+  contents a list of strings and says nothing about either; other
+  implementations take them literally.
 
 ## Guarantees and their limits
 
-- A memoised verdict allocates nothing, and so does a dispatch whose every
-  pattern and address pair is memoised, which the tests assert.
-- The first sight of a pattern and address pair compiles a `std::regex`
-  and calls `std::regex_match`; both allocate. A new pattern against a
-  thousand methods compiles a thousand times.
-- Whether matching time is bounded, and whether a pair is decided at all, is
-  a property of the standard library rather than of oscpm. `matches` catches
-  every `regex_error`, so a pair the engine abandons reads as no match.
-- libc++ abandons a pair once its step count passes 4,096 times the address
-  length, in 5 to 25 milliseconds. The MSVC STL abandons one after ten
-  million node visits or a thousand levels of recursion, in 1 millisecond to
-  1.3 seconds. libstdc++ has no limit and decides every pair, given time.
-- A pair that would have matched but exceeds a budget therefore reads as no
-  match, and the three libraries can answer the same input differently.
-  `/*a` repeated 20 times then `*b` against a part of 200 `a`s ending in `b`
-  matches: libstdc++ returns true in 62 milliseconds, libc++ and the MSVC STL
-  return false. `//a` repeated three times then `//b` against a 200-part
-  address matches: libstdc++ returns true, the MSVC STL returns false after
-  1.5 milliseconds.
-- Where there is no budget there is no bound: on libstdc++ `/*a*a*b` against
-  a 200-byte part takes 55 milliseconds, `/*a*a*a*b` 2.7 seconds,
-  `/*a*a*a*a*b` 102 seconds, `/{a,aa}` repeated 32 times 116 seconds, and
-  `/{a,}` repeated 50 times does not finish. A caller that takes patterns
-  from an untrusted source needs its own limit on their length and operator
-  count.
-- A budget is per pair, so `AddressSpace::dispatch` pays it once per
-  registered method. Measured over 1,000 methods whose addresses are 58 bytes,
-  the pattern `/synth/*/*a*a*a*b` returns no match in 2.9 seconds on libc++,
-  and 0.06 milliseconds on every later message once the memo holds those
-  pairs. A sender that varies such patterns pays the first cost each time.
-- Measured over 1,000 registered methods on an Apple Silicon Mac: a
-  message to a registered address costs about 10 nanoseconds; a wildcard
-  dispatch whose pairs are all memoised costs about 35 microseconds, one
-  hash lookup per method; the first dispatch of
-  a new pattern costs 1 to 4 milliseconds and tens of thousands of
-  allocations. A single memoised `match` costs about 20 nanoseconds.
-- A `Matcher` and an `AddressSpace` are not safe to use from several
-  threads at once.
+Allocation:
+
+- `match` and `Pattern::matches` allocate on every call.
+- `Matcher::match` allocates the first time it sees a pattern and address
+  pair, and nothing on any later call for that pair until the cache fills and
+  empties.
+- `AddressSpace::dispatch` allocates nothing for a message to a registered
+  address, and nothing for a wildcard message whose pairs are already cached.
+  The tests assert both.
+
+Time:
+
+- Matching time is not bounded. The expensive shape is `*` separated by
+  literals within one part: where the match runs to completion, `/*a*a*a*b`
+  against a 200-byte part takes about three seconds and `/*a*a*a*a*b` over a
+  minute.
+- Builds against libc++ or the Microsoft standard library, the defaults on
+  macOS and Windows, abandon a match that costs too much and report no match
+  even where it would have matched. libstdc++, the default on Linux, runs it
+  to completion instead. So a pattern that is merely slow on one platform can
+  be answered wrongly on another.
+- `dispatch` pays that cost once per registered method, so one such message
+  against a thousand methods takes seconds to return nothing; later messages
+  carrying the same pattern are cache hits.
+- Accept patterns from elsewhere only under your own limit on their length and
+  wildcard count.
+
+Speed, over 1,000 registered methods on an Apple Silicon Mac: a message to a
+registered address costs about 10 nanoseconds, a wildcard message whose pairs
+are cached about 35 microseconds, and the first wildcard message carrying a new
+pattern 1 to 4 milliseconds.
+
+A `Matcher` and an `AddressSpace` are not safe to use from several threads at
+once.
 
 ## Building
 
