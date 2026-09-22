@@ -65,11 +65,10 @@ specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) and the
 address. Any run of two or more slashes is that operator, and so is a trailing
 slash, so `/a/` matches `/a` and everything below it.
 
-A pattern begins with `/` and names at least one part. One that does not is
-malformed, and a malformed pattern matches nothing.
+The specification asks only that a pattern begin with `/`. A pattern that does
+not is malformed here, and a malformed pattern matches nothing.
 
-Three departures from the specification remain, all of which show up on legal
-addresses:
+Four departures from the specification remain:
 
 - A negated class matches the part separator, so `/a[!x]b` matches `/a/b`,
   where the specification says no wildcard spans parts.
@@ -79,6 +78,9 @@ addresses:
   matches `/ax` and `/{a,{b,c}}` matches `/b`. The specification calls the
   contents a list of strings and says nothing about either; other
   implementations take them literally.
+- A lone `/` is malformed here, where the specification permits it. Since no
+  legal address has an empty part, it matches nothing either way, so the two
+  readings differ only in what `valid` reports.
 
 ## Guarantees and their limits
 
