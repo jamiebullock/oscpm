@@ -1,4 +1,4 @@
-# Part of oscpm-regex
+# Part of oscpm
 #
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
@@ -18,20 +18,20 @@ FetchContent_Declare(
 set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 FetchContent_MakeAvailable(doctest)
 
-add_executable(oscpm_regex_tests
+add_executable(oscpm_tests
     match_tests.cpp
     registry_tests.cpp
 )
 
-target_link_libraries(oscpm_regex_tests PRIVATE
-    oscpm_regex::oscpm_regex
+target_link_libraries(oscpm_tests PRIVATE
+    oscpm::oscpm
     doctest::doctest_with_main
 )
 
-target_compile_options(oscpm_regex_tests PRIVATE
+target_compile_options(oscpm_tests PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
 )
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
-doctest_discover_tests(oscpm_regex_tests)
+doctest_discover_tests(oscpm_tests)

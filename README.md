@@ -1,9 +1,9 @@
-# oscpm-regex
+# oscpm
 
 Header-only C++20 OpenSoundControl (OSC) address pattern matching built on
 `std::regex`, in the most direct way possible.
 
-oscpm-regex rewrites an OSC address pattern character by character into an
+oscpm rewrites an OSC address pattern character by character into an
 ECMAScript regular expression, `?` to `[^/]`, `*` to `[^/]*`, `{a,b}` to
 `(?:a|b)`, `[!` to `[^`, an empty part to `(?:/[^/]*)*`, and hands
 everything else to the regex engine: character classes, ranges, and the
@@ -15,23 +15,23 @@ the standard library.
 ## Integration
 
 With CMake 3.25 or later, `add_subdirectory` on a checkout gives the target
-`oscpm_regex::oscpm_regex`; `cmake --install` installs the header and a
-package config for `find_package(oscpm_regex)`. The tests are built only when
-oscpm-regex is the top-level project.
+`oscpm::oscpm`; `cmake --install` installs the header and a package config
+for `find_package(oscpm)`. The tests are built only when oscpm is the
+top-level project.
 
 ## Matching
 
 ```cpp
-#include <oscpm_regex/oscpm_regex.h>
+#include <oscpm/oscpm.h>
 
-oscpm_regex::match("/synth/*/freq", "/synth/1/freq"); // true
-oscpm_regex::match("/synth//freq", "/synth/1/osc/freq"); // true
+oscpm::match("/synth/*/freq", "/synth/1/freq"); // true
+oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true
 
-const oscpm_regex::Pattern pattern("/synth/[1-3]/{freq,amp}");
+const oscpm::Pattern pattern("/synth/[1-3]/{freq,amp}");
 pattern.valid();                 // false if the regex engine rejected it
 pattern.matches("/synth/2/amp"); // true
 
-oscpm_regex::Matcher matcher;
+oscpm::Matcher matcher;
 matcher.match("/synth/*/freq", "/synth/1/freq"); // compiles, matches, remembers
 matcher.match("/synth/*/freq", "/synth/1/freq"); // a hash lookup
 ```
@@ -48,7 +48,7 @@ recompiles on every message.
 ## Address space
 
 ```cpp
-oscpm_regex::AddressSpace<Handler> methods;
+oscpm::AddressSpace<Handler> methods;
 methods.add("/synth/1/freq", setFrequency); // false if already registered
 methods.remove("/synth/1/freq");            // false if not registered
 
@@ -56,8 +56,7 @@ const std::size_t matched = methods.dispatch(message.address(), [&](std::string_
     { handler(message); });
 ```
 
-`dispatch` first looks the pattern up as an address, which is what
-oscpp's README suggests for a dispatch table: a pattern equal to a
+`dispatch` first looks the pattern up as an address: a pattern equal to a
 registered address reaches that method by one hash lookup. Any other
 pattern is put to the address space's `Matcher` for every method, in no
 particular order, so a wildcard message costs one memoised match per
@@ -66,9 +65,7 @@ registered method.
 ## What the regex engine decides
 
 Because the translation carries no OSC rules of its own, the engine's
-reading stands wherever the OSC 1.0 specification is silent, and it differs
-from a hand-written matcher in these ways, found by running both corpora
-of the oscpm comparison through it:
+reading stands wherever the OSC 1.0 specification is silent:
 
 - A pattern without a leading `/` is not rejected; `a` matches `/a`.
 - A space, `#` or non-ASCII byte in a pattern is a literal, so `/a b`
@@ -77,18 +74,13 @@ of the oscpm comparison through it:
 - `?` and `*` inside a class are wildcards, so `[*]` and `[?]` become
   broken expressions and the pattern is invalid.
 - A `]`, `}` or `,` outside its construct makes the pattern invalid or
-  changes its meaning, where a hand-written matcher treats it as a literal:
-  `/a,b` matches `/a` and `/b`.
+  changes its meaning: `/a,b` matches `/a` and `/b`.
 - A wildcard or class inside braces works: `{a*,b}` matches `ax`.
 - Braces nest: `{a,{b,c}}` matches `a`, `b` or `c`.
 
-A reversed range such as `[z-a]` matches nothing, as in glob and in the
-hand-written matchers; libc++ compiles it as an empty class, and a standard
-library that rejects it instead makes the pattern invalid, which also
-matches nothing.
-
-On the two corpora that is 40 of 472 and 37 of 453 cases; on random
-patterns dense with brackets, braces and commas it is a third of them.
+A reversed range such as `[z-a]` matches nothing, as in glob; libc++
+compiles it as an empty class, and a standard library that rejects it
+instead makes the pattern invalid, which also matches nothing.
 
 ## Guarantees and their limits
 
@@ -117,9 +109,9 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-`debug` and `release` use Ninja. The tests use Catch2, fetched at
-configure time. The build fails on a clang-format violation when
-oscpm-regex is the top-level project.
+`debug` and `release` use Ninja. The tests use doctest, fetched at
+configure time. The build fails on a clang-format violation when oscpm is
+the top-level project.
 
 ## Licence
 

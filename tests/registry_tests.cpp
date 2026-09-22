@@ -1,4 +1,4 @@
-/* Part of oscpm-regex
+/* Part of oscpm
  *
  * SPDX-FileCopyrightText: 2026 Jamie Bullock
  * SPDX-License-Identifier: Zlib
