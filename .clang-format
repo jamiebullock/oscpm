@@ -1,0 +1,16 @@
+BasedOnStyle: WebKit
+Standard: c++17
+ColumnLimit: 110
+AllowShortFunctionsOnASingleLine: Inline
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterStruct: true
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: false
+  AfterControlStatement: Never
+  BeforeElse: false
+NamespaceIndentation: Inner
+IndentCaseLabels: true
+PointerAlignment: Left
