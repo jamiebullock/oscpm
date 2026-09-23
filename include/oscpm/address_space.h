@@ -239,6 +239,10 @@ public:
             m_partEnds.erase(m_partEnds.begin() + offset);
             m_hashes.erase(m_hashes.begin() + offset);
         }
+        if (m_addressIndex.empty())
+        {
+            rebuildAddressIndex();
+        }
         ++m_generation;
         return std::nullopt;
     }
