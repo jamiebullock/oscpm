@@ -75,6 +75,30 @@ void populate(Space& space, const Addresses& addresses)
     }
 }
 
+struct MayThrowOnMove
+{
+    MayThrowOnMove(int initial)
+        : value(initial)
+    {
+    }
+
+    MayThrowOnMove(const MayThrowOnMove&) = default;
+    MayThrowOnMove& operator=(const MayThrowOnMove&) = default;
+
+    MayThrowOnMove(MayThrowOnMove&& other) noexcept(false)
+        : value(other.value)
+    {
+    }
+
+    MayThrowOnMove& operator=(MayThrowOnMove&& other) noexcept(false)
+    {
+        value = other.value;
+        return *this;
+    }
+
+    int value;
+};
+
 Addresses expectedMatches(const std::set<std::string>& registered, std::string_view pattern)
 {
     Addresses expected;
@@ -321,6 +345,29 @@ TEST_CASE("dispatch sees every add and remove after a pattern has been dispatche
     REQUIRE_FALSE(space.remove("/a").has_value());
     CHECK(dispatchAddresses(space, "/a", result) == Addresses { });
     CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/b" });
+}
+
+TEST_CASE("a value type whose move may throw is dispatched exactly as an int is")
+{
+    AddressSpace<int> ints;
+    AddressSpace<MayThrowOnMove> mayThrow;
+    const Addresses addresses { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp", "/mixer/gain" };
+    populate(ints, addresses);
+    populate(mayThrow, addresses);
+    REQUIRE_FALSE(ints.remove("/synth/1/freq").has_value());
+    REQUIRE_FALSE(mayThrow.remove("/synth/1/freq").has_value());
+    oscpm::DispatchResult intsResult { 0, std::nullopt };
+    oscpm::DispatchResult mayThrowResult { 0, std::nullopt };
+    for (int round = 0; round < 2; ++round)
+    {
+        for (const char* pattern : { "/synth/2/amp", "/synth/1/freq", "/synth/*/freq", "//gain", "/synth/[" })
+        {
+            INFO("pattern " << pattern);
+            CHECK(dispatchAddresses(mayThrow, pattern, mayThrowResult) == dispatchAddresses(ints, pattern, intsResult));
+            CHECK(mayThrowResult.matched == intsResult.matched);
+            CHECK(mayThrowResult.error.has_value() == intsResult.error.has_value());
+        }
+    }
 }
 
 TEST_CASE("a copied address space and a moved-from one dispatch correctly")

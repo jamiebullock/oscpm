@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -44,8 +45,9 @@ struct DispatchResult
 /// literal pattern that names no method. The memo has `1 << CacheBits`
 /// entries and keeps a result of at most `InlineResults` methods for a
 /// pattern of at most `kMaxMemoPatternLength` bytes, in a space of fewer
-/// than 2^32 methods. `dispatch` looks a pattern up in the memo and among
-/// the registered addresses before parsing it. `add` and `remove`
+/// than 2^32 methods. `dispatch` looks a pattern up in the memo, and among
+/// the registered addresses when moving a `T` cannot throw, before parsing
+/// it. `add` and `remove`
 /// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
 /// space is empty
 /// and usable, without a memo until it is assigned to. Not safe for
@@ -72,13 +74,19 @@ public:
         {
             return Error::Duplicate;
         }
-        if (m_hashes.size() == m_hashes.capacity())
+        if constexpr (kMethodMovesCannotThrow)
         {
-            m_hashes.reserve(2 * m_hashes.size() + 1);
+            if (m_hashes.size() == m_hashes.capacity())
+            {
+                m_hashes.reserve(2 * m_hashes.size() + 1);
+            }
         }
         const auto offset = position - m_methods.begin();
         m_methods.insert(position, Method { std::string(address), std::move(value) });
-        m_hashes.insert(m_hashes.begin() + offset, hashOf(address));
+        if constexpr (kMethodMovesCannotThrow)
+        {
+            m_hashes.insert(m_hashes.begin() + offset, hashOf(address));
+        }
         ++m_generation;
         rebuildAddressIndex();
         return std::nullopt;
@@ -97,8 +105,12 @@ public:
         {
             return Error::NotFound;
         }
-        m_hashes.erase(m_hashes.begin() + (position - m_methods.begin()));
+        const auto offset = position - m_methods.begin();
         m_methods.erase(position);
+        if constexpr (kMethodMovesCannotThrow)
+        {
+            m_hashes.erase(m_hashes.begin() + offset);
+        }
         ++m_generation;
         rebuildAddressIndex();
         return std::nullopt;
@@ -202,6 +214,8 @@ private:
         T value;
     };
 
+    static constexpr bool kMethodMovesCannotThrow = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
+
     struct Bucket
     {
         std::uint64_t generation = 0;
@@ -224,6 +238,10 @@ private:
     void rebuildAddressIndex()
     {
         m_addressIndex.clear();
+        if constexpr (!kMethodMovesCannotThrow)
+        {
+            return;
+        }
         if (m_methods.size() > kMaxMemoisedMethods)
         {
             return;

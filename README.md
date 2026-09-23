@@ -129,9 +129,10 @@ full but not memoised. Its memory is
 `(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::uint32_t) + 24)`
 bytes, about 1.1 MiB for the defaults of `CacheBits = 8` and
 `InlineResults = 1024`, allocated when the space is constructed.
-`AddressSpace<T, false>` has no memo. Each method also keeps the hash of its
-address and two to four 4-byte slots of an index over the addresses, 16 to 24
-bytes beyond the method itself.
+`AddressSpace<T, false>` has no memo. When moving a `T` cannot throw, each
+method also keeps the hash of its address and two to four 4-byte slots of an
+index over the addresses, 16 to 24 bytes beyond the method itself; otherwise a
+pattern equal to a registered address is found by parsing and binary search.
 An address space is not safe to use from several threads at once.
 
 `examples/dispatch.cpp` puts the two together with oscpp: it builds a bundle
