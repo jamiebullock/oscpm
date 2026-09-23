@@ -128,7 +128,9 @@ holding a pattern of up to `kMaxMemoPatternLength` bytes and up to
 full but not memoised. Its memory is
 `(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::uint32_t) + 24)`
 bytes, about 1.1 MiB for the defaults of `CacheBits = 8` and
-`InlineResults = 1024`, allocated when the space is constructed.
+`InlineResults = 1024`, allocated when the space is constructed;
+`AddressSpace<T, true, 6, 64>`, which memoises 64 patterns of up to 64
+methods each, takes about 34 KiB.
 `AddressSpace<T, false>` has no memo. When moving a `T` cannot throw, each
 method also keeps the hash of its address, two to four 4-byte slots of an
 index over the addresses and a vector of the 8-byte end offsets of its

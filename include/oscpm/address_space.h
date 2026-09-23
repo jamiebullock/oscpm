@@ -94,6 +94,7 @@ private:
 inline std::vector<std::size_t> partEndsOf(std::string_view address)
 {
     std::vector<std::size_t> ends;
+    ends.reserve(static_cast<std::size_t>(std::count(address.begin() + 1, address.end(), k::partSeparator)) + 1);
     for (std::size_t i = 1; i < address.size(); ++i)
     {
         if (address[i] == k::partSeparator)
