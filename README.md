@@ -126,7 +126,7 @@ with `1 << CacheBits` entries, each
 holding a pattern of up to `kMaxMemoPatternLength` bytes and up to
 `InlineResults` results; a lookup that exceeds either limit is delivered in
 full but not memoised. Its memory is
-`(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::uint32_t) + 24)`
+`(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::uint32_t) + 32)`
 bytes, about 1.1 MiB for the defaults of `CacheBits = 8` and
 `InlineResults = 1024`, allocated when the space is constructed;
 `AddressSpace<T, true, 6, 64>`, which memoises 64 patterns of up to 64
@@ -137,7 +137,9 @@ index over the addresses and a vector of the 8-byte end offsets of its
 parts, 40 to 48 bytes beyond the method itself plus 8 per part; otherwise a
 pattern equal to a registered address is found by parsing and binary search,
 and a lookup the memo does not hold splits every address again.
-An address space is not safe to use from several threads at once.
+A visitor may call `lookup` and `dispatch` on the space that called it, but
+must not add or remove methods. An address space is not safe to use from
+several threads at once.
 
 `examples/dispatch.cpp` puts the two together with oscpp: it builds a bundle
 with oscpp's client API, reads it back with the server API, fans each

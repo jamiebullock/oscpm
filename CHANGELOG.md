@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `AddressSpace::dispatch` and `lookup` deliver the full result when a visitor dispatches or looks up another pattern on the same space. A nested call that used the memo entry being delivered could overwrite it, so the outer call visited the wrong methods or stopped early.
+
 ## 0.3.0 - 2026-09-23
 
 ### Breaking changes

@@ -170,7 +170,8 @@ struct DispatchResult
 /// it; a lookup the memo does not hold is also faster then. `add` and `remove`
 /// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
 /// space is empty
-/// and usable, without a memo until it is assigned to. Not safe for
+/// and usable, without a memo until it is assigned to. A visitor may call
+/// `lookup` and `dispatch` on the space that called it. Not safe for
 /// concurrent use.
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
@@ -349,8 +350,30 @@ private:
         std::uint64_t generation = 0;
         std::size_t patternLength = 0;
         std::size_t numResults = 0;
+        std::size_t numReaders = 0;
         std::array<char, kMaxMemoPatternLength> pattern { };
         std::array<std::uint32_t, InlineResults> results { };
+    };
+
+    class BucketReader
+    {
+    public:
+        explicit BucketReader(Bucket& bucket) noexcept
+            : m_bucket(bucket)
+        {
+            ++m_bucket.numReaders;
+        }
+
+        ~BucketReader()
+        {
+            --m_bucket.numReaders;
+        }
+
+        BucketReader(const BucketReader&) = delete;
+        BucketReader& operator=(const BucketReader&) = delete;
+
+    private:
+        Bucket& m_bucket;
     };
 
     static std::size_t hashOf(std::string_view text) noexcept
@@ -398,15 +421,10 @@ private:
         const std::size_t hash = hashOf(text);
         if (!m_memo.empty() && text.size() <= kMaxMemoPatternLength)
         {
-            const Bucket& bucket = m_memo[bucketIndex(hash)];
+            Bucket& bucket = m_memo[bucketIndex(hash)];
             if (bucket.generation == m_generation && holds(bucket, text))
             {
-                for (std::size_t i = 0; i < bucket.numResults; ++i)
-                {
-                    auto& method = methods[bucket.results[i]];
-                    visitor(std::string_view(method.address), method.value);
-                }
-                numVisited = bucket.numResults;
+                numVisited = visitMemoised(methods, bucket, visitor);
                 return true;
             }
         }
@@ -435,10 +453,26 @@ private:
             return;
         }
         Bucket& bucket = m_memo[bucketIndex(hashOf(text))];
+        if (bucket.numReaders != 0)
+        {
+            return;
+        }
         bucket.generation = m_generation;
         bucket.patternLength = text.size();
         bucket.numResults = 0;
         std::copy(text.begin(), text.end(), bucket.pattern.begin());
+    }
+
+    template <typename Methods, typename Visitor>
+    static std::size_t visitMemoised(Methods& methods, Bucket& bucket, Visitor& visitor)
+    {
+        const BucketReader reader(bucket);
+        for (std::size_t i = 0; i < bucket.numResults; ++i)
+        {
+            auto& method = methods[bucket.results[i]];
+            visitor(std::string_view(method.address), method.value);
+        }
+        return bucket.numResults;
     }
 
     static bool holds(const Bucket& bucket, std::string_view pattern) noexcept
@@ -473,12 +507,7 @@ private:
         Bucket* bucket = memoisable ? &m_memo[bucketIndex(hashOf(text))] : nullptr;
         if (bucket != nullptr && bucket->generation == m_generation && holds(*bucket, text))
         {
-            for (std::size_t i = 0; i < bucket->numResults; ++i)
-            {
-                auto& method = methods[bucket->results[i]];
-                visitor(std::string_view(method.address), method.value);
-            }
-            return bucket->numResults;
+            return visitMemoised(methods, *bucket, visitor);
         }
 
         std::array<std::uint32_t, InlineResults> found { };
@@ -502,7 +531,7 @@ private:
             }
         }
 
-        if (bucket != nullptr && numFound <= InlineResults)
+        if (bucket != nullptr && bucket->numReaders == 0 && numFound <= InlineResults)
         {
             bucket->generation = m_generation;
             bucket->patternLength = text.size();

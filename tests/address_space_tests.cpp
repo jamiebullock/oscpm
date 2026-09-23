@@ -327,6 +327,56 @@ TEST_CASE("a single-bucket memo serves alternating patterns correctly")
     }
 }
 
+TEST_CASE("a visitor may dispatch into the same space while a memoised result is delivered")
+{
+    AddressSpace<int, true, 0, 4> space;
+    populate(space, { "/a/1", "/a/2", "/a/3", "/b/1", "/b/2" });
+    const auto nested = [&](std::string_view pattern)
+    {
+        Addresses outer;
+        Addresses inner;
+        oscpm::DispatchResult innerResult { };
+        const oscpm::DispatchResult outerResult = space.dispatch("/a/*", [&](std::string_view address, int&)
+            {
+                if (outer.empty())
+                {
+                    inner = dispatchAddresses(space, pattern, innerResult);
+                }
+                outer.emplace_back(address); });
+        CHECK(outerResult.matched == 3);
+        CHECK(outer == Addresses { "/a/1", "/a/2", "/a/3" });
+        return inner;
+    };
+
+    CHECK(nested("/b/*") == Addresses { "/b/1", "/b/2" });
+    CHECK(nested("/b/*") == Addresses { "/b/1", "/b/2" });
+    CHECK(nested("/c/1").empty());
+    CHECK(nested("/c/1").empty());
+    CHECK(nested("/a/*") == Addresses { "/a/1", "/a/2", "/a/3" });
+    CHECK(lookupAddresses(space, "/b/*") == Addresses { "/b/1", "/b/2" });
+    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2", "/a/3" });
+}
+
+TEST_CASE("a visitor may look up another pattern while a memoised result is delivered")
+{
+    AddressSpace<int, true, 0, 4> space;
+    populate(space, { "/a/1", "/a/2", "/b/1" });
+    REQUIRE(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
+    Addresses outer;
+    Addresses inner;
+    const Pattern pattern = parsed("/a/*");
+    const std::size_t matched = space.lookup(pattern, [&](std::string_view address, int&)
+        {
+            if (outer.empty())
+            {
+                inner = lookupAddresses(space, "/b/*");
+            }
+            outer.emplace_back(address); });
+    CHECK(matched == 2);
+    CHECK(outer == Addresses { "/a/1", "/a/2" });
+    CHECK(inner == Addresses { "/b/1" });
+}
+
 TEST_CASE("a result larger than the inline limit and a pattern longer than the memo limit are still delivered in full")
 {
     AddressSpace<int, true, 2, 2> space;
