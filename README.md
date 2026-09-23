@@ -75,12 +75,17 @@ Allocation:
 
 - `match` and `Pattern::matches` allocate on every call.
 - `AddressSpace::dispatch` allocates nothing for a message to a registered
-  address, and nothing for a pattern it has dispatched before.
+  address, and nothing for a pattern of up to `kMaxPatternLength` bytes it
+  has dispatched before.
   The tests assert both.
 
 Time:
 
-- Matching time is not bounded.
+- A pattern longer than `kMaxPatternLength` (1024 bytes) that contains `*`,
+  `?`, `[`, `{` or `//` is not valid and is rejected before it is compiled; a
+  literal pattern has no limit. The regex engine backtracks, so this bounds
+  matching time without making it small: dispatching a 1024-byte pattern
+  into 1,856 methods can take close to a second.
 
 
 An `AddressSpace` is not safe to use from several threads at once.

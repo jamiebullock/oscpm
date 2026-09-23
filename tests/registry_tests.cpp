@@ -108,6 +108,21 @@ TEST_CASE("a wildcard visits every method once, in no particular order")
     CHECK(matched == 3);
 }
 
+TEST_CASE("a wildcard pattern longer than the limit reaches nothing and a long address is still reached")
+{
+    AddressSpace<int> space;
+    const std::string longAddress = "/" + std::string(2000, 'a');
+    CHECK(space.add(longAddress, 1));
+    CHECK(space.add("/a", 2));
+    const auto noop = [](std::string_view, int&) { };
+    for (int round = 0; round < 2; ++round)
+    {
+        CHECK(space.dispatch(longAddress, noop) == 1);
+        CHECK(space.dispatch("/*" + std::string(oscpm::kMaxPatternLength, 'a'), noop) == 0);
+        CHECK(space.dispatch("/*", noop) == 2);
+    }
+}
+
 TEST_CASE("an exact address reaches exactly its method")
 {
     AddressSpace<int> space = synth();
