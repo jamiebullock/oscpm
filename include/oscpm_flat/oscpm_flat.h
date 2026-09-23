@@ -699,8 +699,9 @@ public:
         m_index.erase(it);
         if (id != last)
         {
+            const auto moved = find(m_methods[last].address);
             m_methods[id] = std::move(m_methods[last]);
-            find(m_methods[id].address)->second = id;
+            moved->second = id;
         }
         m_methods.pop_back();
         ++m_generation;

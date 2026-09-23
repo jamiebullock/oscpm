@@ -101,6 +101,24 @@ TEST_CASE("a registry dispatches a pattern to every matching method, repeatedly"
     }
 }
 
+TEST_CASE("removing a method other than the last keeps every other method reachable")
+{
+    oscpm_flat::Registry<int> registry;
+    for (const char* address : { "/a", "/b", "/c", "/d" })
+    {
+        REQUIRE(registry.add(address, 0));
+    }
+    CHECK(registry.remove("/a"));
+    CHECK(registry.remove("/c"));
+    CHECK_FALSE(registry.remove("/a"));
+    CHECK(registry.size() == 2);
+    CHECK(dispatched(registry, "/b") == std::vector<std::string> { "/b" });
+    CHECK(dispatched(registry, "/d") == std::vector<std::string> { "/d" });
+    std::vector<std::string> found = dispatched(registry, "/*");
+    std::sort(found.begin(), found.end());
+    CHECK(found == std::vector<std::string> { "/b", "/d" });
+}
+
 TEST_CASE("a registry reports a malformed pattern and visits nothing")
 {
     oscpm_flat::Registry<int> registry;
