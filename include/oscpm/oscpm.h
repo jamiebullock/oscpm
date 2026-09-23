@@ -448,8 +448,11 @@ private:
 constexpr std::size_t closeWithinPart(std::string_view pattern, std::size_t open, char closeByte) noexcept
 {
     const std::size_t close = pattern.find(closeByte, open + 1);
-    const std::size_t nextSeparator = pattern.find(k::partSeparator, open + 1);
-    return close < nextSeparator ? close : npos;
+    if (close == npos || pattern.substr(open + 1, close - open - 1).find(k::partSeparator) != npos)
+    {
+        return npos;
+    }
+    return close;
 }
 
 constexpr bool isPrintableAscii(char byte) noexcept
