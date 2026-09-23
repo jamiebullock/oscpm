@@ -29,7 +29,7 @@ TEST_CASE("a wildcard pattern longer than the limit is not valid and a literal o
     CHECK(Pattern("/*" + letters.substr(2)).valid());
     CHECK_FALSE(Pattern("/*" + letters.substr(1)).valid());
     CHECK_FALSE(match("/*" + letters.substr(1), "/" + letters));
-    for (const std::string& wildcard : { "?", "*", "[a]", "{a}", "//a" })
+    for (const char* wildcard : { "?", "*", "[a]", "{a}", "//a" })
         CHECK_FALSE(Pattern("/" + letters + wildcard).valid());
     const std::string literal = "/" + std::string(2000, 'a') + "/" + std::string(2000, 'b');
     CHECK(Pattern(literal).valid());
