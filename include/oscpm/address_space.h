@@ -89,24 +89,24 @@ private:
     std::size_t m_index = 0;
 };
 
-inline std::vector<std::uint32_t> partEndsOf(std::string_view address)
+inline std::vector<std::size_t> partEndsOf(std::string_view address)
 {
-    std::vector<std::uint32_t> ends;
+    std::vector<std::size_t> ends;
     for (std::size_t i = 1; i < address.size(); ++i)
     {
         if (address[i] == k::partSeparator)
         {
-            ends.push_back(static_cast<std::uint32_t>(i));
+            ends.push_back(i);
         }
     }
-    ends.push_back(static_cast<std::uint32_t>(address.size()));
+    ends.push_back(address.size());
     return ends;
 }
 
 class StoredAddressCursor
 {
 public:
-    StoredAddressCursor(std::string_view address, const std::vector<std::uint32_t>& partEnds) noexcept
+    StoredAddressCursor(std::string_view address, const std::vector<std::size_t>& partEnds) noexcept
         : m_address(address)
         , m_partEnds(partEnds.data())
         , m_numParts(partEnds.size())
@@ -131,7 +131,7 @@ public:
 
 private:
     std::string_view m_address;
-    const std::uint32_t* m_partEnds;
+    const std::size_t* m_partEnds;
     std::size_t m_numParts;
     std::size_t m_index = 0;
 };
@@ -188,7 +188,7 @@ public:
         {
             return Error::Duplicate;
         }
-        std::vector<std::uint32_t> partEnds = detail::partEndsOf(address);
+        std::vector<std::size_t> partEnds = detail::partEndsOf(address);
         if (m_partEnds.size() == m_partEnds.capacity())
         {
             m_partEnds.reserve(2 * m_partEnds.size() + 1);
@@ -400,7 +400,7 @@ private:
     }
 
     std::vector<Method> m_methods;
-    std::vector<std::vector<std::uint32_t>> m_partEnds;
+    std::vector<std::vector<std::size_t>> m_partEnds;
     mutable std::vector<Bucket> m_memo;
     std::uint64_t m_generation = 1;
 };
