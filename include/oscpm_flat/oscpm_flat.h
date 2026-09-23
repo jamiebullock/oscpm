@@ -25,6 +25,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#endif
+
 namespace oscpm_flat
 {
 
@@ -229,7 +233,16 @@ public:
     }
 
 private:
-    static unsigned ctz(std::uint64_t x) { return static_cast<unsigned>(__builtin_ctzll(x)); }
+    static unsigned ctz(std::uint64_t x)
+    {
+#if defined(_MSC_VER) && !defined(__clang__)
+        unsigned long index = 0;
+        _BitScanForward64(&index, x);
+        return static_cast<unsigned>(index);
+#else
+        return static_cast<unsigned>(__builtin_ctzll(x));
+#endif
+    }
 
     struct Frag
     {
