@@ -349,6 +349,11 @@ public:
         return m_text.substr(m_partStart, m_partEnd - m_partStart);
     }
 
+    constexpr bool matches(std::string_view addressPart) const noexcept
+    {
+        return matchPart(part(), addressPart);
+    }
+
     constexpr void advance() noexcept
     {
         m_position = m_next;
@@ -484,16 +489,11 @@ constexpr bool isLiteralText(std::string_view pattern) noexcept
     return true;
 }
 
-constexpr bool matchParsed(std::string_view pattern, std::string_view address) noexcept
+template <typename PatternParts, typename AddressParts>
+constexpr bool matchParts(PatternParts patternPart, AddressParts addressPart) noexcept
 {
-    if (!hasLeadingSlash(address))
-    {
-        return false;
-    }
-    PatternCursor patternPart(pattern);
-    AddressCursor addressPart(address);
-    PatternCursor patternAfterOperator = patternPart;
-    AddressCursor addressAtOperator = addressPart;
+    PatternParts patternAfterOperator = patternPart;
+    AddressParts addressAtOperator = addressPart;
     bool seenOperator = false;
     while (!patternPart.exhausted() || !addressPart.exhausted())
     {
@@ -505,7 +505,7 @@ constexpr bool matchParsed(std::string_view pattern, std::string_view address) n
             seenOperator = true;
             continue;
         }
-        if (!patternPart.exhausted() && !addressPart.exhausted() && matchPart(patternPart.part(), addressPart.part()))
+        if (!patternPart.exhausted() && !addressPart.exhausted() && patternPart.matches(addressPart.part()))
         {
             patternPart.advance();
             addressPart.advance();
@@ -520,6 +520,11 @@ constexpr bool matchParsed(std::string_view pattern, std::string_view address) n
         addressPart = addressAtOperator;
     }
     return true;
+}
+
+constexpr bool matchParsed(std::string_view pattern, std::string_view address) noexcept
+{
+    return hasLeadingSlash(address) && matchParts(PatternCursor(pattern), AddressCursor(address));
 }
 
 }

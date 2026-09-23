@@ -206,6 +206,28 @@ TEST_CASE("dispatch reports a malformed pattern and visits nothing")
     }
 }
 
+TEST_CASE("a pattern of up to 64 parts and one of more are both matched in full")
+{
+    const auto repeated = [](const std::string& part, int count)
+    {
+        std::string text;
+        for (int i = 0; i < count; ++i)
+        {
+            text += part;
+        }
+        return text;
+    };
+    AddressSpace<int> space;
+    const std::string deep = repeated("/a", 70);
+    populate(space, { "/a", repeated("/a", 64), repeated("/a", 64) + "/b", deep, deep + "/b" });
+    CHECK(lookupAddresses(space, repeated("/*", 64)) == Addresses { repeated("/a", 64) });
+    CHECK(lookupAddresses(space, repeated("/*", 65)) == Addresses { repeated("/a", 64) + "/b" });
+    CHECK(lookupAddresses(space, repeated("/*", 70)) == Addresses { deep });
+    CHECK(lookupAddresses(space, repeated("/*", 70) + "/b") == Addresses { deep + "/b" });
+    CHECK(lookupAddresses(space, repeated("/a", 69) + "//b") == Addresses { deep + "/b" });
+    CHECK(lookupAddresses(space, "/a" + repeated("//a", 69)) == Addresses { deep });
+}
+
 TEST_CASE("dispatch through a const space passes a const value")
 {
     AddressSpace<int> space;
