@@ -160,7 +160,7 @@ TEST_CASE("a pattern equal to a registered address reaches it by one lookup, all
     CHECK(g_allocations == before);
 }
 
-TEST_CASE("a dispatch whose every pair is memoised allocates nothing")
+TEST_CASE("a pattern dispatched before allocates nothing")
 {
     AddressSpace<int> space = synth();
     const auto noop = [](std::string_view, int&) { };

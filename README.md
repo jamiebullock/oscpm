@@ -52,9 +52,11 @@ const std::size_t matched = methods.dispatch(message.address(), [&](std::string_
 
 `dispatch` first looks the pattern up as an address: a pattern equal to a
 registered address reaches that method by one hash lookup. Any other
-pattern is put to the address space's `Matcher` for every method,
-so a wildcard message costs one memoised match per
-registered method.
+pattern is matched against every method the first time it is dispatched,
+and the methods it reaches are remembered until the next `add` or
+`remove`, so dispatching it again is one hash lookup. The address space
+remembers up to 4,096 patterns and forgets them all when it reaches that
+limit.
 
 ## Specification compliance
 

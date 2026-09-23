@@ -15,6 +15,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace oscpm::detail
 {
@@ -190,11 +191,19 @@ class AddressSpace
 public:
     /// Registers `value` under `address`
     /// @returns false if the address is already registered.
-    bool add(std::string_view address, T value) { return m_methods.emplace(std::string(address), std::move(value)).second; }
+    bool add(std::string_view address, T value)
+    {
+        m_reached.clear();
+        return m_methods.emplace(std::string(address), std::move(value)).second;
+    }
 
     /// Unregisters `address`
     /// @returns false if it is not registered.
-    bool remove(std::string_view address) { return m_methods.erase(std::string(address)) != 0; }
+    bool remove(std::string_view address)
+    {
+        m_reached.clear();
+        return m_methods.erase(std::string(address)) != 0;
+    }
 
     /// @returns the number of registered methods.
     std::size_t size() const { return m_methods.size(); }
@@ -210,21 +219,30 @@ public:
             callback(std::string_view(method->first), method->second);
             return 1;
         }
-        std::size_t matched = 0;
-        for (auto& [address, value] : m_methods)
+        auto reached = m_reached.find(pattern);
+        if (reached == m_reached.end())
         {
-            if (m_matcher.match(pattern, address))
+            std::vector<Method*> methods;
+            for (Method& method : m_methods)
             {
-                callback(std::string_view(address), value);
-                ++matched;
+                if (oscpm::match(pattern, method.first))
+                    methods.push_back(&method);
             }
+            if (m_reached.size() >= kMaxPatterns)
+                m_reached.clear();
+            reached = m_reached.emplace(std::string(pattern), std::move(methods)).first;
         }
-        return matched;
+        for (Method* method : reached->second)
+            callback(std::string_view(method->first), method->second);
+        return reached->second.size();
     }
 
 private:
+    using Method = std::pair<const std::string, T>;
+    static constexpr std::size_t kMaxPatterns = 4096;
+
     std::unordered_map<std::string, T, detail::StringViewHash, std::equal_to<>> m_methods;
-    Matcher m_matcher;
+    std::unordered_map<std::string, std::vector<Method*>, detail::StringViewHash, std::equal_to<>> m_reached;
 };
 
 }
