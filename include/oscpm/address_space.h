@@ -17,8 +17,128 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
+
+namespace oscpm::detail
+{
+
+namespace k
+{
+    constexpr std::size_t maxPreparedParts = 64;
+}
+
+struct PreparedPart
+{
+    std::string_view text;
+    bool isOperator = false;
+    bool isLiteral = false;
+};
+
+using PreparedParts = std::array<PreparedPart, k::maxPreparedParts>;
+
+inline std::size_t prepareParts(std::string_view pattern, PreparedParts& parts) noexcept
+{
+    std::size_t numParts = 0;
+    for (PatternCursor cursor(pattern); !cursor.exhausted(); cursor.advance())
+    {
+        if (numParts == parts.size())
+        {
+            return npos;
+        }
+        PreparedPart& part = parts[numParts++];
+        part.isOperator = cursor.isOperator();
+        part.text = part.isOperator ? std::string_view() : cursor.part();
+        part.isLiteral = !part.isOperator && !hasOpener(part.text);
+    }
+    return numParts;
+}
+
+class PreparedCursor
+{
+public:
+    PreparedCursor(const PreparedParts& parts, std::size_t numParts) noexcept
+        : m_parts(parts.data())
+        , m_numParts(numParts)
+    {
+    }
+
+    bool exhausted() const noexcept
+    {
+        return m_index == m_numParts;
+    }
+
+    bool isOperator() const noexcept
+    {
+        return m_parts[m_index].isOperator;
+    }
+
+    bool matches(std::string_view addressPart) const noexcept
+    {
+        const PreparedPart& part = m_parts[m_index];
+        return part.isLiteral ? part.text == addressPart : matchPart(part.text, addressPart);
+    }
+
+    void advance() noexcept
+    {
+        ++m_index;
+    }
+
+private:
+    const PreparedPart* m_parts;
+    std::size_t m_numParts;
+    std::size_t m_index = 0;
+};
+
+inline std::vector<std::size_t> partEndsOf(std::string_view address)
+{
+    std::vector<std::size_t> ends;
+    for (std::size_t i = 1; i < address.size(); ++i)
+    {
+        if (address[i] == k::partSeparator)
+        {
+            ends.push_back(i);
+        }
+    }
+    ends.push_back(address.size());
+    return ends;
+}
+
+class StoredAddressCursor
+{
+public:
+    StoredAddressCursor(std::string_view address, const std::vector<std::size_t>& partEnds) noexcept
+        : m_address(address)
+        , m_partEnds(partEnds.data())
+        , m_numParts(partEnds.size())
+    {
+    }
+
+    bool exhausted() const noexcept
+    {
+        return m_index == m_numParts;
+    }
+
+    std::string_view part() const noexcept
+    {
+        const std::size_t start = m_index == 0 ? 1 : m_partEnds[m_index - 1] + 1;
+        return m_address.substr(start, m_partEnds[m_index] - start);
+    }
+
+    void advance() noexcept
+    {
+        ++m_index;
+    }
+
+private:
+    std::string_view m_address;
+    const std::size_t* m_partEnds;
+    std::size_t m_numParts;
+    std::size_t m_index = 0;
+};
+
+}
 
 namespace oscpm
 {
@@ -44,8 +164,9 @@ struct DispatchResult
 /// literal pattern that names no method. The memo has `1 << CacheBits`
 /// entries and keeps a result of at most `InlineResults` methods for a
 /// pattern of at most `kMaxMemoPatternLength` bytes, in a space of fewer
-/// than 2^32 methods. `dispatch` looks a pattern up in the memo and among
-/// the registered addresses before parsing it. `add` and `remove`
+/// than 2^32 methods. `dispatch` looks a pattern up in the memo, and among
+/// the registered addresses when moving a `T` cannot throw, before parsing
+/// it; a lookup the memo does not hold is also faster then. `add` and `remove`
 /// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
 /// space is empty
 /// and usable, without a memo until it is assigned to. Not safe for
@@ -72,13 +193,26 @@ public:
         {
             return Error::Duplicate;
         }
-        if (m_hashes.size() == m_hashes.capacity())
+        std::vector<std::size_t> partEnds;
+        if constexpr (kMethodMovesCannotThrow)
         {
-            m_hashes.reserve(2 * m_hashes.size() + 1);
+            partEnds = detail::partEndsOf(address);
+            if (m_partEnds.size() == m_partEnds.capacity())
+            {
+                m_partEnds.reserve(2 * m_partEnds.size() + 1);
+            }
+            if (m_hashes.size() == m_hashes.capacity())
+            {
+                m_hashes.reserve(2 * m_hashes.size() + 1);
+            }
         }
         const auto offset = position - m_methods.begin();
         m_methods.insert(position, Method { std::string(address), std::move(value) });
-        m_hashes.insert(m_hashes.begin() + offset, hashOf(address));
+        if constexpr (kMethodMovesCannotThrow)
+        {
+            m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
+            m_hashes.insert(m_hashes.begin() + offset, hashOf(address));
+        }
         ++m_generation;
         rebuildAddressIndex();
         return std::nullopt;
@@ -97,8 +231,13 @@ public:
         {
             return Error::NotFound;
         }
-        m_hashes.erase(m_hashes.begin() + (position - m_methods.begin()));
+        const auto offset = position - m_methods.begin();
         m_methods.erase(position);
+        if constexpr (kMethodMovesCannotThrow)
+        {
+            m_partEnds.erase(m_partEnds.begin() + offset);
+            m_hashes.erase(m_hashes.begin() + offset);
+        }
         ++m_generation;
         rebuildAddressIndex();
         return std::nullopt;
@@ -202,6 +341,8 @@ private:
         T value;
     };
 
+    static constexpr bool kMethodMovesCannotThrow = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
+
     struct Bucket
     {
         std::uint64_t generation = 0;
@@ -224,6 +365,10 @@ private:
     void rebuildAddressIndex()
     {
         m_addressIndex.clear();
+        if constexpr (!kMethodMovesCannotThrow)
+        {
+            return;
+        }
         if (m_methods.size() > kMaxMemoisedMethods)
         {
             return;
@@ -337,10 +482,15 @@ private:
 
         std::array<std::uint32_t, InlineResults> found { };
         std::size_t numFound = 0;
+        detail::PreparedParts prepared;
+        const std::size_t numPrepared = kMethodMovesCannotThrow ? detail::prepareParts(text, prepared) : detail::npos;
         for (std::size_t index = 0; index < methods.size(); ++index)
         {
             auto& method = methods[index];
-            if (pattern.matches(method.address))
+            const bool matched = numPrepared == detail::npos
+                ? pattern.matches(method.address)
+                : detail::matchParts(detail::PreparedCursor(prepared, numPrepared), detail::StoredAddressCursor(method.address, m_partEnds[index]));
+            if (matched)
             {
                 if (numFound < InlineResults)
                 {
@@ -363,6 +513,7 @@ private:
     }
 
     std::vector<Method> m_methods;
+    std::vector<std::vector<std::size_t>> m_partEnds;
     std::vector<std::size_t> m_hashes;
     std::vector<std::uint32_t> m_addressIndex;
     mutable std::vector<Bucket> m_memo;
