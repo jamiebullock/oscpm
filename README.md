@@ -55,12 +55,14 @@ oscpm implements the [OSC 1.0
 specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) with the
 `//` operator OSC 1.1 took from XPath, which matches zero or more whole parts.
 
-Four departures from the specification remain:
+A class never matches the part separator, whether negated or through a range
+spanning `/`, and a comma outside braces is a literal byte that no address
+contains, so a pattern matches only an address with as many parts as it names,
+or at least as many when it contains `//`. Matching checks the number of parts
+before it runs the regular expression.
 
-- A negated class matches the part separator, so `/a[!x]b` matches `/a/b`,
-  where the specification says no wildcard spans parts.
-- A comma outside braces alternates the whole pattern rather than the part, so
-  `/synth/1,/other` matches both `/synth/1` and `/other`.
+Two departures from the specification remain:
+
 - Inside braces, wildcards and classes are live and braces nest, so `/{a*,b}`
   matches `/ax` and `/{a,{b,c}}` matches `/b`. The specification calls the
   contents a list of strings and says nothing about either; other
@@ -85,7 +87,7 @@ Time:
   `?`, `[`, `{` or `//` is not valid and is rejected before it is compiled; a
   literal pattern has no limit. The regex engine backtracks, so this bounds
   matching time without making it small: dispatching a 1024-byte pattern
-  into 1,856 methods can take close to a second.
+  into 1,856 methods can take tens of milliseconds.
 
 
 An `AddressSpace` is not safe to use from several threads at once.

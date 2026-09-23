@@ -45,6 +45,40 @@ TEST_CASE("wildcards never cross a slash")
     CHECK_FALSE(match("/a*", "/a/b"));
 }
 
+TEST_CASE("a class never matches a slash, negated or across a range")
+{
+    CHECK_FALSE(match("/a[!x]b", "/a/b"));
+    CHECK_FALSE(match("//a[!x]b", "/q/a/b"));
+    CHECK_FALSE(match("/a[.-0]b", "/a/b"));
+    CHECK(match("/a[!x]b", "/ayb"));
+    CHECK(match("/[.-0]", "/."));
+}
+
+TEST_CASE("every byte inside a class is literal")
+{
+    CHECK(match("/[?]", "/?"));
+    CHECK_FALSE(match("/[?]", "/a"));
+    CHECK(match("/[!?,{}[]", "/a"));
+    CHECK_FALSE(match("/[!?,{}[]", "/{"));
+    CHECK(match("/[[!]", "/!"));
+}
+
+TEST_CASE("a comma outside braces is a literal byte")
+{
+    CHECK_FALSE(match("/synth/1,/other", "/other"));
+    CHECK_FALSE(match("/synth/1,/other", "/synth/1"));
+    CHECK(match("/{a,b}/c", "/b/c"));
+}
+
+TEST_CASE("a pattern matches only an address with as many parts, or at least as many with //")
+{
+    CHECK_FALSE(match("/a/*", "/a/b/c"));
+    CHECK_FALSE(match("/*/*", "/a"));
+    CHECK(match("/a//", "/a/b/c"));
+    CHECK(match("//*/*", "/a/b/c"));
+    CHECK_FALSE(match("//*/*/*/*", "/a/b/c"));
+}
+
 TEST_CASE("character classes are the regex engine's")
 {
     CHECK(match("/[1-3]", "/2"));

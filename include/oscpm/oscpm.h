@@ -37,21 +37,45 @@ inline bool hasWildcard(std::string_view pattern)
 inline std::string translatePart(std::string_view part)
 {
     std::string expression;
+    bool inClass = false;
+    std::size_t classStart = 0;
+    std::size_t braceDepth = 0;
     for (std::size_t i = 0; i < part.size(); ++i)
     {
         const char byte = part[i];
-        if (byte == '?')
+        if (byte == '[' && !inClass)
+        {
+            expression += "(?!/)[";
+            inClass = true;
+            classStart = i;
+        }
+        else if (inClass)
+        {
+            if (byte == ']')
+                inClass = false;
+            if (byte == '!' && i == classStart + 1)
+                expression += '^';
+            else if (byte == '\\' || byte == '^')
+                expression += std::string { '\\', byte };
+            else
+                expression += byte;
+        }
+        else if (byte == '?')
             expression += "[^/]";
         else if (byte == '*')
             expression += "[^/]*";
         else if (byte == '{')
+        {
             expression += "(?:";
+            ++braceDepth;
+        }
         else if (byte == ',')
-            expression += '|';
+            expression += braceDepth > 0 ? '|' : ',';
         else if (byte == '}')
+        {
             expression += ')';
-        else if (byte == '!' && i > 0 && part[i - 1] == '[')
-            expression += '^';
+            braceDepth -= braceDepth > 0 ? 1 : 0;
+        }
         else if (std::string_view(".^$+()|\\").find(byte) != std::string_view::npos)
             expression += std::string { '\\', byte };
         else
@@ -96,6 +120,15 @@ public:
             return;
         if (text.size() > kMaxPatternLength && detail::hasWildcard(text))
             return;
+        for (std::size_t start = 1; start <= text.size();)
+        {
+            const std::size_t separator = std::min(text.find('/', start), text.size());
+            if (separator == start)
+                m_descends = true;
+            else
+                ++m_numParts;
+            start = separator + 1;
+        }
         try
         {
             m_expression = std::regex(detail::translate(text));
@@ -114,6 +147,9 @@ public:
     {
         if (!m_valid || address.empty() || address[0] != '/')
             return false;
+        const auto numParts = static_cast<std::size_t>(std::count(address.begin(), address.end(), '/'));
+        if (m_descends ? numParts < m_numParts : numParts != m_numParts)
+            return false;
         try
         {
             return std::regex_match(address.begin(), address.end(), m_expression);
@@ -126,6 +162,8 @@ public:
 
 private:
     std::regex m_expression;
+    std::size_t m_numParts = 0;
+    bool m_descends = false;
     bool m_valid = false;
 };
 
