@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -122,6 +123,27 @@ TEST_CASE("an address part longer than the supported length never matches and is
     CHECK(passes(validateAddress("/" + longest + "/" + longest)));
     CHECK(faults(validateAddress("/" + tooLong), Error::PartTooLong, oscpm::kMaxAddressPartLength + 1));
     CHECK(faults(validateAddress("/a/" + tooLong), Error::PartTooLong, oscpm::kMaxAddressPartLength + 3));
+}
+
+TEST_CASE("every construct matches a part either side of 64 bytes")
+{
+    const std::size_t lengths[] = { 62, 63, 64, 65, 127, 128 };
+    for (const std::size_t length : lengths)
+    {
+        INFO("part length " << length);
+        const std::string part(length, 'a');
+        const std::string lastByteDiffers = std::string(length - 1, 'a') + "b";
+        const std::string allButLast(length - 1, 'a');
+        for (const std::string& pattern : { "/" + allButLast + "?", std::string("/*a"), "/" + allButLast + "[a-c]", "/" + allButLast + "{x,a}", std::string("/*a*") })
+        {
+            INFO("pattern " << pattern);
+            CHECK(match(pattern, "/" + part));
+        }
+        CHECK_FALSE(match("/*a", "/" + lastByteDiffers));
+        CHECK_FALSE(match("/" + allButLast + "[!b]", "/" + lastByteDiffers));
+        CHECK_FALSE(match("/" + allButLast + "{x,a}", "/" + lastByteDiffers));
+        CHECK_FALSE(match("/" + allButLast + "??", "/" + part));
+    }
 }
 
 TEST_CASE("a pattern with many stars completes in bounded time")
