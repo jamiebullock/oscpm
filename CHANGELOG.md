@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.9 - 2026-09-23
+
+### Changed
+
+- `AddressSpace` memoises a lookup of up to 1024 methods by default, up from 64, and stores each as a 4-byte index. The default memo takes about 1.1 MiB, allocated when the space is constructed. A space of 2^32 methods or more is not memoised.
+
 ## 0.2.7 - 2026-09-21
 
 ### Added
