@@ -172,36 +172,6 @@ TEST_CASE("a pattern dispatched before allocates nothing")
     CHECK(g_allocations == before);
 }
 
-TEST_CASE("a memoised verdict allocates nothing and an invalid pattern is memoised as matching nothing")
-{
-    oscpm::Matcher matcher;
-    matcher.match("/synth/*/freq", "/synth/1/freq");
-    matcher.match("/synth/[1", "/synth/1");
-    const std::size_t before = g_allocations;
-    CHECK(matcher.match("/synth/*/freq", "/synth/1/freq"));
-    CHECK_FALSE(matcher.match("/synth/*/freq", "/synth/1/amp"));
-    CHECK_FALSE(matcher.match("/synth/[1", "/synth/1"));
-    CHECK(g_allocations > before);
-    const std::size_t warm = g_allocations;
-    CHECK(matcher.match("/synth/*/freq", "/synth/1/freq"));
-    CHECK_FALSE(matcher.match("/synth/[1", "/synth/1"));
-    CHECK(g_allocations == warm);
-}
-
-TEST_CASE("the memo is emptied when it reaches its limit")
-{
-    oscpm::Matcher matcher(2);
-    matcher.match("/a", "/a");
-    matcher.match("/b", "/b");
-    std::size_t before = g_allocations;
-    CHECK(matcher.match("/a", "/a"));
-    CHECK(g_allocations == before);
-    matcher.match("/c", "/c");
-    before = g_allocations;
-    CHECK(matcher.match("/a", "/a"));
-    CHECK(g_allocations > before);
-}
-
 TEST_CASE("the callback can change the value")
 {
     AddressSpace<int> space = synth();

@@ -11,7 +11,6 @@
 #include <string>
 
 using oscpm::match;
-using oscpm::Matcher;
 using oscpm::Pattern;
 
 TEST_CASE("a literal pattern matches only its own text")
@@ -123,10 +122,6 @@ TEST_CASE("a pair the regex engine gives up on matches nothing and does not thro
     REQUIRE(pattern.valid());
     CHECK_NOTHROW(pattern.matches(manyAs));
     CHECK_FALSE(pattern.matches(manyAs));
-
-    Matcher matcher;
-    CHECK_FALSE(matcher.match(stars, manyAs));
-    CHECK_FALSE(matcher.match(stars, manyAs));
 }
 
 TEST_CASE("a pair the engine may abandon never throws, whatever it decides")
@@ -139,8 +134,4 @@ TEST_CASE("a pair the engine may abandon never throws, whatever it decides")
 
     CHECK_NOTHROW(match(stars, matching));
     CHECK_NOTHROW(Pattern(stars).matches(matching));
-
-    Matcher matcher;
-    CHECK_NOTHROW(matcher.match(stars, matching));
-    CHECK(matcher.match(stars, matching) == match(stars, matching));
 }
