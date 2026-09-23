@@ -214,7 +214,7 @@ public:
             m_hashes.insert(m_hashes.begin() + offset, hashOf(address));
         }
         ++m_generation;
-        rebuildAddressIndex();
+        insertIntoAddressIndex(static_cast<std::size_t>(offset));
         return std::nullopt;
     }
 
@@ -232,6 +232,7 @@ public:
             return Error::NotFound;
         }
         const auto offset = position - m_methods.begin();
+        eraseFromAddressIndex(static_cast<std::size_t>(offset));
         m_methods.erase(position);
         if constexpr (kMethodMovesCannotThrow)
         {
@@ -239,7 +240,6 @@ public:
             m_hashes.erase(m_hashes.begin() + offset);
         }
         ++m_generation;
-        rebuildAddressIndex();
         return std::nullopt;
     }
 
@@ -389,6 +389,58 @@ private:
             slots[slot] = static_cast<std::uint32_t>(index + 1);
         }
         m_addressIndex.swap(slots);
+    }
+
+    void insertIntoAddressIndex(std::size_t index)
+    {
+        if (m_addressIndex.size() < 2 * m_methods.size())
+        {
+            rebuildAddressIndex();
+            return;
+        }
+        const auto shifted = static_cast<std::uint32_t>(index);
+        for (std::uint32_t& slot : m_addressIndex)
+        {
+            slot += slot > shifted ? 1U : 0U;
+        }
+        const std::size_t mask = m_addressIndex.size() - 1;
+        std::size_t slot = m_hashes[index] & mask;
+        while (m_addressIndex[slot] != 0U)
+        {
+            slot = (slot + 1) & mask;
+        }
+        m_addressIndex[slot] = static_cast<std::uint32_t>(index + 1);
+    }
+
+    void eraseFromAddressIndex(std::size_t index)
+    {
+        if (m_addressIndex.empty())
+        {
+            return;
+        }
+        const std::size_t mask = m_addressIndex.size() - 1;
+        std::size_t hole = m_hashes[index] & mask;
+        while (m_addressIndex[hole] != index + 1)
+        {
+            hole = (hole + 1) & mask;
+        }
+        for (std::size_t next = (hole + 1) & mask; m_addressIndex[next] != 0U; next = (next + 1) & mask)
+        {
+            const std::size_t home = m_hashes[m_addressIndex[next] - 1] & mask;
+            const std::size_t distanceFromHome = (next - home) & mask;
+            const std::size_t distanceFromHole = (next - hole) & mask;
+            if (distanceFromHome >= distanceFromHole)
+            {
+                m_addressIndex[hole] = m_addressIndex[next];
+                hole = next;
+            }
+        }
+        m_addressIndex[hole] = 0U;
+        const auto removed = static_cast<std::uint32_t>(index + 1);
+        for (std::uint32_t& slot : m_addressIndex)
+        {
+            slot -= slot > removed ? 1U : 0U;
+        }
     }
 
     template <typename Methods, typename Visitor>

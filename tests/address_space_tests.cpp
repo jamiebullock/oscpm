@@ -390,6 +390,38 @@ TEST_CASE("dispatch sees every add and remove after a pattern has been dispatche
     CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/b" });
 }
 
+TEST_CASE("every registered address dispatches to itself alone through interleaved adds and removes")
+{
+    AddressSpace<int> space;
+    std::set<std::string> registered;
+    std::mt19937 generator(3);
+    for (int step = 0; step < 4000; ++step)
+    {
+        const std::string address = "/m/" + std::to_string(generator() % 600);
+        if (generator() % 3 != 0)
+        {
+            space.add(address, 0);
+            registered.insert(address);
+        }
+        else
+        {
+            space.remove(address);
+            registered.erase(address);
+        }
+        if (step % 50 != 0)
+        {
+            continue;
+        }
+        for (const std::string& expected : registered)
+        {
+            oscpm::DispatchResult result { };
+            REQUIRE(dispatchAddresses(space, expected, result) == Addresses { expected });
+        }
+        oscpm::DispatchResult absent { };
+        CHECK(dispatchAddresses(space, "/m/600", absent).empty());
+    }
+}
+
 TEST_CASE("a value type whose move may throw is dispatched exactly as an int is")
 {
     AddressSpace<int> ints;
