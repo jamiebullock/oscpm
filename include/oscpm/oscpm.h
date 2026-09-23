@@ -222,10 +222,11 @@ public:
         auto reached = m_reached.find(pattern);
         if (reached == m_reached.end())
         {
+            const Pattern compiled(pattern);
             std::vector<Method*> methods;
             for (Method& method : m_methods)
             {
-                if (oscpm::match(pattern, method.first))
+                if (compiled.matches(method.first))
                     methods.push_back(&method);
             }
             if (m_reached.size() >= kMaxPatterns)
