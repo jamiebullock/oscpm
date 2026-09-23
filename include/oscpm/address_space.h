@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -161,7 +162,8 @@ struct DispatchResult
 /// `add` or `remove` when `Memo` is true. The memo has `1 << CacheBits`
 /// entries and keeps a result of at most `InlineResults` methods for a
 /// pattern of at most `kMaxMemoPatternLength` bytes, in a space of fewer
-/// than 2^32 methods. `add` and `remove`
+/// than 2^32 methods. A lookup the memo does not hold is faster when moving
+/// a `T` cannot throw. `add` and `remove`
 /// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
 /// space is empty
 /// and usable, without a memo until it is assigned to. Not safe for
@@ -188,14 +190,21 @@ public:
         {
             return Error::Duplicate;
         }
-        std::vector<std::size_t> partEnds = detail::partEndsOf(address);
-        if (m_partEnds.size() == m_partEnds.capacity())
+        std::vector<std::size_t> partEnds;
+        if constexpr (kPreparesParts)
         {
-            m_partEnds.reserve(2 * m_partEnds.size() + 1);
+            partEnds = detail::partEndsOf(address);
+            if (m_partEnds.size() == m_partEnds.capacity())
+            {
+                m_partEnds.reserve(2 * m_partEnds.size() + 1);
+            }
         }
         const auto offset = position - m_methods.begin();
         m_methods.insert(position, Method { std::string(address), std::move(value) });
-        m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
+        if constexpr (kPreparesParts)
+        {
+            m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
+        }
         ++m_generation;
         return std::nullopt;
     }
@@ -213,8 +222,12 @@ public:
         {
             return Error::NotFound;
         }
-        m_partEnds.erase(m_partEnds.begin() + (position - m_methods.begin()));
+        const auto offset = position - m_methods.begin();
         m_methods.erase(position);
+        if constexpr (kPreparesParts)
+        {
+            m_partEnds.erase(m_partEnds.begin() + offset);
+        }
         ++m_generation;
         return std::nullopt;
     }
@@ -308,6 +321,8 @@ private:
         T value;
     };
 
+    static constexpr bool kPreparesParts = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
+
     struct Bucket
     {
         std::uint64_t generation = 0;
@@ -370,7 +385,7 @@ private:
         std::array<std::uint32_t, InlineResults> found { };
         std::size_t numFound = 0;
         detail::PreparedParts prepared;
-        const std::size_t numPrepared = detail::prepareParts(text, prepared);
+        const std::size_t numPrepared = kPreparesParts ? detail::prepareParts(text, prepared) : detail::npos;
         for (std::size_t index = 0; index < methods.size(); ++index)
         {
             auto& method = methods[index];

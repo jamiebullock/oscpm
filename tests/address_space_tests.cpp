@@ -75,6 +75,30 @@ void populate(Space& space, const Addresses& addresses)
     }
 }
 
+struct MayThrowOnMove
+{
+    MayThrowOnMove(int initial)
+        : value(initial)
+    {
+    }
+
+    MayThrowOnMove(const MayThrowOnMove&) = default;
+    MayThrowOnMove& operator=(const MayThrowOnMove&) = default;
+
+    MayThrowOnMove(MayThrowOnMove&& other) noexcept(false)
+        : value(other.value)
+    {
+    }
+
+    MayThrowOnMove& operator=(MayThrowOnMove&& other) noexcept(false)
+    {
+        value = other.value;
+        return *this;
+    }
+
+    int value;
+};
+
 Addresses expectedMatches(const std::set<std::string>& registered, std::string_view pattern)
 {
     Addresses expected;
@@ -226,6 +250,27 @@ TEST_CASE("a pattern of up to 64 parts and one of more are both matched in full"
     CHECK(lookupAddresses(space, repeated("/*", 70) + "/b") == Addresses { deep + "/b" });
     CHECK(lookupAddresses(space, repeated("/a", 69) + "//b") == Addresses { deep + "/b" });
     CHECK(lookupAddresses(space, "/a" + repeated("//a", 69)) == Addresses { deep });
+}
+
+TEST_CASE("a value type whose move may throw is matched exactly as an int is")
+{
+    AddressSpace<int> ints;
+    AddressSpace<MayThrowOnMove> mayThrow;
+    std::string deep;
+    for (int i = 0; i < 70; ++i)
+    {
+        deep += "/a";
+    }
+    const Addresses addresses { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp", "/mixer/gain", deep, deep + "/b" };
+    populate(ints, addresses);
+    populate(mayThrow, addresses);
+    REQUIRE_FALSE(ints.remove("/synth/1/freq").has_value());
+    REQUIRE_FALSE(mayThrow.remove("/synth/1/freq").has_value());
+    for (const std::string& pattern : { std::string("/synth/*/freq"), std::string("//gain"), std::string("/*/2/{amp,freq}"), std::string("/a//b"), deep + "/*" })
+    {
+        INFO("pattern " << pattern);
+        CHECK(lookupAddresses(mayThrow, pattern) == lookupAddresses(ints, pattern));
+    }
 }
 
 TEST_CASE("dispatch reports a pattern longer than the supported length and visits nothing")
