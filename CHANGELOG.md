@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 - 2026-09-23
+
+### Breaking changes
+
+- A pattern longer than 1024 bytes that contains `*`, `?`, `[`, `{` or `//` is malformed: `validatePattern` and `Pattern::parse` report `PatternTooLong` at offset 1024, and `match` and `AddressSpace::dispatch` visit nothing for it. A fault before offset 1024 is still reported first. A literal pattern has no limit.
+- `Error::PatternTooLong` follows `Error::UnterminatedBraces`, so the enumerators after it have moved by one.
+
+### Added
+
+- `kMaxPatternLength`, the longest pattern containing a wildcard or `//` that `validatePattern` accepts.
+
 ## 0.2.9 - 2026-09-23
 
 ### Changed

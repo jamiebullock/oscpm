@@ -228,6 +228,20 @@ TEST_CASE("a pattern of up to 64 parts and one of more are both matched in full"
     CHECK(lookupAddresses(space, "/a" + repeated("//a", 69)) == Addresses { deep });
 }
 
+TEST_CASE("dispatch reports a pattern longer than the supported length and visits nothing")
+{
+    AddressSpace<int> space;
+    populate(space, { "/a" });
+    std::size_t visits = 0;
+    const oscpm::DispatchResult result = space.dispatch("/*" + std::string(oscpm::kMaxPatternLength, 'a'), [&](std::string_view, int&)
+        { ++visits; });
+    CHECK(visits == 0);
+    CHECK(result.matched == 0);
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->kind == Error::PatternTooLong);
+    CHECK(result.error->offset == oscpm::kMaxPatternLength);
+}
+
 TEST_CASE("dispatch through a const space passes a const value")
 {
     AddressSpace<int> space;

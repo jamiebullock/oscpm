@@ -19,15 +19,22 @@ namespace oscpm
 /// matches, and `validateAddress` reports it as `PartTooLong`.
 constexpr std::size_t kMaxAddressPartLength = 4095;
 
+/// The longest pattern containing '*', '?', '[', '{' or "//" that
+/// `validatePattern` accepts. A longer such pattern is reported as
+/// `PatternTooLong` and matches nothing; a literal pattern has no limit.
+constexpr std::size_t kMaxPatternLength = 1024;
+
 /// A fault in a pattern, in an address or in an `AddressSpace` operation
 /// (the last two). `MissingLeadingSlash` is reported for both a pattern
-/// and an address; `UnterminatedClass` and `UnterminatedBraces` only for
-/// a pattern; the four that follow them only for an address.
+/// and an address; `UnterminatedClass`, `UnterminatedBraces` and
+/// `PatternTooLong` only for a pattern; the four that follow them only for an
+/// address.
 enum class Error
 {
     MissingLeadingSlash,
     UnterminatedClass,
     UnterminatedBraces,
+    PatternTooLong,
     TrailingSlash,
     EmptyPart,
     IllegalByte,
@@ -54,6 +61,8 @@ constexpr const char* toString(Error error) noexcept
         return "UnterminatedClass";
     case Error::UnterminatedBraces:
         return "UnterminatedBraces";
+    case Error::PatternTooLong:
+        return "PatternTooLong";
     case Error::TrailingSlash:
         return "TrailingSlash";
     case Error::EmptyPart:
@@ -91,6 +100,7 @@ namespace k
     constexpr unsigned char firstPrintableAscii = 0x21;
     constexpr unsigned char lastPrintableAscii = 0x7E;
     constexpr std::size_t operatorRunLength = 2;
+    constexpr std::string_view descendantOperator = "//";
     constexpr std::size_t bitsPerWord = 64;
     constexpr std::size_t reachWords = kMaxAddressPartLength / bitsPerWord + 1;
     constexpr std::size_t smallReachWords = 1;
@@ -443,8 +453,11 @@ private:
 constexpr std::size_t closeWithinPart(std::string_view pattern, std::size_t open, char closeByte) noexcept
 {
     const std::size_t close = pattern.find(closeByte, open + 1);
-    const std::size_t nextSeparator = pattern.find(k::partSeparator, open + 1);
-    return close < nextSeparator ? close : npos;
+    if (close == npos || pattern.substr(open + 1, close - open - 1).find(k::partSeparator) != npos)
+    {
+        return npos;
+    }
+    return close;
 }
 
 constexpr bool isPrintableAscii(char byte) noexcept
@@ -461,6 +474,11 @@ constexpr bool isReservedInAddress(char byte) noexcept
 constexpr bool hasLeadingSlash(std::string_view text) noexcept
 {
     return !text.empty() && text[0] == k::partSeparator;
+}
+
+constexpr bool hasWildcard(std::string_view pattern) noexcept
+{
+    return hasOpener(pattern) || pattern.find(k::descendantOperator) != npos;
 }
 
 constexpr bool isLiteralText(std::string_view pattern) noexcept
@@ -535,16 +553,19 @@ namespace oscpm
 /// The first fault in `pattern` by byte offset, or nothing when it parses:
 /// `MissingLeadingSlash` at 0, `UnterminatedClass` at a '[' with no ']'
 /// before the next '/', `UnterminatedBraces` at a '{' with no '}' before the
-/// next '/'. Every other pattern parses; a byte no address can contain is a
-/// literal that matches nothing where it stands.
+/// next '/', `PatternTooLong` at `kMaxPatternLength` for a longer pattern
+/// containing '*', '?', '[', '{' or "//".
+/// Every other pattern parses; a byte no address can contain is a literal
+/// that matches nothing where it stands.
 constexpr std::optional<ParseError> validatePattern(std::string_view pattern) noexcept
 {
     if (!detail::hasLeadingSlash(pattern))
     {
         return ParseError { Error::MissingLeadingSlash, 0 };
     }
+    const std::size_t checked = pattern.size() < kMaxPatternLength ? pattern.size() : kMaxPatternLength;
     std::size_t i = 0;
-    while (i < pattern.size())
+    while (i < checked)
     {
         if (pattern[i] == detail::k::setOpen)
         {
@@ -568,6 +589,10 @@ constexpr std::optional<ParseError> validatePattern(std::string_view pattern) no
         {
             ++i;
         }
+    }
+    if (pattern.size() > kMaxPatternLength && detail::hasWildcard(pattern))
+    {
+        return ParseError { Error::PatternTooLong, kMaxPatternLength };
     }
     return std::nullopt;
 }

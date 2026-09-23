@@ -19,10 +19,11 @@
 # zero-based byte offset the library must report.
 #
 # A malformed-pattern case asserts that Pattern::parse fails with that kind
-# and offset and that match() returns false. Only three kinds arise from a
+# and offset and that match() returns false. Only four kinds arise from a
 # pattern: MissingLeadingSlash at 0; UnterminatedClass at the '[' that has no
 # ']' before the next '/'; UnterminatedBraces at the '{' that has no '}'
-# before the next '/'. Every other pattern parses. A byte that no address can
+# before the next '/'; PatternTooLong at 1024 for a pattern longer than 1024
+# bytes that contains '*', '?', '[', '{' or "//". Every other pattern parses. A byte that no address can
 # contain, a '{' inside braces, an empty class, a stray closer or an empty
 # part is a literal that matches nothing where it stands, and a list member
 # containing one is a dead member that leaves the others live.
