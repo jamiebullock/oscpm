@@ -11,6 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <map>
 #include <memory>
@@ -258,6 +259,24 @@ TEST_CASE("a result larger than the inline limit and a pattern longer than the m
     for (int round = 0; round < 2; ++round)
     {
         CHECK(lookupAddresses(space, longPattern) == Addresses { "/a/1", "/a/2", "/a/3", "/a/4" });
+    }
+}
+
+TEST_CASE("a default space serves a result of 1024 methods from its memo unchanged")
+{
+    AddressSpace<int> space;
+    Addresses voices;
+    for (int voice = 0; voice < 1024; ++voice)
+    {
+        voices.push_back("/voice/" + std::to_string(voice));
+    }
+    populate(space, voices);
+    populate(space, { "/master/gain", "/master/pan" });
+    std::sort(voices.begin(), voices.end());
+    for (int round = 0; round < 3; ++round)
+    {
+        CHECK(lookupAddresses(space, "/voice/*") == voices);
+        CHECK(lookupAddresses(space, "/master/*") == Addresses { "/master/gain", "/master/pan" });
     }
 }
 

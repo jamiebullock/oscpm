@@ -122,9 +122,9 @@ of its bytes. The memo is direct-mapped with `1 << CacheBits` entries, each
 holding a pattern of up to `kMaxMemoPatternLength` bytes and up to
 `InlineResults` results; a lookup that exceeds either limit is delivered in
 full but not memoised. Its memory is
-`(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::size_t) + 24)`
-bytes, about 200 KiB for the defaults of `CacheBits = 8` and
-`InlineResults = 64`, allocated when the space is constructed.
+`(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::uint32_t) + 24)`
+bytes, about 1.1 MiB for the defaults of `CacheBits = 8` and
+`InlineResults = 1024`, allocated when the space is constructed.
 `AddressSpace<T, false>` has no memo and costs nothing beyond its methods.
 An address space is not safe to use from several threads at once.
 

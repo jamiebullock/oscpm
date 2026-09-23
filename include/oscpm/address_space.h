@@ -12,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -40,12 +41,13 @@ struct DispatchResult
 /// matched against every method, with the result memoised until the next
 /// `add` or `remove` when `Memo` is true. The memo has `1 << CacheBits`
 /// entries and keeps a result of at most `InlineResults` methods for a
-/// pattern of at most `kMaxMemoPatternLength` bytes. `add` and `remove`
+/// pattern of at most `kMaxMemoPatternLength` bytes, in a space of fewer
+/// than 2^32 methods. `add` and `remove`
 /// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
 /// space is empty
 /// and usable, without a memo until it is assigned to. Not safe for
 /// concurrent use.
-template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 64>
+template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
 {
 public:
@@ -171,6 +173,7 @@ private:
     static constexpr std::size_t kNumBuckets = std::size_t { 1 } << CacheBits;
     static constexpr std::uint64_t kFnvOffset = 14695981039346656037ULL;
     static constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
+    static constexpr std::size_t kMaxMemoisedMethods = std::numeric_limits<std::uint32_t>::max();
 
     struct Method
     {
@@ -184,7 +187,7 @@ private:
         std::size_t patternLength = 0;
         std::size_t numResults = 0;
         std::array<char, kMaxMemoPatternLength> pattern { };
-        std::array<std::size_t, InlineResults> results { };
+        std::array<std::uint32_t, InlineResults> results { };
     };
 
     static std::size_t bucketIndex(std::string_view pattern) noexcept
@@ -225,7 +228,7 @@ private:
             return 1;
         }
 
-        const bool memoisable = !m_memo.empty() && text.size() <= kMaxMemoPatternLength;
+        const bool memoisable = !m_memo.empty() && text.size() <= kMaxMemoPatternLength && methods.size() <= kMaxMemoisedMethods;
         Bucket* bucket = memoisable ? &m_memo[bucketIndex(text)] : nullptr;
         if (bucket != nullptr && bucket->generation == m_generation && holds(*bucket, text))
         {
@@ -237,7 +240,7 @@ private:
             return bucket->numResults;
         }
 
-        std::array<std::size_t, InlineResults> found { };
+        std::array<std::uint32_t, InlineResults> found { };
         std::size_t numFound = 0;
         for (std::size_t index = 0; index < methods.size(); ++index)
         {
@@ -246,7 +249,7 @@ private:
             {
                 if (numFound < InlineResults)
                 {
-                    found[numFound] = index;
+                    found[numFound] = static_cast<std::uint32_t>(index);
                 }
                 ++numFound;
                 visitor(std::string_view(method.address), method.value);
