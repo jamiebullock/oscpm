@@ -372,6 +372,68 @@ TEST_CASE("an address space without a memo behaves the same")
     CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
 }
 
+TEST_CASE("dispatch sees every add and remove after a pattern has been dispatched")
+{
+    AddressSpace<int> space;
+    populate(space, { "/a" });
+    oscpm::DispatchResult result { 0, std::nullopt };
+    for (int round = 0; round < 2; ++round)
+    {
+        CHECK(dispatchAddresses(space, "/b", result) == Addresses { });
+        CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/a" });
+    }
+    REQUIRE_FALSE(space.add("/b", 0).has_value());
+    CHECK(dispatchAddresses(space, "/b", result) == Addresses { "/b" });
+    CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/a", "/b" });
+    REQUIRE_FALSE(space.remove("/a").has_value());
+    CHECK(dispatchAddresses(space, "/a", result) == Addresses { });
+    CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/b" });
+}
+
+TEST_CASE("a value type whose move may throw is dispatched exactly as an int is")
+{
+    AddressSpace<int> ints;
+    AddressSpace<MayThrowOnMove> mayThrow;
+    const Addresses addresses { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp", "/mixer/gain" };
+    populate(ints, addresses);
+    populate(mayThrow, addresses);
+    REQUIRE_FALSE(ints.remove("/synth/1/freq").has_value());
+    REQUIRE_FALSE(mayThrow.remove("/synth/1/freq").has_value());
+    oscpm::DispatchResult intsResult { 0, std::nullopt };
+    oscpm::DispatchResult mayThrowResult { 0, std::nullopt };
+    for (int round = 0; round < 2; ++round)
+    {
+        for (const char* pattern : { "/synth/2/amp", "/synth/1/freq", "/synth/*/freq", "//gain", "/synth/[" })
+        {
+            INFO("pattern " << pattern);
+            CHECK(dispatchAddresses(mayThrow, pattern, mayThrowResult) == dispatchAddresses(ints, pattern, intsResult));
+            CHECK(mayThrowResult.matched == intsResult.matched);
+            CHECK(mayThrowResult.error.has_value() == intsResult.error.has_value());
+        }
+    }
+}
+
+TEST_CASE("a copied address space and a moved-from one dispatch correctly")
+{
+    AddressSpace<int> source;
+    populate(source, { "/a/1", "/a/2" });
+    oscpm::DispatchResult result { 0, std::nullopt };
+    CHECK(dispatchAddresses(source, "/a/1", result) == Addresses { "/a/1" });
+    CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { "/a/1", "/a/2" });
+
+    const AddressSpace<int> copy(source);
+    REQUIRE_FALSE(source.remove("/a/1").has_value());
+    CHECK(dispatchAddresses(copy, "/a/1", result) == Addresses { "/a/1" });
+    CHECK(dispatchAddresses(copy, "/a/*", result) == Addresses { "/a/1", "/a/2" });
+    CHECK(dispatchAddresses(source, "/a/1", result) == Addresses { });
+    CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { "/a/2" });
+
+    const AddressSpace<int> moved(std::move(source));
+    CHECK(dispatchAddresses(moved, "/a/2", result) == Addresses { "/a/2" });
+    CHECK(dispatchAddresses(source, "/a/2", result) == Addresses { });
+    CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { });
+}
+
 TEST_CASE("a moved address space keeps its methods and the moved-from one stays usable")
 {
     AddressSpace<int> source;
@@ -433,6 +495,8 @@ TEST_CASE("lookup and forEach allocate nothing")
     const oscpm::DispatchResult literalResult = space.dispatch("/synth/42/freq", count);
     const oscpm::DispatchResult wildcardResult = space.dispatch("/synth/?/freq", count);
     const oscpm::DispatchResult malformedResult = space.dispatch("/synth/[4/freq", count);
+    const oscpm::DispatchResult absentResult = space.dispatch("/synth/42/gain", count);
+    const oscpm::DispatchResult absentAgainResult = space.dispatch("/synth/42/gain", count);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);
@@ -441,6 +505,8 @@ TEST_CASE("lookup and forEach allocate nothing")
     CHECK(wildcardResult.matched == 10);
     CHECK(malformedResult.matched == 0);
     CHECK(malformedResult.error.has_value());
+    CHECK(absentResult.matched == 0);
+    CHECK(absentAgainResult.matched == 0);
 }
 
 TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says")

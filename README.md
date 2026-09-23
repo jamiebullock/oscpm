@@ -114,18 +114,27 @@ if (result.error)
 `dispatch` is `Pattern::parse` followed by `lookup`, returning the number of
 methods visited and the parse fault together; `lookup` takes an already
 parsed `Pattern` for a pattern that is reused. Both visit every matching
-method in bytewise address order; `forEach` visits them all. A literal pattern is a binary
-search. Any other pattern is matched against every method, so a cold lookup
-costs O(N) in the number of methods; by default the result is then memoised
-until the next `add` or `remove`, so repeating the same pattern costs a hash
-of its bytes. The memo is direct-mapped with `1 << CacheBits` entries, each
+method in bytewise address order; `forEach` visits them all. `dispatch`
+first hashes the pattern once and looks it up in the memo and among the
+registered addresses, so a pattern equal to a registered address, or one it
+has dispatched before, is found without being parsed. Otherwise a literal
+pattern is a binary search, and any other pattern is matched against every
+method, so a cold lookup costs O(N) in the number of methods; by default the
+result is then memoised until the next `add` or `remove`, as is the empty
+result of a literal pattern that names no method. The memo is direct-mapped
+with `1 << CacheBits` entries, each
 holding a pattern of up to `kMaxMemoPatternLength` bytes and up to
 `InlineResults` results; a lookup that exceeds either limit is delivered in
 full but not memoised. Its memory is
 `(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::uint32_t) + 24)`
 bytes, about 1.1 MiB for the defaults of `CacheBits = 8` and
 `InlineResults = 1024`, allocated when the space is constructed.
-`AddressSpace<T, false>` has no memo and costs nothing beyond its methods.
+`AddressSpace<T, false>` has no memo. When moving a `T` cannot throw, each
+method also keeps the hash of its address, two to four 4-byte slots of an
+index over the addresses and a vector of the 8-byte end offsets of its
+parts, 40 to 48 bytes beyond the method itself plus 8 per part; otherwise a
+pattern equal to a registered address is found by parsing and binary search,
+and a lookup the memo does not hold splits every address again.
 An address space is not safe to use from several threads at once.
 
 `examples/dispatch.cpp` puts the two together with oscpp: it builds a bundle

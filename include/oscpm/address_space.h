@@ -12,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <string>
@@ -159,11 +160,13 @@ struct DispatchResult
 /// `T`, that a pattern is dispatched to. Addresses are kept in bytewise
 /// order. A literal pattern is found by binary search; any other is
 /// matched against every method, with the result memoised until the next
-/// `add` or `remove` when `Memo` is true. The memo has `1 << CacheBits`
+/// `add` or `remove` when `Memo` is true, as is the empty result of a
+/// literal pattern that names no method. The memo has `1 << CacheBits`
 /// entries and keeps a result of at most `InlineResults` methods for a
 /// pattern of at most `kMaxMemoPatternLength` bytes, in a space of fewer
-/// than 2^32 methods. A lookup the memo does not hold is faster when moving
-/// a `T` cannot throw. `add` and `remove`
+/// than 2^32 methods. `dispatch` looks a pattern up in the memo, and among
+/// the registered addresses when moving a `T` cannot throw, before parsing
+/// it; a lookup the memo does not hold is also faster then. `add` and `remove`
 /// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
 /// space is empty
 /// and usable, without a memo until it is assigned to. Not safe for
@@ -191,21 +194,27 @@ public:
             return Error::Duplicate;
         }
         std::vector<std::size_t> partEnds;
-        if constexpr (kPreparesParts)
+        if constexpr (kMethodMovesCannotThrow)
         {
             partEnds = detail::partEndsOf(address);
             if (m_partEnds.size() == m_partEnds.capacity())
             {
                 m_partEnds.reserve(2 * m_partEnds.size() + 1);
             }
+            if (m_hashes.size() == m_hashes.capacity())
+            {
+                m_hashes.reserve(2 * m_hashes.size() + 1);
+            }
         }
         const auto offset = position - m_methods.begin();
         m_methods.insert(position, Method { std::string(address), std::move(value) });
-        if constexpr (kPreparesParts)
+        if constexpr (kMethodMovesCannotThrow)
         {
             m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
+            m_hashes.insert(m_hashes.begin() + offset, hashOf(address));
         }
         ++m_generation;
+        rebuildAddressIndex();
         return std::nullopt;
     }
 
@@ -224,11 +233,13 @@ public:
         }
         const auto offset = position - m_methods.begin();
         m_methods.erase(position);
-        if constexpr (kPreparesParts)
+        if constexpr (kMethodMovesCannotThrow)
         {
             m_partEnds.erase(m_partEnds.begin() + offset);
+            m_hashes.erase(m_hashes.begin() + offset);
         }
         ++m_generation;
+        rebuildAddressIndex();
         return std::nullopt;
     }
 
@@ -257,6 +268,11 @@ public:
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
+        std::size_t numVisited = 0;
+        if (dispatchKnown(m_methods, pattern, visitor, numVisited))
+        {
+            return DispatchResult { numVisited, std::nullopt };
+        }
         const ParseResult parsed = Pattern::parse(pattern);
         if (!parsed)
         {
@@ -272,6 +288,11 @@ public:
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor) const
     {
+        std::size_t numVisited = 0;
+        if (dispatchKnown(m_methods, pattern, visitor, numVisited))
+        {
+            return DispatchResult { numVisited, std::nullopt };
+        }
         const ParseResult parsed = Pattern::parse(pattern);
         if (!parsed)
         {
@@ -311,8 +332,7 @@ public:
 
 private:
     static constexpr std::size_t kNumBuckets = std::size_t { 1 } << CacheBits;
-    static constexpr std::uint64_t kFnvOffset = 14695981039346656037ULL;
-    static constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
+    static constexpr std::size_t kMinIndexSlots = 16;
     static constexpr std::size_t kMaxMemoisedMethods = std::numeric_limits<std::uint32_t>::max();
 
     struct Method
@@ -321,7 +341,7 @@ private:
         T value;
     };
 
-    static constexpr bool kPreparesParts = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
+    static constexpr bool kMethodMovesCannotThrow = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
 
     struct Bucket
     {
@@ -332,15 +352,92 @@ private:
         std::array<std::uint32_t, InlineResults> results { };
     };
 
-    static std::size_t bucketIndex(std::string_view pattern) noexcept
+    static std::size_t hashOf(std::string_view text) noexcept
     {
-        std::uint64_t hash = kFnvOffset;
-        for (const char byte : pattern)
+        return std::hash<std::string_view> { }(text);
+    }
+
+    static std::size_t bucketIndex(std::size_t hash) noexcept
+    {
+        return hash & (kNumBuckets - 1);
+    }
+
+    void rebuildAddressIndex()
+    {
+        m_addressIndex.clear();
+        if constexpr (!kMethodMovesCannotThrow)
         {
-            hash ^= static_cast<unsigned char>(byte);
-            hash *= kFnvPrime;
+            return;
         }
-        return static_cast<std::size_t>(hash & (kNumBuckets - 1));
+        if (m_methods.size() > kMaxMemoisedMethods)
+        {
+            return;
+        }
+        std::size_t numSlots = kMinIndexSlots;
+        while (numSlots < 2 * m_methods.size())
+        {
+            numSlots *= 2;
+        }
+        std::vector<std::uint32_t> slots(numSlots, 0U);
+        for (std::size_t index = 0; index < m_hashes.size(); ++index)
+        {
+            std::size_t slot = m_hashes[index] & (numSlots - 1);
+            while (slots[slot] != 0U)
+            {
+                slot = (slot + 1) & (numSlots - 1);
+            }
+            slots[slot] = static_cast<std::uint32_t>(index + 1);
+        }
+        m_addressIndex.swap(slots);
+    }
+
+    template <typename Methods, typename Visitor>
+    bool dispatchKnown(Methods& methods, std::string_view text, Visitor& visitor, std::size_t& numVisited) const
+    {
+        const std::size_t hash = hashOf(text);
+        if (!m_memo.empty() && text.size() <= kMaxMemoPatternLength)
+        {
+            const Bucket& bucket = m_memo[bucketIndex(hash)];
+            if (bucket.generation == m_generation && holds(bucket, text))
+            {
+                for (std::size_t i = 0; i < bucket.numResults; ++i)
+                {
+                    auto& method = methods[bucket.results[i]];
+                    visitor(std::string_view(method.address), method.value);
+                }
+                numVisited = bucket.numResults;
+                return true;
+            }
+        }
+        if (m_addressIndex.empty())
+        {
+            return false;
+        }
+        const std::size_t mask = m_addressIndex.size() - 1;
+        for (std::size_t slot = hash & mask; m_addressIndex[slot] != 0U; slot = (slot + 1) & mask)
+        {
+            const std::size_t index = m_addressIndex[slot] - 1;
+            if (m_hashes[index] == hash && methods[index].address == text)
+            {
+                visitor(std::string_view(methods[index].address), methods[index].value);
+                numVisited = 1;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void rememberNoMatch(std::string_view text) const
+    {
+        if (m_memo.empty() || text.size() > kMaxMemoPatternLength || m_methods.size() > kMaxMemoisedMethods)
+        {
+            return;
+        }
+        Bucket& bucket = m_memo[bucketIndex(hashOf(text))];
+        bucket.generation = m_generation;
+        bucket.patternLength = text.size();
+        bucket.numResults = 0;
+        std::copy(text.begin(), text.end(), bucket.pattern.begin());
     }
 
     static bool holds(const Bucket& bucket, std::string_view pattern) noexcept
@@ -364,6 +461,7 @@ private:
                 { return method.address < candidate; });
             if (position == methods.end() || position->address != text)
             {
+                rememberNoMatch(text);
                 return 0;
             }
             visitor(std::string_view(position->address), position->value);
@@ -371,7 +469,7 @@ private:
         }
 
         const bool memoisable = !m_memo.empty() && text.size() <= kMaxMemoPatternLength && methods.size() <= kMaxMemoisedMethods;
-        Bucket* bucket = memoisable ? &m_memo[bucketIndex(text)] : nullptr;
+        Bucket* bucket = memoisable ? &m_memo[bucketIndex(hashOf(text))] : nullptr;
         if (bucket != nullptr && bucket->generation == m_generation && holds(*bucket, text))
         {
             for (std::size_t i = 0; i < bucket->numResults; ++i)
@@ -385,7 +483,7 @@ private:
         std::array<std::uint32_t, InlineResults> found { };
         std::size_t numFound = 0;
         detail::PreparedParts prepared;
-        const std::size_t numPrepared = kPreparesParts ? detail::prepareParts(text, prepared) : detail::npos;
+        const std::size_t numPrepared = kMethodMovesCannotThrow ? detail::prepareParts(text, prepared) : detail::npos;
         for (std::size_t index = 0; index < methods.size(); ++index)
         {
             auto& method = methods[index];
@@ -416,6 +514,8 @@ private:
 
     std::vector<Method> m_methods;
     std::vector<std::vector<std::size_t>> m_partEnds;
+    std::vector<std::size_t> m_hashes;
+    std::vector<std::uint32_t> m_addressIndex;
     mutable std::vector<Bucket> m_memo;
     std::uint64_t m_generation = 1;
 };
