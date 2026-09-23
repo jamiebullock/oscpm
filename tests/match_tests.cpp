@@ -23,6 +23,19 @@ TEST_CASE("a literal pattern matches only its own text")
     CHECK_FALSE(match("/a.b+c", "/axbbc"));
 }
 
+TEST_CASE("a wildcard pattern longer than the limit is not valid and a literal one is")
+{
+    const std::string letters(oscpm::kMaxPatternLength, 'a');
+    CHECK(Pattern("/*" + letters.substr(2)).valid());
+    CHECK_FALSE(Pattern("/*" + letters.substr(1)).valid());
+    CHECK_FALSE(match("/*" + letters.substr(1), "/" + letters));
+    for (const char* wildcard : { "?", "*", "[a]", "{a}", "//a" })
+        CHECK_FALSE(Pattern("/" + letters + wildcard).valid());
+    const std::string literal = "/" + std::string(2000, 'a') + "/" + std::string(2000, 'b');
+    CHECK(Pattern(literal).valid());
+    CHECK(match(literal, literal));
+}
+
 TEST_CASE("wildcards never cross a slash")
 {
     CHECK(match("/synth/*/freq", "/synth/12/freq"));

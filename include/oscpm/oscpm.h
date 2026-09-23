@@ -17,8 +17,22 @@
 #include <utility>
 #include <vector>
 
+namespace oscpm
+{
+
+/// The longest pattern containing '*', '?', '[', '{' or "//" that is valid.
+/// A literal pattern has no limit.
+constexpr std::size_t kMaxPatternLength = 1024;
+
+}
+
 namespace oscpm::detail
 {
+
+inline bool hasWildcard(std::string_view pattern)
+{
+    return pattern.find_first_of("*?[{") != std::string_view::npos || pattern.find("//") != std::string_view::npos;
+}
 
 inline std::string translatePart(std::string_view part)
 {
@@ -79,6 +93,8 @@ public:
     explicit Pattern(std::string_view text)
     {
         if (text.size() < 2 || text[0] != '/')
+            return;
+        if (text.size() > kMaxPatternLength && detail::hasWildcard(text))
             return;
         try
         {
@@ -163,6 +179,12 @@ public:
             {
                 if (compiled.matches(method.first))
                     methods.push_back(&method);
+            }
+            if (pattern.size() > kMaxPatternLength)
+            {
+                for (Method* method : methods)
+                    callback(std::string_view(method->first), method->second);
+                return methods.size();
             }
             if (m_reached.size() >= kMaxPatterns)
                 m_reached.clear();
