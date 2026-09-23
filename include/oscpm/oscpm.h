@@ -93,10 +93,12 @@ namespace k
     constexpr std::size_t operatorRunLength = 2;
     constexpr std::size_t bitsPerWord = 64;
     constexpr std::size_t reachWords = kMaxAddressPartLength / bitsPerWord + 1;
+    constexpr std::size_t smallReachWords = 1;
 }
 
 constexpr std::size_t npos = std::string_view::npos;
 
+template <std::size_t NumWords>
 class Reach
 {
 public:
@@ -153,7 +155,7 @@ public:
     }
 
 private:
-    std::array<std::uint64_t, k::reachWords> m_words { };
+    std::array<std::uint64_t, NumWords> m_words { };
     std::size_t m_numWords;
 };
 
@@ -191,10 +193,10 @@ constexpr bool setContains(std::string_view members, char byte) noexcept
     return false;
 }
 
-template <typename Predicate>
-constexpr Reach advanceWhere(const Reach& reach, std::string_view part, Predicate matches) noexcept
+template <std::size_t NumWords, typename Predicate>
+constexpr Reach<NumWords> advanceWhere(const Reach<NumWords>& reach, std::string_view part, Predicate matches) noexcept
 {
-    Reach next(part.size());
+    Reach<NumWords> next(part.size());
     for (std::size_t position = 0; position < part.size(); ++position)
     {
         if (reach.test(position) && matches(part[position]))
@@ -205,9 +207,10 @@ constexpr Reach advanceWhere(const Reach& reach, std::string_view part, Predicat
     return next;
 }
 
-constexpr Reach advanceByAlternatives(const Reach& reach, std::string_view part, std::string_view list) noexcept
+template <std::size_t NumWords>
+constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, std::string_view part, std::string_view list) noexcept
 {
-    Reach next(part.size());
+    Reach<NumWords> next(part.size());
     std::string_view remaining = list;
     bool moreAlternatives = true;
     while (moreAlternatives)
@@ -247,17 +250,10 @@ constexpr bool hasOpener(std::string_view text) noexcept
     return false;
 }
 
-constexpr bool matchPart(std::string_view pattern, std::string_view part) noexcept
+template <std::size_t NumWords>
+constexpr bool matchPartWithin(std::string_view pattern, std::string_view part) noexcept
 {
-    if (part.size() > kMaxAddressPartLength)
-    {
-        return false;
-    }
-    if (!hasOpener(pattern))
-    {
-        return pattern == part;
-    }
-    Reach reach(part.size());
+    Reach<NumWords> reach(part.size());
     reach.set(0);
     std::size_t i = 0;
     while (i < pattern.size() && !reach.empty())
@@ -310,6 +306,23 @@ constexpr bool matchPart(std::string_view pattern, std::string_view part) noexce
         }
     }
     return reach.test(part.size());
+}
+
+constexpr bool matchPart(std::string_view pattern, std::string_view part) noexcept
+{
+    if (part.size() > kMaxAddressPartLength)
+    {
+        return false;
+    }
+    if (!hasOpener(pattern))
+    {
+        return pattern == part;
+    }
+    if (part.size() < k::bitsPerWord)
+    {
+        return matchPartWithin<k::smallReachWords>(pattern, part);
+    }
+    return matchPartWithin<k::reachWords>(pattern, part);
 }
 
 class PatternCursor
