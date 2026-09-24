@@ -37,8 +37,8 @@ With CMake 3.25 or later, any of these gives the target `oscpm::oscpm`:
   `-DOSCPM_VERSION=<version>` when configuring it.
 
 The tests and example are built by default only when oscpm is the top-level
-project, and the fuzz target only on request, so a consumer compiles nothing
-unless it turns them on.
+project, and the fuzz target and benchmarks only on request, so a consumer
+compiles nothing unless it turns them on.
 
 ## Matching
 
@@ -167,6 +167,52 @@ call does:
 matcher, the validators and the pattern value against each other under
 AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
+## Performance
+
+Apple M4, macOS 26.5.2, AppleClang 21.0.0.21000101 `-O3 -DNDEBUG`, oscpm
+v0.3.6, 2026-09-24. Median of 10 repetitions; dispatch into the 1,856-method
+space.
+
+| Operation | Median |
+|---|---:|
+| Repeated literal address | 5.51 ns |
+| Repeated `/synth[3-6]/voice/*/osc/{saw,square}/freq`, 128 methods | 50.1 ns |
+| Repeated `//freq`, 512 methods | 154 ns |
+| One message of a repeating stream of 64 | 10.4 ns |
+| First lookup, literal address | 5.12 ns |
+| First lookup, `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 88.6 us |
+| First lookup, `//freq` | 32 us |
+| `Pattern::matches`, literal | 1.3 ns |
+| `Pattern::matches`, wildcards | 100 ns |
+| `oscpm::match`: parse and match, wildcards | 125 ns |
+| The slowest hostile pattern of 1024 bytes (`list-alternatives`) | 5 ms |
+| A 64 KB wildcard pattern, rejected | 2.96 us |
+
+A repeated message, the usual traffic from a controller or sequencer, costs
+one hash lookup (the address index for a literal address, the memo for a
+pattern) plus one visitor call per matched method. The first dispatch of a
+pattern tests every registered method, so it grows with the size of the
+space; its result is memoised until the next `add` or `remove`. The cost of
+a hostile pattern is bounded by `kMaxPatternLength` and grows with the number
+of methods; a longer wildcard pattern is rejected without being matched.
+The times are from one machine; the ratios between rows carry across machines
+better than the absolute figures.
+
+The benchmarks are in `bench/`:
+
+```
+cmake --preset bench
+cmake --build --preset bench
+build/bench/bench/oscpm_bench
+```
+
+`bench/compare.py` compares the working tree with another revision, by
+default where it branched from `develop`: `time` in wall-clock, interleaving
+the two builds, and `instructions` in instruction counts under Valgrind's
+Cachegrind, which every pull request runs and which fails on a benchmark
+that rises by more than 2% and 4 instructions per iteration. `report`
+prints the table above.
+
 ## Matching rules
 
 A pattern and an address are split into parts on `/`. Both must have the
@@ -229,7 +275,8 @@ use doctest and the example uses oscpp, both fetched at configure time;
 skips the example and its fetch. `-DOSCPM_BUILD_FUZZERS=ON` adds a libFuzzer
 target under AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the
 corpus; it needs an LLVM clang. `-DOSCPM_SANITIZE=ON` builds the tests under
-the same sanitizers.
+the same sanitizers. `-DOSCPM_BUILD_BENCHMARKS=ON`, which the `bench` preset
+sets, adds the benchmarks and fetches Google Benchmark.
 
 ## Versioning
 

@@ -271,6 +271,13 @@ def cachedFlags(buildDir):
     return found.group(1) if found else ""
 
 
+def libraryVersion():
+    tag = git("describe", "--tags", "--abbrev=0")
+    if git("diff", "--name-only", tag, "--", "include") == "":
+        return tag
+    return git("describe", "--tags", "--dirty")
+
+
 def report(arguments, workDir):
     binary = configureAndBuild(kRoot, workDir / "head", workDir)
     if binary is None:
@@ -289,7 +296,7 @@ def report(arguments, workDir):
     medians.update(adversarial)
 
     compiler = context["context"].get("compiler", "unknown compiler")
-    version = git("describe", "--tags", "--always")
+    version = libraryVersion()
     lines = [
         f"{processorName()}, {operatingSystem()}, {compiler} `{cachedFlags(workDir / 'head')}`, "
         f"oscpm {version}, {datetime.date.today().isoformat()}. Median of {arguments.repetitions} "
