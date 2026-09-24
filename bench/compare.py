@@ -90,13 +90,17 @@ def buildBase(revision, workDir):
     print(f"building head's benchmarks against {revision}'s headers", file=sys.stderr)
     binary = configureAndBuild(kRoot, workDir / "base", workDir, baseSource / "include")
     if binary is not None:
-        return binary
+        return binary, None
     if not (baseSource / "bench" / "CMakeLists.txt").exists():
-        print(f"{revision} has no benchmarks; reporting head alone", file=sys.stderr)
-        return None
+        return None, f"{revision} has no benchmarks and head's do not build against its headers; head alone."
     print(f"building {revision}'s own benchmarks", file=sys.stderr)
     shutil.rmtree(workDir / "base", ignore_errors=True)
-    return configureAndBuild(baseSource, workDir / "base", workDir)
+    binary = configureAndBuild(baseSource, workDir / "base", workDir)
+    if binary is None:
+        sys.exit(f"{revision}'s benchmarks do not build")
+    return binary, (f"Head's benchmarks do not build against {revision}'s headers, so the base column is "
+                    f"{revision}'s own benchmarks: a benchmark whose workload this change edits compares "
+                    f"different work.")
 
 
 def benchmarkNames(binary, pattern):
@@ -171,7 +175,7 @@ def compareInstructions(arguments, workDir):
     headBinary = configureAndBuild(kRoot, workDir / "head", workDir)
     if headBinary is None:
         sys.exit("head does not build")
-    baseBinary = buildBase(arguments.base, workDir)
+    baseBinary, note = buildBase(arguments.base, workDir)
     names = benchmarkNames(headBinary, arguments.filter)
     iterations = inParallel(lambda name: probedIterations(headBinary, name), names, arguments.jobs)
     head = countInstructions(headBinary, iterations, arguments.jobs)
@@ -184,6 +188,8 @@ def compareInstructions(arguments, workDir):
     (workDir / "instructions-base.json").write_text(json.dumps(base, indent=1))
 
     heading = f"## Instructions per iteration, {arguments.base} against head"
+    if note:
+        heading += "\n\n" + note
     if not base:
         lines = [heading, "", "| Benchmark | Head |", "|---|---:|"]
         lines += [f"| {name} | {head[name]:,.0f} |" for name in sorted(head)]
@@ -223,7 +229,9 @@ def formatTime(nanoseconds):
 
 def compareTimes(arguments, workDir):
     headBinary = configureAndBuild(kRoot, workDir / "head", workDir)
-    baseBinary = buildBase(arguments.base, workDir)
+    baseBinary, note = buildBase(arguments.base, workDir)
+    if note:
+        print(note, file=sys.stderr)
     if headBinary is None or baseBinary is None:
         sys.exit("both revisions must build their benchmarks")
     extra = [f"--benchmark_min_time={arguments.minTime}"]
