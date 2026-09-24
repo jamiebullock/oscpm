@@ -1,0 +1,51 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  instructions:
+    name: Instruction counts against develop
+    # Adding or removing any other label leaves the result unchanged.
+    if: >-
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+      || github.event.label.name == 'bench-regression-accepted'
+    # At job level, so a skipped run for another label cancels nothing.
+    concurrency:
+      group: bench-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # The base revision and the version tags come from the history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install Ninja and Valgrind
+        run: sudo apt-get update && sudo apt-get install -y ninja-build valgrind
+
+      - name: Compare instruction counts with the base branch
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+          ALLOW_REGRESSIONS: ${{ contains(github.event.pull_request.labels.*.name, 'bench-regression-accepted') }}
+        run: |
+          if [ "$ALLOW_REGRESSIONS" = true ]; then
+            python3 bench/compare.py instructions --base "$BASE_REF" --allow-regressions
+          else
+            python3 bench/compare.py instructions --base "$BASE_REF"
+          fi
+
+      - name: Keep the counts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: instruction-counts
+          path: build/compare/instructions-*.json
+          if-no-files-found: ignore

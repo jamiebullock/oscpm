@@ -64,15 +64,16 @@ jobs:
           arch: x64
 
       - name: Configure
-        run: cmake --preset ${{ matrix.preset }} -DOSCPM_CHECK_FORMAT=OFF ${{ matrix.configure_args }}
+        run: cmake --preset ${{ matrix.preset }} -DOSCPM_CHECK_FORMAT=OFF -DOSCPM_BUILD_BENCHMARKS=ON ${{ matrix.configure_args }}
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
 
-      - name: Check the test suite is registered
+      - name: Check the test suite and the benchmarks are registered
         shell: bash
         run: |
           ctest --preset ${{ matrix.preset }} -N | grep -E 'Total Tests: [1-9]'
+          ctest --preset ${{ matrix.preset }} -N -L bench | grep -E 'Total Tests: [1-9]'
 
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
@@ -97,7 +98,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'fuzz/*.cpp' 'examples/*.cpp' | xargs clang-format --style=file --dry-run --Werror
+          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'fuzz/*.cpp' 'examples/*.cpp' 'bench/*.h' 'bench/*.cpp' | xargs clang-format --style=file --dry-run --Werror
 
   fuzz:
     name: Fuzz under ASan and UBSan
