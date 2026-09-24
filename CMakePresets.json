@@ -29,6 +29,14 @@
       }
     },
     {
+      "name": "bench",
+      "displayName": "Release with benchmarks (Ninja)",
+      "inherits": "release",
+      "cacheVariables": {
+        "OSCPM_BUILD_BENCHMARKS": "ON"
+      }
+    },
+    {
       "name": "windows",
       "displayName": "Windows (Visual Studio 2022, x64)",
       "generator": "Visual Studio 17 2022",
@@ -39,12 +47,14 @@
   "buildPresets": [
     { "name": "debug", "configurePreset": "debug" },
     { "name": "release", "configurePreset": "release" },
+    { "name": "bench", "configurePreset": "bench" },
     { "name": "windows", "configurePreset": "windows", "configuration": "Release" },
     { "name": "windows-debug", "configurePreset": "windows", "configuration": "Debug" }
   ],
   "testPresets": [
     { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true } },
     { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    { "name": "bench", "configurePreset": "bench", "output": { "outputOnFailure": true } },
     { "name": "windows", "configurePreset": "windows", "configuration": "Release", "output": { "outputOnFailure": true } },
     { "name": "windows-debug", "configurePreset": "windows", "configuration": "Debug", "output": { "outputOnFailure": true } }
   ]
