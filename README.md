@@ -190,9 +190,10 @@ space.
 
 A repeated message, the usual traffic from a controller or sequencer, costs
 one hash lookup (the address index for a literal address, the memo for a
-pattern) plus one visitor call per matched method. The first dispatch of a
-pattern tests every registered method, so it grows with the size of the
-space; its result is memoised until the next `add` or `remove`. The cost of
+pattern) plus one visitor call per matched method. A literal address costs
+the same lookup the first time. The first dispatch of any other pattern tests
+every registered method, so it grows with the size of the space; its result
+is memoised until the next `add` or `remove`. The cost of
 a hostile pattern is bounded by `kMaxPatternLength` and grows with the number
 of methods; a longer wildcard pattern is rejected without being matched.
 The times are from one machine; the ratios between rows carry across machines

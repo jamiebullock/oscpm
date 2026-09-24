@@ -26,10 +26,10 @@ namespace
             failBenchmark(state, "unexpected parse or match result");
             return;
         }
+        oscpm::Pattern pattern = parsed.pattern();
         std::string_view address = pair->address;
         for (auto _ : state)
         {
-            oscpm::Pattern pattern = parsed.pattern();
             benchmark::DoNotOptimize(pattern);
             benchmark::DoNotOptimize(address);
             benchmark::DoNotOptimize(pattern.matches(address));
