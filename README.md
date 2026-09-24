@@ -224,7 +224,7 @@ ctest --preset release
 ```
 
 `debug` and `release` use Ninja; `windows` uses Visual Studio 2022. The tests
-use Catch2 and the example uses oscpp, both fetched at configure time;
+use doctest and the example uses oscpp, both fetched at configure time;
 `DEPENDENCIES.md` lists what is fetched and why. `-DOSCPM_BUILD_EXAMPLES=OFF`
 skips the example and its fetch. `-DOSCPM_BUILD_FUZZERS=ON` adds a libFuzzer
 target under AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the

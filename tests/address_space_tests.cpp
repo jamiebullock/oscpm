@@ -9,13 +9,14 @@
 
 #include <oscpm/address_space.h>
 
-#include <catch2/catch_test_macros.hpp>
+#include <doctest/doctest.h>
 
 #include <algorithm>
 #include <cstddef>
 #include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <random>
 #include <set>
 #include <string>
@@ -224,7 +225,7 @@ TEST_CASE("dispatch reports a malformed pattern and visits nothing")
         {
             CHECK(result.matched == 0);
             REQUIRE(result.error.has_value());
-            CHECK(result.error->kind == malformed.kind);
+            CHECK(std::string(oscpm::toString(result.error->kind)) == std::string(oscpm::toString(malformed.kind)));
             CHECK(result.error->offset == malformed.offset);
         }
     }
@@ -283,7 +284,7 @@ TEST_CASE("dispatch reports a pattern longer than the supported length and visit
     CHECK(visits == 0);
     CHECK(result.matched == 0);
     REQUIRE(result.error.has_value());
-    CHECK(result.error->kind == Error::PatternTooLong);
+    CHECK(std::string(oscpm::toString(result.error->kind)) == "PatternTooLong");
     CHECK(result.error->offset == oscpm::kMaxPatternLength);
 }
 
