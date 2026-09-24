@@ -6,7 +6,7 @@
 
 #include "allocation_counter.h"
 
-#include <oscpm/oscpm.h>
+#include <oscpm/pattern.h>
 
 #include <doctest/doctest.h>
 

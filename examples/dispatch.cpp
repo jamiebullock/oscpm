@@ -5,7 +5,7 @@
  */
 
 #include <oscpm/address_space.h>
-#include <oscpm/oscpm.h>
+#include <oscpm/pattern.h>
 
 #include <oscpp/client.hpp>
 #include <oscpp/server.hpp>

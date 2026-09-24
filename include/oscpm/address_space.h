@@ -6,7 +6,8 @@
 
 #pragma once
 
-#include <oscpm/oscpm.h>
+#include <oscpm/error.h>
+#include <oscpm/pattern.h>
 
 #include <algorithm>
 #include <array>

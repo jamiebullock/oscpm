@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Zlib
  */
 
-#include <oscpm/oscpm.h>
+#include <oscpm/pattern.h>
 
 #include <cstddef>
 #include <cstdint>
