@@ -5,17 +5,16 @@
 
 include(FetchContent)
 
-# Catch2 defaults to C++14, which leaves out its std::string_view support.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG 317ac1ed4c0bb6e6b91eafc817e05c488feffcb3 # v3.16.0
+    doctest
+    GIT_REPOSITORY https://github.com/doctest/doctest.git
+    GIT_TAG 2d0a9359a60c51affe2a9bebb1be1dca47868151 # v2.5.3
 )
-FetchContent_MakeAvailable(Catch2)
+FetchContent_MakeAvailable(doctest)
 
 add_executable(oscpm_tests
     address_space_tests.cpp
@@ -32,7 +31,7 @@ target_compile_definitions(oscpm_tests PRIVATE
 
 target_link_libraries(oscpm_tests PRIVATE
     oscpm::oscpm
-    Catch2::Catch2WithMain
+    doctest::doctest_with_main
 )
 
 target_compile_options(oscpm_tests PRIVATE
@@ -45,5 +44,5 @@ if(OSCPM_SANITIZE)
     target_link_options(oscpm_tests PRIVATE -fsanitize=address,undefined)
 endif()
 
-include(Catch)
-catch_discover_tests(oscpm_tests)
+include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
+doctest_discover_tests(oscpm_tests)

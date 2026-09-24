@@ -8,11 +8,12 @@
 
 #include <oscpm/oscpm.h>
 
-#include <catch2/catch_test_macros.hpp>
+#include <doctest/doctest.h>
 
 #include <cstddef>
 #include <new>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -48,47 +49,47 @@ constexpr bool faults(const ParseResult& result, Error kind, std::size_t offset)
 
 TEST_CASE("parse yields a pattern for a well-formed pattern")
 {
-    STATIC_CHECK(Pattern::parse("/a"));
-    STATIC_CHECK(Pattern::parse("/"));
-    STATIC_CHECK(Pattern::parse("//"));
-    STATIC_CHECK(Pattern::parse("/a/?/[a-z]/{x,y}"));
-    STATIC_CHECK(Pattern::parse("/{a,{b,c}}"));
-    STATIC_CHECK(Pattern::parse("/a]"));
-    STATIC_CHECK(Pattern::parse("/caf\xc3\xa9"));
+    static_assert(Pattern::parse("/a"));
+    static_assert(Pattern::parse("/"));
+    static_assert(Pattern::parse("//"));
+    static_assert(Pattern::parse("/a/?/[a-z]/{x,y}"));
+    static_assert(Pattern::parse("/{a,{b,c}}"));
+    static_assert(Pattern::parse("/a]"));
+    static_assert(Pattern::parse("/caf\xc3\xa9"));
 }
 
 TEST_CASE("parse reports the fault validatePattern reports")
 {
-    STATIC_CHECK(faults(Pattern::parse(""), Error::MissingLeadingSlash, 0));
-    STATIC_CHECK(faults(Pattern::parse("a/b"), Error::MissingLeadingSlash, 0));
-    STATIC_CHECK(faults(Pattern::parse("/a[b"), Error::UnterminatedClass, 2));
-    STATIC_CHECK(faults(Pattern::parse("/{a,b}{c"), Error::UnterminatedBraces, 6));
-    STATIC_CHECK(faults(Pattern::parse("/[a{"), Error::UnterminatedClass, 1));
+    static_assert(faults(Pattern::parse(""), Error::MissingLeadingSlash, 0));
+    static_assert(faults(Pattern::parse("a/b"), Error::MissingLeadingSlash, 0));
+    static_assert(faults(Pattern::parse("/a[b"), Error::UnterminatedClass, 2));
+    static_assert(faults(Pattern::parse("/{a,b}{c"), Error::UnterminatedBraces, 6));
+    static_assert(faults(Pattern::parse("/[a{"), Error::UnterminatedClass, 1));
 }
 
 TEST_CASE("a pattern keeps a view of the text it was parsed from")
 {
     constexpr std::string_view text = "/synth/*/freq";
     constexpr ParseResult parsed = Pattern::parse(text);
-    STATIC_CHECK(parsed.pattern().text() == text);
-    STATIC_CHECK(parsed.pattern().text().data() == text.data());
+    static_assert(parsed.pattern().text() == text);
+    static_assert(parsed.pattern().text().data() == text.data());
 }
 
 TEST_CASE("matches agrees with match")
 {
-    STATIC_CHECK(Pattern::parse("/synth/*/freq").pattern().matches("/synth/1/freq"));
-    STATIC_CHECK_FALSE(Pattern::parse("/synth/*/freq").pattern().matches("/synth/1/amp"));
-    STATIC_CHECK(Pattern::parse("/a//").pattern().matches("/a/b/c"));
-    STATIC_CHECK(Pattern::parse("/a*b*c/[!x]?/{ab,a}b").pattern().matches("/aXbYc/y1/abb"));
-    STATIC_CHECK_FALSE(Pattern::parse("/a").pattern().matches("a"));
-    STATIC_CHECK_FALSE(Pattern::parse("/a").pattern().matches(""));
+    static_assert(Pattern::parse("/synth/*/freq").pattern().matches("/synth/1/freq"));
+    static_assert(!Pattern::parse("/synth/*/freq").pattern().matches("/synth/1/amp"));
+    static_assert(Pattern::parse("/a//").pattern().matches("/a/b/c"));
+    static_assert(Pattern::parse("/a*b*c/[!x]?/{ab,a}b").pattern().matches("/aXbYc/y1/abb"));
+    static_assert(!Pattern::parse("/a").pattern().matches("a"));
+    static_assert(!Pattern::parse("/a").pattern().matches(""));
 }
 
 TEST_CASE("match is parse followed by matches")
 {
-    STATIC_CHECK(oscpm::match("/synth/*/freq", "/synth/1/freq"));
-    STATIC_CHECK_FALSE(oscpm::match("/synth/[1-3", "/synth/1"));
-    STATIC_CHECK_FALSE(oscpm::match("synth", "synth"));
+    static_assert(oscpm::match("/synth/*/freq", "/synth/1/freq"));
+    static_assert(!oscpm::match("/synth/[1-3", "/synth/1"));
+    static_assert(!oscpm::match("synth", "synth"));
 }
 
 TEST_CASE("a pattern copied out of its parse result still matches")
@@ -106,22 +107,22 @@ TEST_CASE("a pattern copied out of its parse result still matches")
 
 TEST_CASE("a pattern is literal when it contains no wildcard, class, brace list or slash run")
 {
-    STATIC_CHECK(Pattern::parse("/synth/1/freq").pattern().isLiteral());
-    STATIC_CHECK(Pattern::parse("/").pattern().isLiteral());
-    STATIC_CHECK(Pattern::parse("/a/").pattern().isLiteral());
-    STATIC_CHECK(Pattern::parse("/a]").pattern().isLiteral());
-    STATIC_CHECK(Pattern::parse("/a}").pattern().isLiteral());
-    STATIC_CHECK(Pattern::parse("/a,b").pattern().isLiteral());
-    STATIC_CHECK(Pattern::parse("/#bundle").pattern().isLiteral());
-    STATIC_CHECK(Pattern::parse("/a-b").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("/synth/*").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("/synth/?").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("/synth/[1]").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("/synth/{a}").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("//gain").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("/a//b").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("/a//").pattern().isLiteral());
-    STATIC_CHECK_FALSE(Pattern::parse("//").pattern().isLiteral());
+    static_assert(Pattern::parse("/synth/1/freq").pattern().isLiteral());
+    static_assert(Pattern::parse("/").pattern().isLiteral());
+    static_assert(Pattern::parse("/a/").pattern().isLiteral());
+    static_assert(Pattern::parse("/a]").pattern().isLiteral());
+    static_assert(Pattern::parse("/a}").pattern().isLiteral());
+    static_assert(Pattern::parse("/a,b").pattern().isLiteral());
+    static_assert(Pattern::parse("/#bundle").pattern().isLiteral());
+    static_assert(Pattern::parse("/a-b").pattern().isLiteral());
+    static_assert(!Pattern::parse("/synth/*").pattern().isLiteral());
+    static_assert(!Pattern::parse("/synth/?").pattern().isLiteral());
+    static_assert(!Pattern::parse("/synth/[1]").pattern().isLiteral());
+    static_assert(!Pattern::parse("/synth/{a}").pattern().isLiteral());
+    static_assert(!Pattern::parse("//gain").pattern().isLiteral());
+    static_assert(!Pattern::parse("/a//b").pattern().isLiteral());
+    static_assert(!Pattern::parse("/a//").pattern().isLiteral());
+    static_assert(!Pattern::parse("//").pattern().isLiteral());
 }
 
 TEST_CASE("a pattern with a part beyond the maximum length is not literal and never matches")
@@ -177,11 +178,11 @@ TEST_CASE("the literal shortcut agrees with the general matcher")
 
 TEST_CASE("a literal pattern matches only its own text")
 {
-    STATIC_CHECK(Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/freq"));
-    STATIC_CHECK_FALSE(Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/fre"));
-    STATIC_CHECK_FALSE(Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/freq/"));
-    STATIC_CHECK(Pattern::parse("/a]").pattern().matches("/a]"));
-    STATIC_CHECK_FALSE(Pattern::parse("/a]").pattern().matches("/a"));
+    static_assert(Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/freq"));
+    static_assert(!Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/fre"));
+    static_assert(!Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/freq/"));
+    static_assert(Pattern::parse("/a]").pattern().matches("/a]"));
+    static_assert(!Pattern::parse("/a]").pattern().matches("/a"));
 }
 
 TEST_CASE("parsing matching and validating allocate nothing")

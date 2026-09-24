@@ -6,11 +6,12 @@
 
 #include <oscpm/oscpm.h>
 
-#include <catch2/catch_test_macros.hpp>
+#include <doctest/doctest.h>
 
 #include <chrono>
 #include <cstddef>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 
@@ -47,70 +48,70 @@ constexpr double kGenerousSeconds = 5.0;
 
 TEST_CASE("every pattern construct is matched at compile time")
 {
-    STATIC_CHECK(match("/synth/1/freq", "/synth/1/freq"));
-    STATIC_CHECK_FALSE(match("/synth/1/freq", "/synth/1/fre"));
-    STATIC_CHECK(match("/x?y", "/x1y"));
-    STATIC_CHECK_FALSE(match("/x?y", "/x/y"));
-    STATIC_CHECK(match("/a*b*c", "/axxbyyc"));
-    STATIC_CHECK_FALSE(match("/a*", "/a/b"));
-    STATIC_CHECK(match("/[a-c-e]", "/-"));
-    STATIC_CHECK_FALSE(match("/[z-a]", "/m"));
-    STATIC_CHECK(match("/[!a-z]", "/1"));
-    STATIC_CHECK(match("/[!]", "/]"));
-    STATIC_CHECK_FALSE(match("/[]", "/a"));
-    STATIC_CHECK(match("/{ab,a}c", "/ac"));
-    STATIC_CHECK(match("/x{a,}", "/x"));
-    STATIC_CHECK(match("/{a,{b,c}}", "/{b}"));
-    STATIC_CHECK(match("//gain", "/synth/1/osc/2/gain"));
-    STATIC_CHECK(match("/a//b//c", "/a/x/b/y/c"));
-    STATIC_CHECK_FALSE(match("/a//c", "/ab/c"));
-    STATIC_CHECK(match("/a///", "/a/b/c"));
-    STATIC_CHECK(match("//", "/"));
-    STATIC_CHECK_FALSE(match("/a/", "/a"));
-    STATIC_CHECK(match("/a]", "/a]"));
-    STATIC_CHECK(match("/caf[\xc3]?", "/caf\xc3\xa9"));
-    STATIC_CHECK_FALSE(match("/", ""));
-    STATIC_CHECK_FALSE(match("/a", "a"));
+    static_assert(match("/synth/1/freq", "/synth/1/freq"));
+    static_assert(!match("/synth/1/freq", "/synth/1/fre"));
+    static_assert(match("/x?y", "/x1y"));
+    static_assert(!match("/x?y", "/x/y"));
+    static_assert(match("/a*b*c", "/axxbyyc"));
+    static_assert(!match("/a*", "/a/b"));
+    static_assert(match("/[a-c-e]", "/-"));
+    static_assert(!match("/[z-a]", "/m"));
+    static_assert(match("/[!a-z]", "/1"));
+    static_assert(match("/[!]", "/]"));
+    static_assert(!match("/[]", "/a"));
+    static_assert(match("/{ab,a}c", "/ac"));
+    static_assert(match("/x{a,}", "/x"));
+    static_assert(match("/{a,{b,c}}", "/{b}"));
+    static_assert(match("//gain", "/synth/1/osc/2/gain"));
+    static_assert(match("/a//b//c", "/a/x/b/y/c"));
+    static_assert(!match("/a//c", "/ab/c"));
+    static_assert(match("/a///", "/a/b/c"));
+    static_assert(match("//", "/"));
+    static_assert(!match("/a/", "/a"));
+    static_assert(match("/a]", "/a]"));
+    static_assert(match("/caf[\xc3]?", "/caf\xc3\xa9"));
+    static_assert(!match("/", ""));
+    static_assert(!match("/a", "a"));
 }
 
 TEST_CASE("every pattern fault is reported at compile time and matches nothing")
 {
-    STATIC_CHECK(passes(validatePattern("/a/?/[a-z]/{x,y}")));
-    STATIC_CHECK(passes(validatePattern("/{a,{b,c}}]} #\xc3\xa9")));
-    STATIC_CHECK(faults(validatePattern(""), Error::MissingLeadingSlash, 0));
-    STATIC_CHECK(faults(validatePattern("a/b"), Error::MissingLeadingSlash, 0));
-    STATIC_CHECK(faults(validatePattern("/x/[a/b]"), Error::UnterminatedClass, 3));
-    STATIC_CHECK(faults(validatePattern("/{a,b}{c"), Error::UnterminatedBraces, 6));
-    STATIC_CHECK(faults(validatePattern("/[a{"), Error::UnterminatedClass, 1));
-    STATIC_CHECK_FALSE(match("", ""));
-    STATIC_CHECK_FALSE(match("/[a", "/[a"));
-    STATIC_CHECK_FALSE(match("/{a/b}", "/a/b"));
+    static_assert(passes(validatePattern("/a/?/[a-z]/{x,y}")));
+    static_assert(passes(validatePattern("/{a,{b,c}}]} #\xc3\xa9")));
+    static_assert(faults(validatePattern(""), Error::MissingLeadingSlash, 0));
+    static_assert(faults(validatePattern("a/b"), Error::MissingLeadingSlash, 0));
+    static_assert(faults(validatePattern("/x/[a/b]"), Error::UnterminatedClass, 3));
+    static_assert(faults(validatePattern("/{a,b}{c"), Error::UnterminatedBraces, 6));
+    static_assert(faults(validatePattern("/[a{"), Error::UnterminatedClass, 1));
+    static_assert(!match("", ""));
+    static_assert(!match("/[a", "/[a"));
+    static_assert(!match("/{a/b}", "/a/b"));
 }
 
 TEST_CASE("every address fault is reported at compile time")
 {
-    STATIC_CHECK(passes(validateAddress("/!\"$%&'()+-.0123456789:;<=>@ABCXYZ\\^_`abcxyz|~")));
-    STATIC_CHECK(faults(validateAddress(" /a"), Error::MissingLeadingSlash, 0));
-    STATIC_CHECK(faults(validateAddress("/"), Error::TrailingSlash, 0));
-    STATIC_CHECK(faults(validateAddress("/a/b/"), Error::TrailingSlash, 4));
-    STATIC_CHECK(faults(validateAddress("/a///b"), Error::EmptyPart, 3));
-    STATIC_CHECK(faults(validateAddress("/x/y/z*"), Error::IllegalByte, 6));
-    STATIC_CHECK(faults(validateAddress("/a\x7f"), Error::IllegalByte, 2));
-    STATIC_CHECK(faults(validateAddress("/a//?"), Error::EmptyPart, 3));
+    static_assert(passes(validateAddress("/!\"$%&'()+-.0123456789:;<=>@ABCXYZ\\^_`abcxyz|~")));
+    static_assert(faults(validateAddress(" /a"), Error::MissingLeadingSlash, 0));
+    static_assert(faults(validateAddress("/"), Error::TrailingSlash, 0));
+    static_assert(faults(validateAddress("/a/b/"), Error::TrailingSlash, 4));
+    static_assert(faults(validateAddress("/a///b"), Error::EmptyPart, 3));
+    static_assert(faults(validateAddress("/x/y/z*"), Error::IllegalByte, 6));
+    static_assert(faults(validateAddress("/a\x7f"), Error::IllegalByte, 2));
+    static_assert(faults(validateAddress("/a//?"), Error::EmptyPart, 3));
 }
 
 TEST_CASE("toString names every error")
 {
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::MissingLeadingSlash)) == "MissingLeadingSlash");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::UnterminatedClass)) == "UnterminatedClass");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::UnterminatedBraces)) == "UnterminatedBraces");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::PatternTooLong)) == "PatternTooLong");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::TrailingSlash)) == "TrailingSlash");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::EmptyPart)) == "EmptyPart");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::IllegalByte)) == "IllegalByte");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::PartTooLong)) == "PartTooLong");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::Duplicate)) == "Duplicate");
-    STATIC_CHECK(std::string_view(oscpm::toString(Error::NotFound)) == "NotFound");
+    static_assert(std::string_view(oscpm::toString(Error::MissingLeadingSlash)) == "MissingLeadingSlash");
+    static_assert(std::string_view(oscpm::toString(Error::UnterminatedClass)) == "UnterminatedClass");
+    static_assert(std::string_view(oscpm::toString(Error::UnterminatedBraces)) == "UnterminatedBraces");
+    static_assert(std::string_view(oscpm::toString(Error::PatternTooLong)) == "PatternTooLong");
+    static_assert(std::string_view(oscpm::toString(Error::TrailingSlash)) == "TrailingSlash");
+    static_assert(std::string_view(oscpm::toString(Error::EmptyPart)) == "EmptyPart");
+    static_assert(std::string_view(oscpm::toString(Error::IllegalByte)) == "IllegalByte");
+    static_assert(std::string_view(oscpm::toString(Error::PartTooLong)) == "PartTooLong");
+    static_assert(std::string_view(oscpm::toString(Error::Duplicate)) == "Duplicate");
+    static_assert(std::string_view(oscpm::toString(Error::NotFound)) == "NotFound");
 }
 
 TEST_CASE("an address part longer than the supported length never matches and is reported")
