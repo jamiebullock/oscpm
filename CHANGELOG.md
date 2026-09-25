@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- oscpm configures as a subproject of a project that has a CMake module named `ProjectVersion` or `CheckFormat` on its module path. oscpm included its own modules by name after appending its `cmake` directory to the module path, so the consumer's module was found first and oscpm configured with no version.
 - `AddressSpace::dispatch` and `lookup` deliver the full result when a visitor dispatches or looks up another pattern on the same space. A nested call that used the memo entry being delivered could overwrite it, so the outer call visited the wrong methods or stopped early.
 
 ## 0.3.0 - 2026-09-23

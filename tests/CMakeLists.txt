@@ -47,3 +47,11 @@ endif()
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(oscpm_tests)
+
+add_test(NAME "oscpm builds as a subproject of a project with a CMake module of the same name"
+    COMMAND ${CMAKE_CTEST_COMMAND} --build-and-test
+        ${CMAKE_CURRENT_SOURCE_DIR}/consumer ${CMAKE_CURRENT_BINARY_DIR}/consumer
+        --build-generator ${CMAKE_GENERATOR}
+        --build-config $<CONFIG>
+        --build-options -DOSCPM_SOURCE_DIR=${PROJECT_SOURCE_DIR} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+        --test-command oscpm_consumer)
