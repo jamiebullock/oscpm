@@ -90,10 +90,10 @@ if (const auto fault = oscpm::validatePattern("/synth/[1-3")) // UnterminatedCla
 oscpm::validateAddress("/synth/1/"); // TrailingSlash at 8
 ```
 
-A pattern is rejected only for a missing leading `/` or a `[` or `{` left
-unclosed within its part; an address for any breach of the OSC address
-rules. `match` never validates the address, which is compared byte for byte.
-`oscpm/pattern.h` documents each fault and `isLiteral`.
+A pattern is rejected only for a missing leading `/`, a `[` or `{` left
+unclosed within its part, or a wildcard pattern longer than
+`kMaxPatternLength`; an address for any breach of the OSC address rules.
+`match` never validates the address, which is compared byte for byte.
 
 ## Address space
 
@@ -121,42 +121,20 @@ if (result.error)
 }
 ```
 
-A space of handlers is the dispatch table keyed by address that oscpp's
-README suggests, extended to patterns. The space stores a `T` of the
-caller's choosing and knows nothing of what a handler takes, so the visitor
-passes the message through. `T` need not be callable: `examples/dispatch.cpp`
-stores a `Parameter` struct and its visitor writes each message's argument
-into the matching parameters.
+The space stores a `T` of the caller's choosing and knows nothing of what
+a handler takes, so the visitor passes the message through. `T` need not be
+callable: `examples/dispatch.cpp` stores a `Parameter` struct that its
+visitor writes each message's argument into.
 
 `dispatch` is `Pattern::parse` followed by `lookup`, returning the number of
 methods visited and the parse fault together; `lookup` takes an already
 parsed `Pattern` for a pattern that is reused. Both visit every matching
-method in bytewise address order; `forEach` visits them all. `dispatch`
-first hashes the pattern once and looks it up in the memo and among the
-registered addresses, so a pattern equal to a registered address, or one it
-has dispatched before, is found without being parsed. Otherwise a literal
-pattern is a binary search, and any other pattern is matched against every
-method, so a cold lookup costs O(N) in the number of methods; by default the
-result is then memoised until the next `add` or `remove`, as is the empty
-result of a literal pattern that names no method. The memo is direct-mapped
-with `1 << CacheBits` entries, each
-holding a pattern of up to `kMaxMemoPatternLength` bytes and up to
-`InlineResults` results; a lookup that exceeds either limit is delivered in
-full but not memoised. Its memory is
-`(1 << CacheBits) * (kMaxMemoPatternLength + InlineResults * sizeof(std::uint32_t) + 32)`
-bytes, about 1.1 MiB for the defaults of `CacheBits = 8` and
-`InlineResults = 1024`, allocated when the space is constructed;
-`AddressSpace<T, true, 6, 64>`, which memoises 64 patterns of up to 64
-methods each, takes about 34 KiB.
-`AddressSpace<T, false>` has no memo. When moving a `T` cannot throw, each
-method also keeps the hash of its address, two to four 4-byte slots of an
-index over the addresses and a vector of the 8-byte end offsets of its
-parts, 40 to 48 bytes beyond the method itself plus 8 per part; otherwise a
-pattern equal to a registered address is found by parsing and binary search,
-and a lookup the memo does not hold splits every address again.
-A visitor may call `lookup` and `dispatch` on the space that called it, but
-must not add or remove methods. An address space is not safe to use from
-several threads at once.
+method in bytewise address order; `forEach` visits them all. A visitor may
+call `lookup` and `dispatch` on the space that called it, but must not add
+or remove methods. `AddressSpace<T, Memo, CacheBits, InlineResults>`
+memoises a lookup's result until the next `add` or `remove`; `Memo = false`
+turns the memo off, and `CacheBits` and `InlineResults` size it. An address space
+is not safe to use from several threads at once.
 
 `examples/dispatch.cpp` puts the two together with oscpp: it builds a bundle
 with oscpp's client API, reads it back with the server API, fans each
@@ -210,8 +188,10 @@ one hash lookup (the address index for a literal address, the memo for a
 pattern) plus one visitor call per matched method. A literal address costs
 the same lookup the first time. The first dispatch of any other pattern tests
 every registered method, so it grows with the size of the space; its result
-is memoised until the next `add` or `remove`. The cost of
-a hostile pattern is bounded by `kMaxPatternLength` and grows with the number
+is memoised until the next `add` or `remove`. The default memo takes about
+1.1 MiB, allocated when the space is constructed; `AddressSpace<T, true, 6, 64>`,
+which keeps 64 patterns of up to 64 methods, about 34 KiB; `AddressSpace<T, false>`
+has none. The cost of a hostile pattern is bounded by `kMaxPatternLength` and grows with the number
 of methods; a longer wildcard pattern is rejected without being matched.
 The times are from one machine; the ratios between rows carry across machines
 better than the absolute figures.
