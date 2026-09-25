@@ -11,32 +11,28 @@
 namespace oscpm
 {
 
-/// The longest address part `match` compares. A longer address part never
-/// matches, and `validateAddress` reports it as `PartTooLong`.
+/// The longest address part that matches; `validateAddress` reports a longer
+/// one as `PartTooLong`.
 constexpr std::size_t kMaxAddressPartLength = 4095;
 
-/// The longest pattern containing '*', '?', '[', '{' or "//" that
-/// `validatePattern` accepts. A longer such pattern is reported as
-/// `PatternTooLong` and matches nothing; a literal pattern has no limit.
+/// The longest pattern containing a wildcard, class, brace list or "//" that
+/// `validatePattern` accepts; a longer one is `PatternTooLong`. A literal
+/// pattern has no limit.
 constexpr std::size_t kMaxPatternLength = 1024;
 
-/// A fault in a pattern, in an address or in an `AddressSpace` operation
-/// (the last two). `MissingLeadingSlash` is reported for both a pattern
-/// and an address; `UnterminatedClass`, `UnterminatedBraces` and
-/// `PatternTooLong` only for a pattern; the four that follow them only for an
-/// address.
+/// A fault in a pattern, an address or an `AddressSpace` operation.
 enum class Error
 {
-    MissingLeadingSlash,
-    UnterminatedClass,
-    UnterminatedBraces,
-    PatternTooLong,
-    TrailingSlash,
-    EmptyPart,
-    IllegalByte,
-    PartTooLong,
-    Duplicate,
-    NotFound
+    MissingLeadingSlash, ///< pattern or address: no leading '/', at offset 0
+    UnterminatedClass, ///< pattern: a '[' with no ']' before the next '/'
+    UnterminatedBraces, ///< pattern: a '{' with no '}' before the next '/'
+    PatternTooLong, ///< pattern: a wildcard pattern longer than `kMaxPatternLength`, at that offset
+    TrailingSlash, ///< address: a final '/' (the bare "/" faults at 0)
+    EmptyPart, ///< address: the second of two adjacent slashes
+    IllegalByte, ///< address: a byte outside printable ASCII or one of " #*,?[]{}"
+    PartTooLong, ///< address: the first byte of a part beyond `kMaxAddressPartLength`
+    Duplicate, ///< `AddressSpace::add`: the address is already registered
+    NotFound ///< `AddressSpace::remove`: the address is not registered
 };
 
 /// A fault and the zero-based byte offset at which it was found.

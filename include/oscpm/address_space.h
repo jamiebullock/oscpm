@@ -31,31 +31,20 @@ namespace oscpm
 /// every time.
 constexpr std::size_t kMaxMemoPatternLength = 256;
 
-/// What `AddressSpace::dispatch` did: the number of methods visited, and
-/// the fault that stopped the pattern parsing, in which case nothing was
-/// visited.
+/// The number of methods `dispatch` visited, and the parse fault when the
+/// pattern was malformed and nothing was visited.
 struct DispatchResult
 {
     std::size_t matched;
     std::optional<ParseError> error;
 };
 
-/// A set of OSC methods, each a well-formed address with a value of type
-/// `T`, that a pattern is dispatched to. Addresses are kept in bytewise
-/// order. A literal pattern is found by binary search; any other is
-/// matched against every method, with the result memoised until the next
-/// `add` or `remove` when `Memo` is true, as is the empty result of a
-/// literal pattern that names no method. The memo has `1 << CacheBits`
-/// entries and keeps a result of at most `InlineResults` methods for a
-/// pattern of at most `kMaxMemoPatternLength` bytes, in a space of fewer
-/// than 2^32 methods. `dispatch` looks a pattern up in the memo, and among
-/// the registered addresses when moving a `T` cannot throw, before parsing
-/// it; a lookup the memo does not hold is also faster then. `add` and `remove`
-/// allocate; `lookup`, `dispatch` and `forEach` never do. A moved-from
-/// space is empty
-/// and usable, without a memo until it is assigned to. A visitor may call
-/// `lookup` and `dispatch` on the space that called it. Not safe for
-/// concurrent use.
+/// A set of methods, each a well-formed address with a value of type `T`,
+/// that a pattern is dispatched to. `add` and `remove` allocate; nothing
+/// else does. Not safe for concurrent use.
+/// @tparam Memo whether a lookup's result is kept until the next `add` or `remove`
+/// @tparam CacheBits the memo holds `1 << CacheBits` patterns of up to `kMaxMemoPatternLength` bytes
+/// @tparam InlineResults the most methods a memoised result holds; a lookup beyond either limit is delivered in full but not kept
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
 {
@@ -125,45 +114,38 @@ public:
 
     /// Calls `visitor(std::string_view address, T& value)` for every method
     /// `pattern` matches, in bytewise address order, and returns how many.
-    /// The visitor must not add or remove methods.
+    /// The visitor may look up or dispatch on this space but must not add or
+    /// remove methods.
     template <typename Visitor>
     std::size_t lookup(const Pattern& pattern, Visitor&& visitor)
     {
         return lookupIn(*this, pattern, visitor);
     }
 
-    /// Calls `visitor(std::string_view address, const T& value)` for every
-    /// method `pattern` matches, in bytewise address order, and returns how
-    /// many.
+    /// As above, with `const T&`.
     template <typename Visitor>
     std::size_t lookup(const Pattern& pattern, Visitor&& visitor) const
     {
         return lookupIn(*this, pattern, visitor);
     }
 
-    /// Parses `pattern` and calls `visitor(std::string_view address, T& value)`
-    /// for every method it matches, in bytewise address order, as
-    /// `Pattern::parse` followed by `lookup`. A malformed pattern visits
-    /// nothing and is reported. The visitor must not add or remove methods.
+    /// `Pattern::parse` then `lookup`; a malformed pattern visits nothing and
+    /// is reported.
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
         return dispatchIn(*this, pattern, visitor);
     }
 
-    /// Parses `pattern` and calls `visitor(std::string_view address, const T& value)`
-    /// for every method it matches, in bytewise address order, as
-    /// `Pattern::parse` followed by `lookup`. A malformed pattern visits
-    /// nothing and is reported.
+    /// As above, with `const T&`.
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor) const
     {
         return dispatchIn(*this, pattern, visitor);
     }
 
-    /// Calls `visitor(std::string_view address, T& value)` for every method
-    /// in bytewise address order. The visitor must not add or remove
-    /// methods.
+    /// Calls `visitor(std::string_view address, T& value)` for every method,
+    /// in bytewise address order, under the same visitor rule as `lookup`.
     template <typename Visitor>
     void forEach(Visitor&& visitor)
     {
@@ -173,8 +155,7 @@ public:
         }
     }
 
-    /// Calls `visitor(std::string_view address, const T& value)` for every
-    /// method in bytewise address order.
+    /// As above, with `const T&`.
     template <typename Visitor>
     void forEach(Visitor&& visitor) const
     {

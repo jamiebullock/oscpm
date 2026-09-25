@@ -17,13 +17,8 @@
 namespace oscpm
 {
 
-/// The first fault in `pattern` by byte offset, or nothing when it parses:
-/// `MissingLeadingSlash` at 0, `UnterminatedClass` at a '[' with no ']'
-/// before the next '/', `UnterminatedBraces` at a '{' with no '}' before the
-/// next '/', `PatternTooLong` at `kMaxPatternLength` for a longer pattern
-/// containing '*', '?', '[', '{' or "//".
-/// Every other pattern parses; a byte no address can contain is a literal
-/// that matches nothing where it stands.
+/// The first fault in `pattern` and its byte offset, or nothing when it
+/// parses.
 constexpr std::optional<ParseError> validatePattern(std::string_view pattern) noexcept
 {
     if (!detail::hasLeadingSlash(pattern))
@@ -64,12 +59,8 @@ constexpr std::optional<ParseError> validatePattern(std::string_view pattern) no
     return std::nullopt;
 }
 
-/// The first fault in `address` by byte offset, or nothing when it is a
-/// well-formed OSC address: `MissingLeadingSlash` at 0, `TrailingSlash` at
-/// a final '/' (the bare "/" faults at 0), `EmptyPart` at the second of two
-/// adjacent slashes, `IllegalByte` at a byte outside printable ASCII or one
-/// of " #*,?[]{}", `PartTooLong` at the first byte of a part beyond
-/// `kMaxAddressPartLength`.
+/// The first fault in `address` and its byte offset, or nothing when it is a
+/// well-formed OSC address.
 constexpr std::optional<ParseError> validateAddress(std::string_view address) noexcept
 {
     if (!detail::hasLeadingSlash(address))
@@ -111,12 +102,8 @@ public:
     /// as `validatePattern` reports it.
     static constexpr ParseResult parse(std::string_view text) noexcept;
 
-    /// Whether this pattern matches `address`: the OSC 1.0 rules for '?',
-    /// '*', '[...]' and '{a,b}', applied part by part, plus the OSC 1.1 '//'
-    /// operator matching zero or more whole parts, which a run of two or
-    /// more slashes anywhere in the pattern denotes. The address is compared
-    /// byte for byte and never validated. Allocation-free, with running time
-    /// bounded by the product of the two lengths.
+    /// Whether this pattern matches `address`, which is compared byte for
+    /// byte and never validated.
     constexpr bool matches(std::string_view address) const noexcept
     {
         return m_isLiteral ? address == m_text : detail::matchParsed(m_text, address);
@@ -128,9 +115,8 @@ public:
         return m_text;
     }
 
-    /// Whether the pattern contains no '*', '?', '[' or '{', no run of two
-    /// or more slashes and no part longer than `kMaxAddressPartLength`, so
-    /// that it matches only an address equal to its text.
+    /// Whether the pattern holds no wildcard, class, brace list or "//", so
+    /// that it matches only the address equal to its text.
     constexpr bool isLiteral() const noexcept
     {
         return m_isLiteral;
@@ -198,9 +184,8 @@ constexpr ParseResult Pattern::parse(std::string_view text) noexcept
     return fault.has_value() ? ParseResult(*fault) : ParseResult(Pattern(text));
 }
 
-/// Parses `pattern` and tests it against `address`, as `Pattern::parse`
-/// followed by `Pattern::matches`. A malformed pattern matches nothing; use
-/// `Pattern::parse` to learn why.
+/// `Pattern::parse` followed by `Pattern::matches`; a malformed pattern
+/// matches nothing.
 constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
     const ParseResult parsed = Pattern::parse(pattern);
