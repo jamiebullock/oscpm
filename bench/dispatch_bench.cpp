@@ -11,9 +11,11 @@
 #include <oscpm/oscpm.h>
 
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace oscpm_bench
@@ -24,24 +26,50 @@ namespace
 
     using MemoisedSpace = oscpm::AddressSpace<int>;
     using UnmemoisedSpace = oscpm::AddressSpace<int, false>;
+    using Handler = std::function<void(int)>;
+    using HandlerSpace = oscpm::AddressSpace<Handler>;
+
+    constexpr int kArgument = 440;
 
     constexpr std::size_t kModestAdversarialLength = 256;
+
+    void receive(int argument)
+    {
+        benchmark::DoNotOptimize(argument);
+    }
 
     template <typename AddressSpace>
     void fill(AddressSpace& addressSpace, const Space& space)
     {
         for (const std::string& address : space.addresses)
         {
-            addressSpace.add(address, 0);
+            if constexpr (std::is_same_v<AddressSpace, HandlerSpace>)
+            {
+                addressSpace.add(address, Handler(receive));
+            }
+            else
+            {
+                addressSpace.add(address, 0);
+            }
         }
+    }
+
+    void visit(int& value)
+    {
+        benchmark::DoNotOptimize(value);
+    }
+
+    void visit(Handler& handler)
+    {
+        handler(kArgument);
     }
 
     template <typename AddressSpace>
     oscpm::DispatchResult dispatchOnce(AddressSpace& addressSpace, std::string_view pattern)
     {
         benchmark::DoNotOptimize(pattern);
-        return addressSpace.dispatch(pattern, [](std::string_view, int& value)
-            { benchmark::DoNotOptimize(value); });
+        return addressSpace.dispatch(pattern, [](std::string_view, auto& value)
+            { visit(value); });
     }
 
     bool expectMatches(benchmark::State& state, const oscpm::DispatchResult& result, std::size_t numExpected)
@@ -138,6 +166,7 @@ namespace
             const std::size_t numExpected = pattern.numMatches[space.index];
             benchmark::RegisterBenchmark(nameFor("repeat", pattern.id, space), dispatchRepeatedly<MemoisedSpace>, &space, std::string(pattern.text), numExpected);
             benchmark::RegisterBenchmark(nameFor("cold", pattern.id, space), dispatchRepeatedly<UnmemoisedSpace>, &space, std::string(pattern.text), numExpected);
+            benchmark::RegisterBenchmark(nameFor("handler", pattern.id, space), dispatchRepeatedly<HandlerSpace>, &space, std::string(pattern.text), numExpected);
         }
         benchmark::RegisterBenchmark(std::string("Dispatch/stream/") + space.name, dispatchStream, &space);
         for (const std::size_t length : { kModestAdversarialLength, oscpm::kMaxPatternLength })
