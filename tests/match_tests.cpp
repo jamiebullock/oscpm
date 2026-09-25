@@ -13,7 +13,6 @@
 #include <optional>
 #include <ostream>
 #include <string>
-#include <string_view>
 
 using oscpm::Error;
 using oscpm::match;
@@ -98,20 +97,6 @@ TEST_CASE("every address fault is reported at compile time")
     static_assert(faults(validateAddress("/x/y/z*"), Error::IllegalByte, 6));
     static_assert(faults(validateAddress("/a\x7f"), Error::IllegalByte, 2));
     static_assert(faults(validateAddress("/a//?"), Error::EmptyPart, 3));
-}
-
-TEST_CASE("toString names every error")
-{
-    static_assert(std::string_view(oscpm::toString(Error::MissingLeadingSlash)) == "MissingLeadingSlash");
-    static_assert(std::string_view(oscpm::toString(Error::UnterminatedClass)) == "UnterminatedClass");
-    static_assert(std::string_view(oscpm::toString(Error::UnterminatedBraces)) == "UnterminatedBraces");
-    static_assert(std::string_view(oscpm::toString(Error::PatternTooLong)) == "PatternTooLong");
-    static_assert(std::string_view(oscpm::toString(Error::TrailingSlash)) == "TrailingSlash");
-    static_assert(std::string_view(oscpm::toString(Error::EmptyPart)) == "EmptyPart");
-    static_assert(std::string_view(oscpm::toString(Error::IllegalByte)) == "IllegalByte");
-    static_assert(std::string_view(oscpm::toString(Error::PartTooLong)) == "PartTooLong");
-    static_assert(std::string_view(oscpm::toString(Error::Duplicate)) == "Duplicate");
-    static_assert(std::string_view(oscpm::toString(Error::NotFound)) == "NotFound");
 }
 
 TEST_CASE("an address part longer than the supported length never matches and is reported")

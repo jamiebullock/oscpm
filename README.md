@@ -40,10 +40,14 @@ The tests and example are built by default only when oscpm is the top-level
 project, and the fuzz target and benchmarks only on request, so a consumer
 compiles nothing unless it turns them on.
 
+`oscpm/pattern.h` holds the matcher, `oscpm/address_space.h` the dispatcher
+and `oscpm/error.h` the faults both report; `oscpm/oscpm.h` includes all
+three. Nothing under `oscpm/detail/` is public API.
+
 ## Matching
 
 ```cpp
-#include <oscpm/oscpm.h>
+#include <oscpm/pattern.h>
 
 oscpm::match("/synth/*/freq", "/synth/1/freq"); // true
 oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true
@@ -89,7 +93,7 @@ oscpm::validateAddress("/synth/1/"); // TrailingSlash at 8
 A pattern is rejected only for a missing leading `/` or a `[` or `{` left
 unclosed within its part; an address for any breach of the OSC address
 rules. `match` never validates the address, which is compared byte for byte.
-The header documents each fault and `isLiteral`.
+`oscpm/pattern.h` documents each fault and `isLiteral`.
 
 ## Address space
 
