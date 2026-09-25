@@ -5,9 +5,7 @@
 
 cmake_minimum_required(VERSION 3.25)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
-include(ProjectVersion)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ProjectVersion.cmake")
 project(oscpm VERSION ${OSCPM_VERSION} LANGUAGES CXX)
 
 add_library(oscpm INTERFACE)
@@ -54,7 +52,7 @@ option(OSCPM_BUILD_FUZZERS "Build the libFuzzer target under sanitizers; needs a
 option(OSCPM_SANITIZE "Build the tests under AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
 if(OSCPM_CHECK_FORMAT)
-    include(CheckFormat)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckFormat.cmake")
     file(GLOB_RECURSE OSCPM_FORMATTED_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.h
