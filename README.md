@@ -133,7 +133,9 @@ method in bytewise address order; `forEach` visits them all. A visitor may
 call `lookup` and `dispatch` on the space that called it, but must not add
 or remove methods. `AddressSpace<T, Memo, CacheBits, InlineResults>`
 memoises a lookup's result until the next `add` or `remove`; `Memo = false`
-turns the memo off, and `CacheBits` and `InlineResults` size it. An address space
+turns the memo off, and `CacheBits` and `InlineResults` size it. A pattern
+longer than `kMaxMemoPatternLength` or a result larger than `InlineResults`
+is delivered in full but not memoised. An address space
 is not safe to use from several threads at once.
 
 `examples/dispatch.cpp` puts the two together with oscpp: it builds a bundle
@@ -188,7 +190,8 @@ one hash lookup (the address index for a literal address, the memo for a
 pattern) plus one visitor call per matched method. A literal address costs
 the same lookup the first time. The first dispatch of any other pattern tests
 every registered method, so it grows with the size of the space; its result
-is memoised until the next `add` or `remove`. The default memo takes about
+is memoised until the next `add` or `remove`, within the memo's limits. The
+default memo takes about
 1.1 MiB, allocated when the space is constructed; `AddressSpace<T, true, 6, 64>`,
 which keeps 64 patterns of up to 64 methods, about 34 KiB; `AddressSpace<T, false>`
 has none. The cost of a hostile pattern is bounded by `kMaxPatternLength` and grows with the number

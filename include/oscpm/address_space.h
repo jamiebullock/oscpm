@@ -44,7 +44,7 @@ struct DispatchResult
 /// else does. Not safe for concurrent use.
 /// @tparam Memo whether a lookup's result is kept until the next `add` or `remove`
 /// @tparam CacheBits the memo holds `1 << CacheBits` patterns of up to `kMaxMemoPatternLength` bytes
-/// @tparam InlineResults the most methods a memoised result holds
+/// @tparam InlineResults the most methods a memoised result holds; a lookup beyond either limit is delivered in full but not kept
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
 {
