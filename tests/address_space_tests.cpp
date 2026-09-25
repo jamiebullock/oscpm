@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -21,6 +22,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -550,6 +552,42 @@ TEST_CASE("a move-only value type is stored and reached through lookup")
     space.forEach([&](std::string_view, const std::unique_ptr<int>& value)
         { sum += *value; });
     CHECK(sum == 30);
+}
+
+TEST_CASE("a space of handlers dispatches to every matching handler without allocating")
+{
+    using Handler = std::function<void(int)>;
+    static_assert(std::is_nothrow_move_constructible_v<Handler> && std::is_nothrow_move_assignable_v<Handler>);
+    AddressSpace<Handler> handlers;
+    std::vector<std::pair<std::string_view, int>> calls;
+    for (const char* address : { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp" })
+    {
+        REQUIRE_FALSE(handlers.add(address, [&calls, address](int argument)
+                                  { calls.emplace_back(address, argument); })
+                .has_value());
+    }
+    calls.reserve(8);
+    const auto pass = [](std::string_view, Handler& handler)
+    { handler(440); };
+    const auto passConst = [](std::string_view, const Handler& handler)
+    { handler(220); };
+
+    const std::size_t before = oscpm_test::allocationCount();
+    const oscpm::DispatchResult wildcard = handlers.dispatch("/synth/*/freq", pass);
+    const oscpm::DispatchResult literal = handlers.dispatch("/synth/2/amp", pass);
+    const oscpm::DispatchResult absent = handlers.dispatch("/synth/3/freq", pass);
+    const oscpm::DispatchResult viaConst = std::as_const(handlers).dispatch("/synth/2/*", passConst);
+    const std::size_t after = oscpm_test::allocationCount();
+
+    CHECK(after == before);
+    CHECK(wildcard.matched == 2);
+    CHECK(literal.matched == 1);
+    CHECK(absent.matched == 0);
+    CHECK(viaConst.matched == 2);
+    const std::vector<std::pair<std::string_view, int>> expected {
+        { "/synth/1/freq", 440 }, { "/synth/2/freq", 440 }, { "/synth/2/amp", 440 }, { "/synth/2/amp", 220 }, { "/synth/2/freq", 220 }
+    };
+    CHECK(calls == expected);
 }
 
 TEST_CASE("lookup and forEach allocate nothing")
