@@ -103,6 +103,10 @@ well-formed address with a value, that an incoming pattern is fanned out to.
 ```cpp
 #include <oscpm/address_space.h>
 
+#include <oscpp/server.hpp>
+
+#include <functional>
+
 using Handler = std::function<void(const OSCPP::Server::Message&)>;
 
 oscpm::AddressSpace<Handler> methods;
