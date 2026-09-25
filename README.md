@@ -103,6 +103,8 @@ well-formed address with a value, that an incoming pattern is fanned out to.
 ```cpp
 #include <oscpm/address_space.h>
 
+using Handler = std::function<void(const OSCPP::Server::Message&)>;
+
 oscpm::AddressSpace<Handler> methods;
 methods.add("/synth/1/freq", setFrequency); // Duplicate or a validateAddress fault
 methods.remove("/synth/1/freq");            // NotFound or a validateAddress fault
@@ -114,6 +116,13 @@ if (result.error)
     result.error->kind; // the pattern did not parse and nothing was visited
 }
 ```
+
+A space of handlers is the dispatch table keyed by address that oscpp's
+README suggests, extended to patterns. The space stores a `T` of the
+caller's choosing and knows nothing of what a handler takes, so the visitor
+passes the message through. `T` need not be callable: `examples/dispatch.cpp`
+stores a `Parameter` struct and its visitor writes each message's argument
+into the matching parameters.
 
 `dispatch` is `Pattern::parse` followed by `lookup`, returning the number of
 methods visited and the parse fault together; `lookup` takes an already
