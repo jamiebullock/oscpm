@@ -36,9 +36,46 @@ public:
     {
     }
 
+    MethodTable(const MethodTable& other)
+        : m_methods(other.m_methods)
+        , m_partEnds(other.m_partEnds)
+        , m_index(other.m_index)
+        , m_memo(other.m_memo)
+    {
+    }
+
+    MethodTable(MethodTable&& other) noexcept(kTableMovesCannotThrow)
+        : m_methods(std::move(notVisited(other).m_methods))
+        , m_partEnds(std::move(other.m_partEnds))
+        , m_index(std::move(other.m_index))
+        , m_memo(std::move(other.m_memo))
+    {
+    }
+
+    MethodTable& operator=(const MethodTable& other)
+    {
+        assert(m_numOpenVisits == 0 && "an AddressSpace must not be assigned to during a visit");
+        m_methods = other.m_methods;
+        m_partEnds = other.m_partEnds;
+        m_index = other.m_index;
+        m_memo = other.m_memo;
+        return *this;
+    }
+
+    MethodTable& operator=(MethodTable&& other) noexcept(kTableMovesCannotThrow)
+    {
+        assert(m_numOpenVisits == 0 && "an AddressSpace must not be assigned to during a visit");
+        notVisited(other);
+        m_methods = std::move(other.m_methods);
+        m_partEnds = std::move(other.m_partEnds);
+        m_index = std::move(other.m_index);
+        m_memo = std::move(other.m_memo);
+        return *this;
+    }
+
     bool insert(std::string_view address, T value)
     {
-        assert(m_numOpenVisits.value == 0 && "a visitor must not add or remove methods on the space that called it");
+        assert(m_numOpenVisits == 0 && "a visitor must not add or remove methods on the space that called it");
         const auto position = lowerBound(m_methods, address);
         if (position != m_methods.end() && position->address == address)
         {
@@ -67,7 +104,7 @@ public:
 
     bool erase(std::string_view address)
     {
-        assert(m_numOpenVisits.value == 0 && "a visitor must not add or remove methods on the space that called it");
+        assert(m_numOpenVisits == 0 && "a visitor must not add or remove methods on the space that called it");
         const auto position = lowerBound(m_methods, address);
         if (position == m_methods.end() || position->address != address)
         {
@@ -144,62 +181,41 @@ private:
         T value;
     };
 
-    class VisitCount
-    {
-    public:
-        VisitCount() noexcept = default;
-
-        VisitCount(const VisitCount&) noexcept
-        {
-        }
-
-        VisitCount(VisitCount&&) noexcept
-        {
-        }
-
-        VisitCount& operator=(const VisitCount&) noexcept
-        {
-            assert(value == 0 && "an AddressSpace must not be assigned to during a visit");
-            return *this;
-        }
-
-        VisitCount& operator=(VisitCount&&) noexcept
-        {
-            assert(value == 0 && "an AddressSpace must not be assigned to during a visit");
-            return *this;
-        }
-
-        std::size_t value = 0;
-    };
-
     class OpenVisit
     {
     public:
 #ifdef NDEBUG
-        explicit OpenVisit(VisitCount&) noexcept
+        explicit OpenVisit(std::size_t&) noexcept
         {
         }
 #else
-        explicit OpenVisit(VisitCount& count) noexcept
-            : m_count(count)
+        explicit OpenVisit(std::size_t& numOpenVisits) noexcept
+            : m_numOpenVisits(numOpenVisits)
         {
-            ++m_count.value;
+            ++m_numOpenVisits;
         }
 
         ~OpenVisit()
         {
-            --m_count.value;
+            --m_numOpenVisits;
         }
 
         OpenVisit(const OpenVisit&) = delete;
         OpenVisit& operator=(const OpenVisit&) = delete;
 
     private:
-        VisitCount& m_count;
+        std::size_t& m_numOpenVisits;
 #endif
     };
 
+    static MethodTable& notVisited([[maybe_unused]] MethodTable& other) noexcept
+    {
+        assert(other.m_numOpenVisits == 0 && "an AddressSpace must not be moved from during a visit");
+        return other;
+    }
+
     static constexpr bool kMethodMovesCannotThrow = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
+    static constexpr bool kTableMovesCannotThrow = std::is_nothrow_move_constructible_v<std::vector<Method>> && std::is_nothrow_move_constructible_v<AddressIndex> && std::is_nothrow_move_constructible_v<MemoTable>;
 
     template <typename Methods>
     static auto lowerBound(Methods& methods, std::string_view address)
@@ -314,7 +330,7 @@ private:
     std::vector<std::vector<std::size_t>> m_partEnds;
     AddressIndex m_index;
     mutable MemoTable m_memo;
-    mutable VisitCount m_numOpenVisits;
+    mutable std::size_t m_numOpenVisits = 0;
 };
 
 }

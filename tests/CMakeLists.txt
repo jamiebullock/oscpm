@@ -68,3 +68,6 @@ set_tests_properties("a visitor that removes a method trips an assertion in a bu
 add_test(NAME "a visitor that assigns to the space trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule assign)
 set_tests_properties("a visitor that assigns to the space trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must not be assigned to during a visit|assertions are compiled out")
+add_test(NAME "a visitor that moves from the space trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule move)
+set_tests_properties("a visitor that moves from the space trips an assertion in a build without NDEBUG" PROPERTIES
+    PASS_REGULAR_EXPRESSION "must not be moved from during a visit|assertions are compiled out")

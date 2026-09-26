@@ -36,6 +36,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
     return 0;
 #else
     const bool assign = argc > 1 && std::strcmp(argv[1], "assign") == 0;
+    const bool moveFrom = argc > 1 && std::strcmp(argv[1], "move") == 0;
 #ifdef _MSC_VER
     _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
     _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
@@ -44,6 +45,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv)
     std::signal(SIGABRT, exitAfterAssertion);
     oscpm::AddressSpace<int> space;
     space.add("/a", 1);
+    if (moveFrom)
+    {
+        space.dispatch("/a", [&](std::string_view, int&)
+            {
+                const oscpm::AddressSpace<int> taken(std::move(space));
+                std::printf("the visitor moved from the space, which now holds %zu methods, and nothing asserted\n", taken.size()); });
+        return 1;
+    }
     if (assign)
     {
         oscpm::AddressSpace<int> other;
