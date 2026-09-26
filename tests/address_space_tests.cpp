@@ -8,6 +8,8 @@
 #include "corpus.h"
 
 #include <oscpm/address_space.h>
+#include <oscpm/detail/address_index.h>
+#include <oscpm/detail/dispatch_memo.h>
 
 #include <doctest/doctest.h>
 
@@ -537,6 +539,35 @@ TEST_CASE("a space copied or moved during a visit starts outside any visit")
     CHECK(copied == Addresses { "/a/1", "/b" });
     CHECK(moved == Addresses { "/a/1", "/b", "/c" });
     CHECK(allAddresses(space) == Addresses { "/a/1", "/a/2" });
+}
+
+TEST_CASE("a memo copied while it is being read accepts a new result afterwards")
+{
+    using Memo = oscpm::detail::DispatchMemo<0, 4, 64>;
+    struct Method
+    {
+        std::string address;
+        int value;
+    };
+    std::vector<Method> methods { { "/a", 1 }, { "/b", 2 } };
+    Memo memo(true);
+    const Memo::Results first { 0 };
+    memo.store("/a", oscpm::detail::hashOf("/a"), first, 1);
+
+    std::optional<Memo> copy;
+    std::size_t numVisited = 0;
+    const auto copyWhileReading = [&](std::string_view, int&)
+    { copy.emplace(memo); };
+    REQUIRE(memo.visit("/a", oscpm::detail::hashOf("/a"), methods, copyWhileReading, numVisited));
+    REQUIRE(copy.has_value());
+
+    const Memo::Results second { 1 };
+    copy->store("/b", oscpm::detail::hashOf("/b"), second, 1);
+    Addresses served;
+    const auto record = [&](std::string_view address, int&)
+    { served.emplace_back(address); };
+    CHECK(copy->visit("/b", oscpm::detail::hashOf("/b"), methods, record, numVisited));
+    CHECK(served == Addresses { "/b" });
 }
 
 TEST_CASE("a moved address space keeps its methods and the moved-from one stays usable")

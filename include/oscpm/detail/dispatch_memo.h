@@ -31,6 +31,25 @@ public:
     {
     }
 
+    DispatchMemo(const DispatchMemo& other)
+        : m_buckets(other.m_buckets)
+        , m_generation(other.m_generation)
+    {
+        forgetReaders();
+    }
+
+    DispatchMemo(DispatchMemo&&) noexcept = default;
+
+    DispatchMemo& operator=(const DispatchMemo& other)
+    {
+        m_buckets = other.m_buckets;
+        m_generation = other.m_generation;
+        forgetReaders();
+        return *this;
+    }
+
+    DispatchMemo& operator=(DispatchMemo&&) noexcept = default;
+
     bool accepts(std::string_view text) const noexcept
     {
         return !m_buckets.empty() && text.size() <= MaxPatternLength;
@@ -116,6 +135,14 @@ private:
     Bucket& bucketFor(std::size_t hash) noexcept
     {
         return m_buckets[hash & (kNumBuckets - 1)];
+    }
+
+    void forgetReaders() noexcept
+    {
+        for (Bucket& bucket : m_buckets)
+        {
+            bucket.numReaders = 0;
+        }
     }
 
     static bool holds(const Bucket& bucket, std::string_view text) noexcept
