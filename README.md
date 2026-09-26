@@ -133,15 +133,17 @@ method in bytewise address order; `forEach` visits them all. A visitor may
 call `lookup` and `dispatch` on the space that called it, but must not add
 or remove methods, and a build without `NDEBUG` asserts when one does. To
 change the space in response to a message, collect the changes while
-visiting and apply them once the call has returned:
+visiting and apply them once the call has returned. Here a message to
+`/synth/*/free` releases every voice it names:
 
 ```cpp
-std::vector<std::string> finished;
+std::vector<std::string> released;
 methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
     {
-        if (!handler(message)) finished.emplace_back(address);
+        handler(message);
+        released.emplace_back(address);
     });
-for (const std::string& address : finished)
+for (const std::string& address : released)
 {
     methods.remove(address);
 }
