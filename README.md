@@ -130,8 +130,27 @@ visitor writes each message's argument into.
 methods visited and the parse fault together; `lookup` takes an already
 parsed `Pattern` for a pattern that is reused. Both visit every matching
 method in bytewise address order; `forEach` visits them all. A visitor may
-call `lookup` and `dispatch` on the space that called it, but must not add
-or remove methods. `AddressSpace<T, Memo, CacheBits, InlineResults>`
+call `lookup` and `dispatch` on the space that called it, and copy it, but
+must not add or remove methods, move from it or assign to it, and a build
+without `NDEBUG` asserts when one does. To
+change the space in response to a message, collect the changes while
+visiting and apply them once the call has returned. Here a message to
+`/synth/*/free` releases every voice it names:
+
+```cpp
+std::vector<std::string> released;
+methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
+    {
+        handler(message);
+        released.emplace_back(address);
+    });
+for (const std::string& address : released)
+{
+    methods.remove(address);
+}
+```
+
+`AddressSpace<T, Memo, CacheBits, InlineResults>`
 memoises a lookup's result until the next `add` or `remove`; `Memo = false`
 turns the memo off, and `CacheBits` and `InlineResults` size it. A pattern
 longer than `kMaxMemoPatternLength` or a result larger than `InlineResults`

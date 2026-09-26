@@ -33,6 +33,10 @@ jobs:
             os: ubuntu-latest
             preset: release
             configure_args: -DCMAKE_CXX_COMPILER=clang++
+          - name: Linux (GCC, Debug)
+            os: ubuntu-latest
+            preset: debug
+            configure_args: -DCMAKE_CXX_COMPILER=g++
           - name: macOS
             os: macos-latest
             preset: release
@@ -117,7 +121,7 @@ jobs:
 
       # Naming the fuzz target fails the build if the libFuzzer probe skipped it.
       - name: Build the tests, the example and the fuzz target
-        run: cmake --build --preset release --target oscpm_tests oscpm_dispatch oscpm_pattern_fuzz
+        run: cmake --build --preset release --target oscpm_tests oscpm_visitor_rule oscpm_dispatch oscpm_pattern_fuzz
 
       - name: Run the tests under the sanitizers and every seed once
         run: ctest --preset release
