@@ -130,8 +130,9 @@ visitor writes each message's argument into.
 methods visited and the parse fault together; `lookup` takes an already
 parsed `Pattern` for a pattern that is reused. Both visit every matching
 method in bytewise address order; `forEach` visits them all. A visitor may
-call `lookup` and `dispatch` on the space that called it, but must not add
-or remove methods, and a build without `NDEBUG` asserts when one does. To
+call `lookup` and `dispatch` on the space that called it, and copy or move
+it, but must not add or remove methods or assign to it, and a build without
+`NDEBUG` asserts when one does. To
 change the space in response to a message, collect the changes while
 visiting and apply them once the call has returned. Here a message to
 `/synth/*/free` releases every voice it names:

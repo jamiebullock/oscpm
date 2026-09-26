@@ -38,7 +38,7 @@ public:
 
     bool insert(std::string_view address, T value)
     {
-        assert(m_numOpenVisits == 0 && "a visitor must not add or remove methods on the space that called it");
+        assert(m_numOpenVisits.value == 0 && "a visitor must not add or remove methods on the space that called it");
         const auto position = lowerBound(m_methods, address);
         if (position != m_methods.end() && position->address == address)
         {
@@ -67,7 +67,7 @@ public:
 
     bool erase(std::string_view address)
     {
-        assert(m_numOpenVisits == 0 && "a visitor must not add or remove methods on the space that called it");
+        assert(m_numOpenVisits.value == 0 && "a visitor must not add or remove methods on the space that called it");
         const auto position = lowerBound(m_methods, address);
         if (position == m_methods.end() || position->address != address)
         {
@@ -144,30 +144,58 @@ private:
         T value;
     };
 
+    class VisitCount
+    {
+    public:
+        VisitCount() noexcept = default;
+
+        VisitCount(const VisitCount&) noexcept
+        {
+        }
+
+        VisitCount(VisitCount&&) noexcept
+        {
+        }
+
+        VisitCount& operator=(const VisitCount&) noexcept
+        {
+            assert(value == 0 && "an AddressSpace must not be assigned to during a visit");
+            return *this;
+        }
+
+        VisitCount& operator=(VisitCount&&) noexcept
+        {
+            assert(value == 0 && "an AddressSpace must not be assigned to during a visit");
+            return *this;
+        }
+
+        std::size_t value = 0;
+    };
+
     class OpenVisit
     {
     public:
 #ifdef NDEBUG
-        explicit OpenVisit(std::size_t&) noexcept
+        explicit OpenVisit(VisitCount&) noexcept
         {
         }
 #else
-        explicit OpenVisit(std::size_t& numOpenVisits) noexcept
-            : m_numOpenVisits(numOpenVisits)
+        explicit OpenVisit(VisitCount& count) noexcept
+            : m_count(count)
         {
-            ++m_numOpenVisits;
+            ++m_count.value;
         }
 
         ~OpenVisit()
         {
-            --m_numOpenVisits;
+            --m_count.value;
         }
 
         OpenVisit(const OpenVisit&) = delete;
         OpenVisit& operator=(const OpenVisit&) = delete;
 
     private:
-        std::size_t& m_numOpenVisits;
+        VisitCount& m_count;
 #endif
     };
 
@@ -286,7 +314,7 @@ private:
     std::vector<std::vector<std::size_t>> m_partEnds;
     AddressIndex m_index;
     mutable MemoTable m_memo;
-    mutable std::size_t m_numOpenVisits = 0;
+    mutable VisitCount m_numOpenVisits;
 };
 
 }

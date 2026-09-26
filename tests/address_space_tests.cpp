@@ -519,6 +519,26 @@ TEST_CASE("a copied address space and a moved-from one dispatch correctly")
     CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { });
 }
 
+TEST_CASE("a space copied or moved during a visit starts outside any visit")
+{
+    AddressSpace<int> space;
+    populate(space, { "/a/1", "/a/2" });
+    Addresses copied;
+    Addresses moved;
+    space.dispatch("/a/1", [&](std::string_view, int&)
+        {
+            AddressSpace<int> copy(space);
+            REQUIRE_FALSE(copy.add("/b", 0).has_value());
+            REQUIRE_FALSE(copy.remove("/a/2").has_value());
+            copied = allAddresses(copy);
+            AddressSpace<int> taken(std::move(copy));
+            REQUIRE_FALSE(taken.add("/c", 0).has_value());
+            moved = allAddresses(taken); });
+    CHECK(copied == Addresses { "/a/1", "/b" });
+    CHECK(moved == Addresses { "/a/1", "/b", "/c" });
+    CHECK(allAddresses(space) == Addresses { "/a/1", "/a/2" });
+}
+
 TEST_CASE("a moved address space keeps its methods and the moved-from one stays usable")
 {
     AddressSpace<int> source;
