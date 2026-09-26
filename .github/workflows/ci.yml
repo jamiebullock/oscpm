@@ -33,6 +33,10 @@ jobs:
             os: ubuntu-latest
             preset: release
             configure_args: -DCMAKE_CXX_COMPILER=clang++
+          - name: Linux (GCC, Debug)
+            os: ubuntu-latest
+            preset: debug
+            configure_args: -DCMAKE_CXX_COMPILER=g++
           - name: macOS
             os: macos-latest
             preset: release

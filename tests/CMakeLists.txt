@@ -55,3 +55,13 @@ add_test(NAME "oscpm builds as a subproject of a project with a CMake module of 
         --build-config $<CONFIG>
         --build-options -DOSCPM_SOURCE_DIR=${PROJECT_SOURCE_DIR} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         --test-command oscpm_consumer)
+
+add_executable(oscpm_visitor_rule visitor_rule.cpp)
+target_link_libraries(oscpm_visitor_rule PRIVATE oscpm::oscpm)
+target_compile_options(oscpm_visitor_rule PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
+)
+add_test(NAME "a visitor that removes a method trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule)
+set_tests_properties("a visitor that removes a method trips an assertion in a build without NDEBUG" PROPERTIES
+    PASS_REGULAR_EXPRESSION "must not add or remove methods|assertions are compiled out")

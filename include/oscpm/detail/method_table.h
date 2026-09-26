@@ -14,6 +14,7 @@
 #include <oscpm/pattern.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -37,6 +38,7 @@ public:
 
     bool insert(std::string_view address, T value)
     {
+        assert(m_numOpenVisits == 0 && "a visitor must not add or remove methods on the space that called it");
         const auto position = lowerBound(m_methods, address);
         if (position != m_methods.end() && position->address == address)
         {
@@ -65,6 +67,7 @@ public:
 
     bool erase(std::string_view address)
     {
+        assert(m_numOpenVisits == 0 && "a visitor must not add or remove methods on the space that called it");
         const auto position = lowerBound(m_methods, address);
         if (position == m_methods.end() || position->address != address)
         {
@@ -84,30 +87,35 @@ public:
     template <typename Visitor>
     std::size_t lookup(const Pattern& pattern, Visitor& visitor)
     {
+        [[maybe_unused]] const OpenVisit open(m_numOpenVisits);
         return lookupIn(*this, pattern, visitor);
     }
 
     template <typename Visitor>
     std::size_t lookup(const Pattern& pattern, Visitor& visitor) const
     {
+        [[maybe_unused]] const OpenVisit open(m_numOpenVisits);
         return lookupIn(*this, pattern, visitor);
     }
 
     template <typename Result, typename Visitor>
     Result dispatch(std::string_view text, Visitor& visitor)
     {
+        [[maybe_unused]] const OpenVisit open(m_numOpenVisits);
         return dispatchIn<Result>(*this, text, visitor);
     }
 
     template <typename Result, typename Visitor>
     Result dispatch(std::string_view text, Visitor& visitor) const
     {
+        [[maybe_unused]] const OpenVisit open(m_numOpenVisits);
         return dispatchIn<Result>(*this, text, visitor);
     }
 
     template <typename Visitor>
     void forEach(Visitor& visitor)
     {
+        [[maybe_unused]] const OpenVisit open(m_numOpenVisits);
         for (Method& method : m_methods)
         {
             visitor(std::string_view(method.address), method.value);
@@ -117,6 +125,7 @@ public:
     template <typename Visitor>
     void forEach(Visitor& visitor) const
     {
+        [[maybe_unused]] const OpenVisit open(m_numOpenVisits);
         for (const Method& method : m_methods)
         {
             visitor(std::string_view(method.address), method.value);
@@ -133,6 +142,33 @@ private:
     {
         std::string address;
         T value;
+    };
+
+    class OpenVisit
+    {
+    public:
+#ifdef NDEBUG
+        explicit OpenVisit(std::size_t&) noexcept
+        {
+        }
+#else
+        explicit OpenVisit(std::size_t& numOpenVisits) noexcept
+            : m_numOpenVisits(numOpenVisits)
+        {
+            ++m_numOpenVisits;
+        }
+
+        ~OpenVisit()
+        {
+            --m_numOpenVisits;
+        }
+
+        OpenVisit(const OpenVisit&) = delete;
+        OpenVisit& operator=(const OpenVisit&) = delete;
+
+    private:
+        std::size_t& m_numOpenVisits;
+#endif
     };
 
     static constexpr bool kMethodMovesCannotThrow = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
@@ -250,6 +286,7 @@ private:
     std::vector<std::vector<std::size_t>> m_partEnds;
     AddressIndex m_index;
     mutable MemoTable m_memo;
+    mutable std::size_t m_numOpenVisits = 0;
 };
 
 }

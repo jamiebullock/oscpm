@@ -1,0 +1,49 @@
+/* Part of oscpm
+ *
+ * SPDX-FileCopyrightText: 2026 Jamie Bullock
+ * SPDX-License-Identifier: Zlib
+ */
+
+#include <oscpm/address_space.h>
+
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
+#include <string_view>
+
+#ifdef _MSC_VER
+#include <crtdbg.h>
+#endif
+
+namespace
+{
+
+// The assertion has written its message by the time abort() raises SIGABRT,
+// so exiting normally here leaves that message as the whole of the output.
+extern "C" void exitAfterAssertion(int)
+{
+    std::_Exit(0);
+}
+
+}
+
+int main()
+{
+#ifdef NDEBUG
+    std::puts("assertions are compiled out of this build, so the visitor rule is not checked");
+    return 0;
+#else
+#ifdef _MSC_VER
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+#endif
+    std::signal(SIGABRT, exitAfterAssertion);
+    oscpm::AddressSpace<int> space;
+    space.add("/a", 1);
+    space.dispatch("/a", [&](std::string_view address, int&)
+        { space.remove(address); });
+    std::puts("the visitor removed a method and nothing asserted");
+    return 1;
+#endif
+}

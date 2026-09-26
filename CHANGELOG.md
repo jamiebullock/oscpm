@@ -5,6 +5,7 @@
 ### Added
 
 - `oscpm/pattern.h`, holding `Pattern`, `ParseResult`, `match`, `validatePattern` and `validateAddress`, and `oscpm/error.h`, holding `Error`, `ParseError`, `toString`, `kMaxAddressPartLength` and `kMaxPatternLength`. Including `oscpm/pattern.h` gives the matcher without `AddressSpace` or the standard containers it uses.
+- A build without `NDEBUG` asserts when a visitor adds or removes a method on the `AddressSpace` that called it. A release build is unchanged.
 
 ### Changed
 

@@ -71,7 +71,7 @@ public:
     /// Calls `visitor(std::string_view address, T& value)` for every method
     /// `pattern` matches, in bytewise address order, and returns how many.
     /// The visitor may look up or dispatch on this space but must not add or
-    /// remove methods.
+    /// remove methods; a build without `NDEBUG` asserts when it does.
     template <typename Visitor>
     std::size_t lookup(const Pattern& pattern, Visitor&& visitor)
     {
