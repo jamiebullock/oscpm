@@ -55,6 +55,10 @@ public:
     MethodTable& operator=(const MethodTable& other)
     {
         assert(m_numOpenVisits == 0 && "an AddressSpace must not be assigned to during a visit");
+        if (this == &other)
+        {
+            return *this;
+        }
         m_methods = other.m_methods;
         m_partEnds = other.m_partEnds;
         m_index = other.m_index;
@@ -66,6 +70,10 @@ public:
     {
         assert(m_numOpenVisits == 0 && "an AddressSpace must not be assigned to during a visit");
         notVisited(other);
+        if (this == &other)
+        {
+            return *this;
+        }
         m_methods = std::move(other.m_methods);
         m_partEnds = std::move(other.m_partEnds);
         m_index = std::move(other.m_index);

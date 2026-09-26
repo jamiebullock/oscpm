@@ -42,6 +42,10 @@ public:
 
     DispatchMemo& operator=(const DispatchMemo& other)
     {
+        if (this == &other)
+        {
+            return *this;
+        }
         m_buckets = other.m_buckets;
         m_generation = other.m_generation;
         forgetReaders();
