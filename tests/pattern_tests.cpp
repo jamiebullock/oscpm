@@ -12,14 +12,12 @@
 
 #include <cstddef>
 #include <new>
-#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <type_traits>
 
 using oscpm::Error;
-using oscpm::ParseError;
 using oscpm::ParseResult;
 using oscpm::Pattern;
 
@@ -35,14 +33,13 @@ static_assert(kWildcard.pattern().matches("/synth/12/amp"));
 static_assert(!kWildcard.pattern().matches("/synth/12/gain"));
 static_assert(kDescendant.pattern().matches("/mixer/bus/3/gain"));
 static_assert(!kUnterminated);
-static_assert(kUnterminated.error().kind == Error::UnterminatedClass);
-static_assert(kUnterminated.error().offset == 7);
+static_assert(kUnterminated.error() == Error::UnterminatedClass);
 static_assert(std::is_trivially_copyable_v<Pattern>);
 static_assert(std::is_trivially_copyable_v<ParseResult>);
 
-constexpr bool faults(const ParseResult& result, Error kind, std::size_t offset)
+constexpr bool faults(const ParseResult& result, Error kind)
 {
-    return !result && result.error().kind == kind && result.error().offset == offset;
+    return !result && result.error() == kind;
 }
 
 }
@@ -54,17 +51,19 @@ TEST_CASE("parse yields a pattern for a well-formed pattern")
     static_assert(Pattern::parse("//"));
     static_assert(Pattern::parse("/a/?/[a-z]/{x,y}"));
     static_assert(Pattern::parse("/{a,{b,c}}"));
+    static_assert(Pattern::parse("/{a,{b,c}}]} #\xc3\xa9"));
     static_assert(Pattern::parse("/a]"));
     static_assert(Pattern::parse("/caf\xc3\xa9"));
 }
 
-TEST_CASE("parse reports the fault validatePattern reports")
+TEST_CASE("parse reports the first fault")
 {
-    static_assert(faults(Pattern::parse(""), Error::MissingLeadingSlash, 0));
-    static_assert(faults(Pattern::parse("a/b"), Error::MissingLeadingSlash, 0));
-    static_assert(faults(Pattern::parse("/a[b"), Error::UnterminatedClass, 2));
-    static_assert(faults(Pattern::parse("/{a,b}{c"), Error::UnterminatedBraces, 6));
-    static_assert(faults(Pattern::parse("/[a{"), Error::UnterminatedClass, 1));
+    static_assert(faults(Pattern::parse(""), Error::MissingLeadingSlash));
+    static_assert(faults(Pattern::parse("a/b"), Error::MissingLeadingSlash));
+    static_assert(faults(Pattern::parse("/a[b"), Error::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/x/[a/b]"), Error::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/{a,b}{c"), Error::UnterminatedBraces));
+    static_assert(faults(Pattern::parse("/[a{"), Error::UnterminatedClass));
 }
 
 TEST_CASE("a pattern keeps a view of the text it was parsed from")
@@ -185,7 +184,7 @@ TEST_CASE("a literal pattern matches only its own text")
     static_assert(!Pattern::parse("/a]").pattern().matches("/a"));
 }
 
-TEST_CASE("parsing matching and validating allocate nothing")
+TEST_CASE("parsing and matching allocate nothing")
 {
     const std::string text = "/a*b*c/[!x]?/{ab,a}b";
     const std::string address = "/aXbYc/y1/abb";
@@ -196,8 +195,6 @@ TEST_CASE("parsing matching and validating allocate nothing")
     const bool matched = parsed.pattern().matches(address);
     const bool convenience = oscpm::match(text, address);
     const ParseResult failed = Pattern::parse(malformed);
-    const std::optional<ParseError> patternFault = oscpm::validatePattern(malformed);
-    const std::optional<ParseError> addressFault = oscpm::validateAddress(address);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);
@@ -205,8 +202,6 @@ TEST_CASE("parsing matching and validating allocate nothing")
     CHECK(matched);
     CHECK(convenience);
     CHECK_FALSE(failed);
-    CHECK(patternFault.has_value());
-    CHECK_FALSE(addressFault.has_value());
 }
 
 TEST_CASE("the allocation counter observes the heap")

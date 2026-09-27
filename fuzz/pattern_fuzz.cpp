@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Zlib
  */
 
+#include <oscpm/address_space.h>
 #include <oscpm/pattern.h>
 
 #include <cstddef>
@@ -23,11 +24,6 @@ void require(bool condition) noexcept
     }
 }
 
-bool pointsInto(const oscpm::ParseError& error, std::string_view text) noexcept
-{
-    return error.offset < text.size() || (text.empty() && error.offset == 0);
-}
-
 bool isNamed(oscpm::Error error) noexcept
 {
     return oscpm::toString(error)[0] != '\0';
@@ -36,21 +32,15 @@ bool isNamed(oscpm::Error error) noexcept
 void checkPattern(std::string_view pattern, std::string_view address)
 {
     const oscpm::ParseResult parsed = oscpm::Pattern::parse(pattern);
-    const std::optional<oscpm::ParseError> fault = oscpm::validatePattern(pattern);
     const bool convenience = oscpm::match(pattern, address);
 
     if (!parsed)
     {
-        require(fault.has_value());
-        require(fault->kind == parsed.error().kind);
-        require(fault->offset == parsed.error().offset);
-        require(pointsInto(parsed.error(), pattern));
-        require(isNamed(parsed.error().kind));
+        require(isNamed(parsed.error()));
         require(!convenience);
         return;
     }
 
-    require(!fault.has_value());
     require(parsed.pattern().text() == pattern);
     const bool byValue = parsed.pattern().matches(address);
     require(byValue == convenience);
@@ -59,13 +49,16 @@ void checkPattern(std::string_view pattern, std::string_view address)
 
 void checkAddress(std::string_view address)
 {
-    const std::optional<oscpm::ParseError> fault = oscpm::validateAddress(address);
+    oscpm::AddressSpace<int, false> space;
+    const std::optional<oscpm::Error> fault = space.add(address, 0);
     if (fault)
     {
-        require(pointsInto(*fault, address));
-        require(isNamed(fault->kind));
+        require(*fault != oscpm::Error::Duplicate);
+        require(isNamed(*fault));
+        require(space.size() == 0);
         return;
     }
+    require(space.size() == 1);
 
     const oscpm::ParseResult self = oscpm::Pattern::parse(address);
     require(static_cast<bool>(self));

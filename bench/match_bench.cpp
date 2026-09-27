@@ -53,25 +53,6 @@ namespace
         }
     }
 
-    void validateAddresses(benchmark::State& state, const Space* space)
-    {
-        for (const std::string& address : space->addresses)
-        {
-            if (oscpm::validateAddress(address))
-            {
-                failBenchmark(state, "malformed address " + address);
-                return;
-            }
-        }
-        for (auto _ : state)
-        {
-            for (const std::string& address : space->addresses)
-            {
-                benchmark::DoNotOptimize(oscpm::validateAddress(address));
-            }
-        }
-    }
-
 }
 
 void registerMatchBenchmarks()
@@ -80,10 +61,6 @@ void registerMatchBenchmarks()
     {
         benchmark::RegisterBenchmark(std::string("Match/prepared/") + pair.id, matchPrepared, &pair);
         benchmark::RegisterBenchmark(std::string("Match/parse/") + pair.id, matchWithParse, &pair);
-    }
-    for (const Space& space : spaces())
-    {
-        benchmark::RegisterBenchmark(std::string("Validate/address/") + space.name, validateAddresses, &space);
     }
 }
 

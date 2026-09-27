@@ -69,31 +69,27 @@ if (const auto result = oscpm::Pattern::parse(text))
 }
 else
 {
-    result.error(); // an Error and a byte offset
+    result.error(); // an Error
 }
 ```
 
 `Pattern::parse` returns a `ParseResult` holding either the pattern or the
-`ParseError` that stopped it parsing. A `Pattern` is a trivially copyable
-view of the bytes it was parsed from, which must outlive every use. `match`
-is `parse` followed by `matches`: a malformed pattern matches nothing, and
-`parse` says why.
-
-`validatePattern` and `validateAddress` report the first fault in their
-input as an `Error` and a byte offset, or nothing when it is well-formed:
+`Error` that stopped it parsing:
 
 ```cpp
-if (const auto fault = oscpm::validatePattern("/synth/[1-3")) // UnterminatedClass at 7
+const auto result = oscpm::Pattern::parse("/synth/[1-3"); // UnterminatedClass
+if (!result)
 {
-    std::printf("%s at %zu\n", oscpm::toString(fault->kind), fault->offset);
+    std::printf("%s\n", oscpm::toString(result.error()));
 }
-oscpm::validateAddress("/synth/1/"); // TrailingSlash at 8
 ```
 
 A pattern is rejected only for a missing leading `/`, a `[` or `{` left
 unclosed within its part, or a wildcard pattern longer than
-`kMaxPatternLength`; an address for any breach of the OSC address rules.
-`match` never validates the address, which is compared byte for byte.
+`kMaxPatternLength`. A `Pattern` is a trivially copyable view of the bytes
+it was parsed from, which must outlive every use. `match` is `parse`
+followed by `matches`: a malformed pattern matches nothing, and `parse` says
+why. Neither validates the address, which is compared byte for byte.
 
 ## Address space
 
@@ -110,17 +106,19 @@ well-formed address with a value, that an incoming pattern is fanned out to.
 using Handler = std::function<void(const OSCPP::Server::Message&)>;
 
 oscpm::AddressSpace<Handler> methods;
-methods.add("/synth/1/freq", setFrequency); // Duplicate or a validateAddress fault
-methods.remove("/synth/1/freq");            // NotFound or a validateAddress fault
+methods.add("/synth/1/freq", setFrequency); // Duplicate, or the fault in the address
+methods.remove("/synth/1/freq");            // NotFound, or the fault in the address
 
 const oscpm::DispatchResult result = methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
     { handler(message); });
 if (result.error)
 {
-    result.error->kind; // the pattern did not parse and nothing was visited
+    *result.error; // the pattern did not parse and nothing was visited
 }
 ```
 
+`add` rejects an address for any breach of the OSC address rules, reporting
+the first fault: `/synth/1/` is a `TrailingSlash`.
 The space stores a `T` of the caller's choosing and knows nothing of what
 a handler takes, so the visitor passes the message through. `T` need not be
 callable: `examples/dispatch.cpp` stores a `Parameter` struct that its
@@ -164,10 +162,9 @@ and filters the incoming addresses through a stored pattern.
 
 ## Guarantees
 
-`match`, `Pattern::parse`, `Pattern::matches`, `validatePattern`,
-`validateAddress`, `AddressSpace::lookup`, `AddressSpace::dispatch` and
-`AddressSpace::forEach`, the last three apart from whatever the visitor they
-call does:
+`match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::lookup`,
+`AddressSpace::dispatch` and `AddressSpace::forEach`, the last three apart
+from whatever the visitor they call does:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
@@ -176,11 +173,11 @@ call does:
   whatever the pattern contains: a part is matched by a reach-set
   simulation, never by backtracking over alternatives, and `//` keeps a
   single backtrack point;
-- are `constexpr` outside the address space, so a fixed pattern is parsed,
-  validated or matched at compile time.
+- are `constexpr` outside the address space, so a fixed pattern is parsed
+  or matched at compile time.
 
 `AddressSpace::add` and `remove` allocate. A libFuzzer target checks the
-matcher, the validators and the pattern value against each other under
+matcher, the pattern value and `AddressSpace::add` against each other under
 AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
 ## Performance

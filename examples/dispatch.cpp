@@ -60,7 +60,7 @@ void dispatch(const OSCPP::Server::Message& message, oscpm::AddressSpace<Paramet
             std::printf("%-26s sets %.*s to %g\n", message.address(), static_cast<int>(method.size()), method.data(), static_cast<double>(value)); });
     if (result.error)
     {
-        std::printf("%-26s rejected: %s at byte %zu\n", message.address(), oscpm::toString(result.error->kind), result.error->offset);
+        std::printf("%-26s rejected: %s\n", message.address(), oscpm::toString(*result.error));
         return;
     }
     if (result.matched == 0)

@@ -10,27 +10,20 @@
 
 #include <chrono>
 #include <cstddef>
-#include <optional>
 #include <ostream>
 #include <string>
 
 using oscpm::Error;
 using oscpm::match;
-using oscpm::ParseError;
-using oscpm::validateAddress;
-using oscpm::validatePattern;
+using oscpm::ParseResult;
+using oscpm::Pattern;
 
 namespace
 {
 
-constexpr bool faults(const std::optional<ParseError>& result, Error kind, std::size_t offset)
+constexpr bool faults(const ParseResult& result, Error kind)
 {
-    return result.has_value() && result->kind == kind && result->offset == offset;
-}
-
-constexpr bool passes(const std::optional<ParseError>& result)
-{
-    return !result.has_value();
+    return !result && result.error() == kind;
 }
 
 template <typename Function>
@@ -73,33 +66,14 @@ TEST_CASE("every pattern construct is matched at compile time")
     static_assert(!match("/a", "a"));
 }
 
-TEST_CASE("every pattern fault is reported at compile time and matches nothing")
+TEST_CASE("a malformed pattern matches nothing")
 {
-    static_assert(passes(validatePattern("/a/?/[a-z]/{x,y}")));
-    static_assert(passes(validatePattern("/{a,{b,c}}]} #\xc3\xa9")));
-    static_assert(faults(validatePattern(""), Error::MissingLeadingSlash, 0));
-    static_assert(faults(validatePattern("a/b"), Error::MissingLeadingSlash, 0));
-    static_assert(faults(validatePattern("/x/[a/b]"), Error::UnterminatedClass, 3));
-    static_assert(faults(validatePattern("/{a,b}{c"), Error::UnterminatedBraces, 6));
-    static_assert(faults(validatePattern("/[a{"), Error::UnterminatedClass, 1));
     static_assert(!match("", ""));
     static_assert(!match("/[a", "/[a"));
     static_assert(!match("/{a/b}", "/a/b"));
 }
 
-TEST_CASE("every address fault is reported at compile time")
-{
-    static_assert(passes(validateAddress("/!\"$%&'()+-.0123456789:;<=>@ABCXYZ\\^_`abcxyz|~")));
-    static_assert(faults(validateAddress(" /a"), Error::MissingLeadingSlash, 0));
-    static_assert(faults(validateAddress("/"), Error::TrailingSlash, 0));
-    static_assert(faults(validateAddress("/a/b/"), Error::TrailingSlash, 4));
-    static_assert(faults(validateAddress("/a///b"), Error::EmptyPart, 3));
-    static_assert(faults(validateAddress("/x/y/z*"), Error::IllegalByte, 6));
-    static_assert(faults(validateAddress("/a\x7f"), Error::IllegalByte, 2));
-    static_assert(faults(validateAddress("/a//?"), Error::EmptyPart, 3));
-}
-
-TEST_CASE("an address part longer than the supported length never matches and is reported")
+TEST_CASE("an address part longer than the supported length never matches")
 {
     const std::string longest(oscpm::kMaxAddressPartLength, 'a');
     const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
@@ -107,9 +81,6 @@ TEST_CASE("an address part longer than the supported length never matches and is
     CHECK(match("/*", "/" + longest));
     CHECK_FALSE(match("/" + tooLong, "/" + tooLong));
     CHECK_FALSE(match("/*", "/" + tooLong));
-    CHECK(passes(validateAddress("/" + longest + "/" + longest)));
-    CHECK(faults(validateAddress("/" + tooLong), Error::PartTooLong, oscpm::kMaxAddressPartLength + 1));
-    CHECK(faults(validateAddress("/a/" + tooLong), Error::PartTooLong, oscpm::kMaxAddressPartLength + 3));
 }
 
 TEST_CASE("a wildcard pattern longer than the supported length is reported and matches nothing")
@@ -117,32 +88,32 @@ TEST_CASE("a wildcard pattern longer than the supported length is reported and m
     const std::string longest = "/*" + std::string(oscpm::kMaxPatternLength - 2, 'a');
     const std::string tooLong = "/*" + std::string(oscpm::kMaxPatternLength - 1, 'a');
     const std::string address = "/" + std::string(oscpm::kMaxPatternLength, 'a');
-    CHECK(passes(validatePattern(longest)));
+    CHECK(Pattern::parse(longest));
     CHECK(match(longest, address));
-    CHECK(faults(validatePattern(tooLong), Error::PatternTooLong, oscpm::kMaxPatternLength));
+    CHECK(faults(Pattern::parse(tooLong), Error::PatternTooLong));
     CHECK_FALSE(match(tooLong, address));
     const std::string many = "/" + std::string(oscpm::kMaxPatternLength, 'a');
     for (const std::string& wildcard : { many + "?", many + "*", many + "[a]", many + "{a}", many + "//a", "//" + many })
     {
         INFO("pattern " << wildcard.substr(wildcard.size() - 4));
-        CHECK(faults(validatePattern(wildcard), Error::PatternTooLong, oscpm::kMaxPatternLength));
+        CHECK(faults(Pattern::parse(wildcard), Error::PatternTooLong));
     }
 }
 
 TEST_CASE("a literal pattern longer than the wildcard limit parses and matches")
 {
     const std::string literal = "/" + std::string(2000, 'a') + "/" + std::string(2000, 'b');
-    CHECK(passes(validatePattern(literal)));
+    CHECK(Pattern::parse(literal));
     CHECK(match(literal, literal));
     CHECK_FALSE(match(literal, literal + "c"));
 }
 
 TEST_CASE("a fault before the length limit is reported ahead of the length")
 {
-    CHECK(faults(validatePattern("/[" + std::string(2000, 'a')), Error::UnterminatedClass, 1));
-    CHECK(faults(validatePattern("/" + std::string(1000, 'a') + "{" + std::string(2000, 'a')), Error::UnterminatedBraces, 1001));
-    CHECK(faults(validatePattern("/" + std::string(1000, 'a') + "[" + std::string(100, 'b') + "]"), Error::PatternTooLong, oscpm::kMaxPatternLength));
-    CHECK(faults(validatePattern("/" + std::string(1100, 'a') + "["), Error::PatternTooLong, oscpm::kMaxPatternLength));
+    CHECK(faults(Pattern::parse("/[" + std::string(2000, 'a')), Error::UnterminatedClass));
+    CHECK(faults(Pattern::parse("/" + std::string(1000, 'a') + "{" + std::string(2000, 'a')), Error::UnterminatedBraces));
+    CHECK(faults(Pattern::parse("/" + std::string(1000, 'a') + "[" + std::string(100, 'b') + "]"), Error::PatternTooLong));
+    CHECK(faults(Pattern::parse("/" + std::string(1100, 'a') + "["), Error::PatternTooLong));
 }
 
 TEST_CASE("every construct matches a part either side of 64 bytes")

@@ -8,6 +8,7 @@
 
 #include <oscpm/detail/dispatch_memo.h>
 #include <oscpm/detail/method_table.h>
+#include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
 #include <oscpm/pattern.h>
 
@@ -28,7 +29,7 @@ constexpr std::size_t kMaxMemoPatternLength = 256;
 struct DispatchResult
 {
     std::size_t matched;
-    std::optional<ParseError> error;
+    std::optional<Error> error;
 };
 
 /// A set of methods, each a well-formed address with a value of type `T`,
@@ -46,24 +47,24 @@ public:
     {
     }
 
-    /// Registers `value` under `address`. Fails with the `validateAddress`
-    /// fault, or `Duplicate` when the address is already registered.
+    /// Registers `value` under `address`. Fails with the first fault in the
+    /// address, or `Duplicate` when the address is already registered.
     std::optional<Error> add(std::string_view address, T value)
     {
-        if (const std::optional<ParseError> fault = validateAddress(address))
+        if (const std::optional<Error> fault = detail::validateAddress(address))
         {
-            return fault->kind;
+            return fault;
         }
         return m_table.insert(address, std::move(value)) ? std::nullopt : std::optional<Error>(Error::Duplicate);
     }
 
-    /// Unregisters `address`. Fails with the `validateAddress` fault, or
+    /// Unregisters `address`. Fails with the first fault in the address, or
     /// `NotFound` when the address is not registered.
     std::optional<Error> remove(std::string_view address)
     {
-        if (const std::optional<ParseError> fault = validateAddress(address))
+        if (const std::optional<Error> fault = detail::validateAddress(address))
         {
-            return fault->kind;
+            return fault;
         }
         return m_table.erase(address) ? std::nullopt : std::optional<Error>(Error::NotFound);
     }

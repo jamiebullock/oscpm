@@ -20,48 +20,43 @@ namespace
 using oscpm_test::CorpusCase;
 using oscpm_test::Expectation;
 
-std::string errorName(const std::optional<oscpm::ParseError>& error)
+std::string errorName(const std::optional<oscpm::Error>& error)
 {
-    return error.has_value() ? oscpm::toString(error->kind) : "";
+    return error.has_value() ? oscpm::toString(*error) : "";
 }
 
 void checkCase(const CorpusCase& corpusCase)
 {
     INFO("corpus line " << corpusCase.line << ": " << corpusCase.text);
 
-    const std::optional<oscpm::ParseError> patternError = oscpm::validatePattern(corpusCase.pattern);
     const oscpm::ParseResult parsed = oscpm::Pattern::parse(corpusCase.pattern);
     const bool matched = oscpm::match(corpusCase.pattern, corpusCase.address);
 
     if (corpusCase.expectation == Expectation::MalformedPattern)
     {
-        REQUIRE(patternError.has_value());
-        CHECK(errorName(patternError) == corpusCase.errorName);
-        CHECK(patternError->offset == corpusCase.offset);
         REQUIRE_FALSE(parsed);
-        CHECK(std::string(oscpm::toString(parsed.error().kind)) == corpusCase.errorName);
-        CHECK(parsed.error().offset == corpusCase.offset);
+        CHECK(std::string(oscpm::toString(parsed.error())) == corpusCase.errorName);
         CHECK_FALSE(matched);
         return;
     }
 
-    REQUIRE_FALSE(patternError.has_value());
     REQUIRE(parsed);
     CHECK(parsed.pattern().text() == corpusCase.pattern);
     const bool matchedByValue = parsed.pattern().matches(corpusCase.address);
-    const std::optional<oscpm::ParseError> addressError = oscpm::validateAddress(corpusCase.address);
+    oscpm::AddressSpace<int, false> space;
+    const std::optional<oscpm::Error> addressError = space.add(corpusCase.address, 0);
 
     if (corpusCase.expectation == Expectation::MalformedAddress)
     {
         REQUIRE(addressError.has_value());
         CHECK(errorName(addressError) == corpusCase.errorName);
-        CHECK(addressError->offset == corpusCase.offset);
         CHECK(matched == corpusCase.matchesBytewise);
         CHECK(matchedByValue == corpusCase.matchesBytewise);
         return;
     }
 
     CHECK_FALSE(addressError.has_value());
+    CHECK(space.size() == 1);
     CHECK(matched == (corpusCase.expectation == Expectation::Match));
     CHECK(matchedByValue == (corpusCase.expectation == Expectation::Match));
 }
@@ -89,7 +84,7 @@ TEST_CASE("the corpus exercises every kind of expectation")
     CHECK(contains(cases, Expectation::MalformedAddress));
 }
 
-TEST_CASE("every corpus case holds through parse, matches, match and both validators")
+TEST_CASE("every corpus case holds through parse, matches, match and add")
 {
     for (const CorpusCase& corpusCase : oscpm_test::loadCorpus(OSCPM_CORPUS_PATH))
     {

@@ -128,7 +128,7 @@ namespace
         MemoisedSpace addressSpace;
         fill(addressSpace, *space);
         const oscpm::DispatchResult result = dispatchOnce(addressSpace, pattern);
-        if (!result.error || result.error->kind != oscpm::Error::PatternTooLong)
+        if (!result.error || *result.error != oscpm::Error::PatternTooLong)
         {
             failBenchmark(state, "pattern not rejected as too long");
             return;

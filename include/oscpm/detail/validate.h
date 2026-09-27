@@ -1,0 +1,92 @@
+/* Part of oscpm
+ *
+ * SPDX-FileCopyrightText: 2026 Jamie Bullock
+ * SPDX-License-Identifier: Zlib
+ */
+
+#pragma once
+
+#include <oscpm/detail/syntax.h>
+#include <oscpm/error.h>
+
+#include <cstddef>
+#include <optional>
+#include <string_view>
+
+namespace oscpm::detail
+{
+
+/// The first fault in `pattern`, or nothing when it parses.
+constexpr std::optional<Error> validatePattern(std::string_view pattern) noexcept
+{
+    if (!hasLeadingSlash(pattern))
+    {
+        return Error::MissingLeadingSlash;
+    }
+    const std::size_t checked = pattern.size() < kMaxPatternLength ? pattern.size() : kMaxPatternLength;
+    std::size_t i = 0;
+    while (i < checked)
+    {
+        if (pattern[i] == k::setOpen)
+        {
+            const std::size_t close = closeWithinPart(pattern, i, k::setClose);
+            if (close == npos)
+            {
+                return Error::UnterminatedClass;
+            }
+            i = close + 1;
+        }
+        else if (pattern[i] == k::listOpen)
+        {
+            const std::size_t close = closeWithinPart(pattern, i, k::listClose);
+            if (close == npos)
+            {
+                return Error::UnterminatedBraces;
+            }
+            i = close + 1;
+        }
+        else
+        {
+            ++i;
+        }
+    }
+    if (pattern.size() > kMaxPatternLength && hasWildcard(pattern))
+    {
+        return Error::PatternTooLong;
+    }
+    return std::nullopt;
+}
+
+/// The first fault in `address`, or nothing when it is a well-formed OSC
+/// address.
+constexpr std::optional<Error> validateAddress(std::string_view address) noexcept
+{
+    if (!hasLeadingSlash(address))
+    {
+        return Error::MissingLeadingSlash;
+    }
+    std::size_t partLength = 0;
+    for (std::size_t i = 1; i <= address.size(); ++i)
+    {
+        const bool atEnd = i == address.size();
+        if (atEnd || address[i] == k::partSeparator)
+        {
+            if (partLength == 0)
+            {
+                return atEnd ? Error::TrailingSlash : Error::EmptyPart;
+            }
+            partLength = 0;
+        }
+        else if (!isPrintableAscii(address[i]) || isReservedInAddress(address[i]))
+        {
+            return Error::IllegalByte;
+        }
+        else if (++partLength > kMaxAddressPartLength)
+        {
+            return Error::PartTooLong;
+        }
+    }
+    return std::nullopt;
+}
+
+}
