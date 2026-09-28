@@ -2,9 +2,14 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `ParseError` is removed and no fault carries a byte offset. `ParseResult::error` returns the `Error`, and `DispatchResult::error` is a `std::optional<Error>`.
+- `validatePattern` and `validateAddress` are no longer public. `Pattern::parse` reports a pattern's fault and `AddressSpace::add` an address's.
+
 ### Added
 
-- `oscpm/pattern.h`, holding `Pattern`, `ParseResult`, `match`, `validatePattern` and `validateAddress`, and `oscpm/error.h`, holding `Error`, `ParseError`, `toString`, `kMaxAddressPartLength` and `kMaxPatternLength`. Including `oscpm/pattern.h` gives the matcher without `AddressSpace` or the standard containers it uses.
+- `oscpm/pattern.h`, holding `Pattern`, `ParseResult` and `match`, and `oscpm/error.h`, holding `Error`, `toString`, `kMaxAddressPartLength` and `kMaxPatternLength`. Including `oscpm/pattern.h` gives the matcher without `AddressSpace` or the standard containers it uses.
 - A build without `NDEBUG` asserts when a visitor adds or removes a method on the `AddressSpace` that called it, assigns to it or moves from it. A copy of a space made during a visit starts outside any visit. A release build is unchanged.
 
 ### Changed

@@ -12,33 +12,32 @@
 #
 #   match
 #   nomatch
-#   malformed-pattern <Error> <offset>
-#   malformed-address <Error> <offset> <match|nomatch>
+#   malformed-pattern <Error>
+#   malformed-address <Error> <match|nomatch>
 #
-# <Error> is the enumerator name from oscpm::Error and <offset> is the
-# zero-based byte offset the library must report.
+# <Error> is the enumerator name from oscpm::Error.
 #
 # A malformed-pattern case asserts that Pattern::parse fails with that kind
-# and offset and that match() returns false. Only four kinds arise from a
-# pattern: MissingLeadingSlash at 0; UnterminatedClass at the '[' that has no
-# ']' before the next '/'; UnterminatedBraces at the '{' that has no '}'
-# before the next '/'; PatternTooLong at 1024 for a pattern longer than 1024
-# bytes that contains '*', '?', '[', '{' or "//". Every other pattern parses. A byte that no address can
+# and that match() returns false. Only four kinds arise from a pattern:
+# MissingLeadingSlash; UnterminatedClass for a '[' with no ']' before the
+# next '/'; UnterminatedBraces for a '{' with no '}' before the next '/';
+# PatternTooLong for a pattern longer than 1024 bytes that contains '*',
+# '?', '[', '{' or "//". Every other pattern parses. A byte that no address can
 # contain, a '{' inside braces, an empty class, a stray closer or an empty
 # part is a literal that matches nothing where it stands, and a list member
 # containing one is a dead member that leaves the others live.
 #
 # A malformed-address case asserts that the pattern parses, that
-# validateAddress reports that kind and offset, and that match() and
+# AddressSpace::add reports that kind, and that match() and
 # Pattern::matches(), which compare bytes and never validate the address,
-# return the trailing field. Address faults: MissingLeadingSlash at 0;
-# TrailingSlash at the final '/' (a bare "/" is TrailingSlash at 0);
-# EmptyPart at the second of two adjacent '/'; IllegalByte at the byte, for a
-# byte outside 0x21..0x7E or one of ' #*,?[]{}'; PartTooLong at the first
-# byte of a part beyond kMaxAddressPartLength.
+# return the trailing field. Address faults: MissingLeadingSlash;
+# TrailingSlash for a final '/' (the bare "/" is a TrailingSlash);
+# EmptyPart for two adjacent '/'; IllegalByte for a byte outside 0x21..0x7E
+# or one of ' #*,?[]{}'; PartTooLong for a part longer than
+# kMaxAddressPartLength.
 #
-# The first fault by byte offset wins. An unterminated '[' or '{' faults at
-# its opening byte, so it is reported before anything inside it.
+# The first fault in a left-to-right scan wins. An unterminated '[' or '{'
+# faults at its opening byte, so it is reported before anything inside it.
 #
 # A match or nomatch case asserts that the pattern parses, that the address
 # validates, and that match() and Pattern::matches() agree on the result.
@@ -71,60 +70,60 @@
 
 ## A pattern begins with a slash; a bare root or a single trailing slash is an empty part that no well-formed address satisfies
 
-""                  "/a"                malformed-pattern MissingLeadingSlash 0
-"a"                 "/a"                malformed-pattern MissingLeadingSlash 0
-"a/b"               "/a/b"              malformed-pattern MissingLeadingSlash 0
-" /a"               "/a"                malformed-pattern MissingLeadingSlash 0
+""                  "/a"                malformed-pattern MissingLeadingSlash
+"a"                 "/a"                malformed-pattern MissingLeadingSlash
+"a/b"               "/a/b"              malformed-pattern MissingLeadingSlash
+" /a"               "/a"                malformed-pattern MissingLeadingSlash
 "/"                 "/a"                nomatch
 "/a/"               "/a"                nomatch
 "/a/b/"             "/a/b"              nomatch
 
 ## Address validation: leading slash, bare root, empty part, trailing slash
 
-"/a"                ""                  malformed-address MissingLeadingSlash 0 nomatch
-"/a"                "a"                 malformed-address MissingLeadingSlash 0 nomatch
-"/a"                "a/b"               malformed-address MissingLeadingSlash 0 nomatch
-"/a"                "/"                 malformed-address TrailingSlash 0 nomatch
-"/a"                "//"                malformed-address EmptyPart 1 nomatch
-"/a"                "//a"               malformed-address EmptyPart 1 nomatch
-"/a"                "/a//b"             malformed-address EmptyPart 3 nomatch
-"/a"                "/a///b"            malformed-address EmptyPart 3 nomatch
-"/a"                "/a//"              malformed-address EmptyPart 3 nomatch
-"/a"                "/a/"               malformed-address TrailingSlash 2 nomatch
-"/a"                "/a/b/"             malformed-address TrailingSlash 4 nomatch
+"/a"                ""                  malformed-address MissingLeadingSlash nomatch
+"/a"                "a"                 malformed-address MissingLeadingSlash nomatch
+"/a"                "a/b"               malformed-address MissingLeadingSlash nomatch
+"/a"                "/"                 malformed-address TrailingSlash nomatch
+"/a"                "//"                malformed-address EmptyPart nomatch
+"/a"                "//a"               malformed-address EmptyPart nomatch
+"/a"                "/a//b"             malformed-address EmptyPart nomatch
+"/a"                "/a///b"            malformed-address EmptyPart nomatch
+"/a"                "/a//"              malformed-address EmptyPart nomatch
+"/a"                "/a/"               malformed-address TrailingSlash nomatch
+"/a"                "/a/b/"             malformed-address TrailingSlash nomatch
 
-## A pattern fault is reported by parse; an address fault only by validateAddress
+## A pattern fault is reported by parse; an address fault only by AddressSpace::add
 
-"a"                 "b"                 malformed-pattern MissingLeadingSlash 0
-"/a/"               "/a/"               malformed-address TrailingSlash 2 match
+"a"                 "b"                 malformed-pattern MissingLeadingSlash
+"/a/"               "/a/"               malformed-address TrailingSlash match
 
 ## Illegal bytes in an address: pattern characters, '#' and space
 
-"/a"                "/a?"               malformed-address IllegalByte 2 nomatch
-"/a"                "/a*"               malformed-address IllegalByte 2 nomatch
-"/a"                "/a["               malformed-address IllegalByte 2 nomatch
-"/a"                "/a]"               malformed-address IllegalByte 2 nomatch
-"/a"                "/a{"               malformed-address IllegalByte 2 nomatch
-"/a"                "/a}"               malformed-address IllegalByte 2 nomatch
-"/a"                "/a,"               malformed-address IllegalByte 2 nomatch
-"/a"                "/a#"               malformed-address IllegalByte 2 nomatch
-"/a"                "/a "               malformed-address IllegalByte 2 nomatch
-"/a"                "/ /a"              malformed-address IllegalByte 1 nomatch
-"/a"                "/x/y/z*"           malformed-address IllegalByte 6 nomatch
+"/a"                "/a?"               malformed-address IllegalByte nomatch
+"/a"                "/a*"               malformed-address IllegalByte nomatch
+"/a"                "/a["               malformed-address IllegalByte nomatch
+"/a"                "/a]"               malformed-address IllegalByte nomatch
+"/a"                "/a{"               malformed-address IllegalByte nomatch
+"/a"                "/a}"               malformed-address IllegalByte nomatch
+"/a"                "/a,"               malformed-address IllegalByte nomatch
+"/a"                "/a#"               malformed-address IllegalByte nomatch
+"/a"                "/a "               malformed-address IllegalByte nomatch
+"/a"                "/ /a"              malformed-address IllegalByte nomatch
+"/a"                "/x/y/z*"           malformed-address IllegalByte nomatch
 
 ## '#' and space in a pattern are literal bytes that no address can contain
 
-"/a#b"              "/a#b"              malformed-address IllegalByte 2 match
-"/a b"              "/a b"              malformed-address IllegalByte 2 match
+"/a#b"              "/a#b"              malformed-address IllegalByte match
+"/a b"              "/a b"              malformed-address IllegalByte match
 "/#bundle"          "/x"                nomatch
 "/a/b c"            "/a/b"              nomatch
 
-## The first fault by byte offset wins
+## The first fault wins
 
-"/a"                "a?"                malformed-address MissingLeadingSlash 0 nomatch
-"/a"                "/a?/"              malformed-address IllegalByte 2 nomatch
-"/a"                "/a/?/"             malformed-address IllegalByte 3 nomatch
-"/a"                "/a//?"             malformed-address EmptyPart 3 nomatch
+"/a"                "a?"                malformed-address MissingLeadingSlash nomatch
+"/a"                "/a?/"              malformed-address IllegalByte nomatch
+"/a"                "/a/?/"             malformed-address IllegalByte nomatch
+"/a"                "/a//?"             malformed-address EmptyPart nomatch
 
 ## '?' matches exactly one byte, never '/'
 
@@ -144,10 +143,10 @@
 "/?/?"              "/a"                nomatch
 "/?"                "/a/b"              nomatch
 
-## Matching is byte-wise: a two-byte UTF-8 sequence is two bytes, and validateAddress rejects it
+## Matching is byte-wise: a two-byte UTF-8 sequence is two bytes, and AddressSpace::add rejects it
 
-"/?"                "/é"                malformed-address IllegalByte 1 nomatch
-"/??"               "/é"                malformed-address IllegalByte 1 match
+"/?"                "/é"                malformed-address IllegalByte nomatch
+"/??"               "/é"                malformed-address IllegalByte match
 
 ## '*' matches zero or more bytes, never '/'
 
@@ -168,7 +167,7 @@
 "/a*c"              "/ac"               match
 "/a*c"              "/abbbc"            match
 "/a*c"              "/abbb"             nomatch
-"/**"               "/"                 malformed-address TrailingSlash 0 match
+"/**"               "/"                 malformed-address TrailingSlash match
 "/**"               "/abc"              match
 "/*?"               "/a"                match
 "/*?"               "/abc"              match
@@ -224,8 +223,8 @@
 "/[c-a]"            "/b"                nomatch
 "/[c-a]"            "/a"                nomatch
 "/[c-a]"            "/c"                nomatch
-"/[é]"              "/é"                malformed-address IllegalByte 1 nomatch
-"/[!é]"             "/é"                malformed-address IllegalByte 1 nomatch
+"/[é]"              "/é"                malformed-address IllegalByte nomatch
+"/[!é]"             "/é"                malformed-address IllegalByte nomatch
 
 ## A leading '!' negates a character class
 
@@ -287,14 +286,14 @@
 "/[!]"              "/a"                match
 "/a[]b"             "/ab"               nomatch
 "/[]a]"             "/a"                nomatch
-"/["                "/a"                malformed-pattern UnterminatedClass 1
-"/[!"               "/a"                malformed-pattern UnterminatedClass 1
-"/[a"               "/a"                malformed-pattern UnterminatedClass 1
-"/[a-"              "/a"                malformed-pattern UnterminatedClass 1
-"/a[b"              "/ab"               malformed-pattern UnterminatedClass 2
-"/[a/b]"            "/a"                malformed-pattern UnterminatedClass 1
-"/x/[a/b]"          "/x/a"              malformed-pattern UnterminatedClass 3
-"/[a#"              "/a"                malformed-pattern UnterminatedClass 1
+"/["                "/a"                malformed-pattern UnterminatedClass
+"/[!"               "/a"                malformed-pattern UnterminatedClass
+"/[a"               "/a"                malformed-pattern UnterminatedClass
+"/[a-"              "/a"                malformed-pattern UnterminatedClass
+"/a[b"              "/ab"               malformed-pattern UnterminatedClass
+"/[a/b]"            "/a"                malformed-pattern UnterminatedClass
+"/x/[a/b]"          "/x/a"              malformed-pattern UnterminatedClass
+"/[a#"              "/a"                malformed-pattern UnterminatedClass
 "/[a#]"             "/a"                match
 "/[a ]"             "/a"                match
 
@@ -344,9 +343,9 @@
 "/x{,}"             "/x"                match
 "/x{a,,b}"          "/x"                match
 "/x{a,,b}"          "/xb"               match
-"/{}"               "/"                 malformed-address TrailingSlash 0 match
+"/{}"               "/"                 malformed-address TrailingSlash match
 "/{}/a"             "/a"                nomatch
-"/{}/a"             "//a"               malformed-address EmptyPart 1 match
+"/{}/a"             "//a"               malformed-address EmptyPart match
 
 ## A brace list backtracks when more than one member matches
 
@@ -401,16 +400,16 @@
 
 ## An unterminated '{' is malformed at the '{'
 
-"/{"                "/a"                malformed-pattern UnterminatedBraces 1
-"/{a"               "/a"                malformed-pattern UnterminatedBraces 1
-"/{a,"              "/a"                malformed-pattern UnterminatedBraces 1
-"/{a,b"             "/a"                malformed-pattern UnterminatedBraces 1
-"/x{a,b"            "/xa"               malformed-pattern UnterminatedBraces 2
-"/{a/b}"            "/a"                malformed-pattern UnterminatedBraces 1
-"/{a{b"             "/a"                malformed-pattern UnterminatedBraces 1
-"/{a[b"             "/a"                malformed-pattern UnterminatedBraces 1
-"/{a#"              "/a"                malformed-pattern UnterminatedBraces 1
-"/{a,b}{c"          "/ac"               malformed-pattern UnterminatedBraces 6
+"/{"                "/a"                malformed-pattern UnterminatedBraces
+"/{a"               "/a"                malformed-pattern UnterminatedBraces
+"/{a,"              "/a"                malformed-pattern UnterminatedBraces
+"/{a,b"             "/a"                malformed-pattern UnterminatedBraces
+"/x{a,b"            "/xa"               malformed-pattern UnterminatedBraces
+"/{a/b}"            "/a"                malformed-pattern UnterminatedBraces
+"/{a{b"             "/a"                malformed-pattern UnterminatedBraces
+"/{a[b"             "/a"                malformed-pattern UnterminatedBraces
+"/{a#"              "/a"                malformed-pattern UnterminatedBraces
+"/{a,b}{c"          "/ac"               malformed-pattern UnterminatedBraces
 
 ## A '}' or ',' outside braces is a literal that no address can contain
 
@@ -602,20 +601,20 @@
 "//a///b"           "/a/b"              match
 "/a///"             "/a"                match
 
-## The first fault by byte offset wins around "//"
+## The first fault wins around "//"
 
-"/a//["             "/a"                malformed-pattern UnterminatedClass 4
-"/a///["            "/a"                malformed-pattern UnterminatedClass 5
-"/[a//b]"           "/a"                malformed-pattern UnterminatedClass 1
-"/{a//b}"           "/a"                malformed-pattern UnterminatedBraces 1
+"/a//["             "/a"                malformed-pattern UnterminatedClass
+"/a///["            "/a"                malformed-pattern UnterminatedClass
+"/[a//b]"           "/a"                malformed-pattern UnterminatedClass
+"/{a//b}"           "/a"                malformed-pattern UnterminatedBraces
 "/a]//b"            "/a/b"              nomatch
 "//a//b#"           "/a/b"              nomatch
 
 ## Two slashes in an address are an empty part; matching still compares bytes
 
-"//a"               "//a"               malformed-address EmptyPart 1 match
-"/a//b"             "/a//b"             malformed-address EmptyPart 3 match
-"//a"               "/"                 malformed-address TrailingSlash 0 nomatch
+"//a"               "//a"               malformed-address EmptyPart match
+"/a//b"             "/a//b"             malformed-address EmptyPart match
+"//a"               "/"                 malformed-address TrailingSlash nomatch
 
 ## Bare "//" is a leading run with nothing after it: zero or more parts, so every address
 "//"                "/a"                match

@@ -29,7 +29,6 @@ struct CorpusCase
     std::string address;
     Expectation expectation = Expectation::Match;
     std::string errorName;
-    std::size_t offset = 0;
     bool matchesBytewise = false;
 };
 

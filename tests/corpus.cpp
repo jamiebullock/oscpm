@@ -36,12 +36,12 @@ namespace
         else if (kind == "malformed-pattern")
         {
             corpusCase.expectation = Expectation::MalformedPattern;
-            stream >> corpusCase.errorName >> corpusCase.offset;
+            stream >> corpusCase.errorName;
         }
         else if (kind == "malformed-address")
         {
             corpusCase.expectation = Expectation::MalformedAddress;
-            stream >> corpusCase.errorName >> corpusCase.offset >> outcome;
+            stream >> corpusCase.errorName >> outcome;
             corpusCase.matchesBytewise = outcome == "match";
             if (outcome != "match" && outcome != "nomatch")
             {

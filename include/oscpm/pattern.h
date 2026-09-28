@@ -8,6 +8,7 @@
 
 #include <oscpm/detail/match.h>
 #include <oscpm/detail/syntax.h>
+#include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
 
 #include <cstddef>
@@ -17,80 +18,6 @@
 namespace oscpm
 {
 
-/// The first fault in `pattern` and its byte offset, or nothing when it
-/// parses.
-constexpr std::optional<ParseError> validatePattern(std::string_view pattern) noexcept
-{
-    if (!detail::hasLeadingSlash(pattern))
-    {
-        return ParseError { Error::MissingLeadingSlash, 0 };
-    }
-    const std::size_t checked = pattern.size() < kMaxPatternLength ? pattern.size() : kMaxPatternLength;
-    std::size_t i = 0;
-    while (i < checked)
-    {
-        if (pattern[i] == detail::k::setOpen)
-        {
-            const std::size_t close = detail::closeWithinPart(pattern, i, detail::k::setClose);
-            if (close == detail::npos)
-            {
-                return ParseError { Error::UnterminatedClass, i };
-            }
-            i = close + 1;
-        }
-        else if (pattern[i] == detail::k::listOpen)
-        {
-            const std::size_t close = detail::closeWithinPart(pattern, i, detail::k::listClose);
-            if (close == detail::npos)
-            {
-                return ParseError { Error::UnterminatedBraces, i };
-            }
-            i = close + 1;
-        }
-        else
-        {
-            ++i;
-        }
-    }
-    if (pattern.size() > kMaxPatternLength && detail::hasWildcard(pattern))
-    {
-        return ParseError { Error::PatternTooLong, kMaxPatternLength };
-    }
-    return std::nullopt;
-}
-
-/// The first fault in `address` and its byte offset, or nothing when it is a
-/// well-formed OSC address.
-constexpr std::optional<ParseError> validateAddress(std::string_view address) noexcept
-{
-    if (!detail::hasLeadingSlash(address))
-    {
-        return ParseError { Error::MissingLeadingSlash, 0 };
-    }
-    std::size_t partLength = 0;
-    for (std::size_t i = 1; i <= address.size(); ++i)
-    {
-        const bool atEnd = i == address.size();
-        if (atEnd || address[i] == detail::k::partSeparator)
-        {
-            if (partLength == 0)
-            {
-                return atEnd ? ParseError { Error::TrailingSlash, i - 1 } : ParseError { Error::EmptyPart, i };
-            }
-            partLength = 0;
-        }
-        else if (!detail::isPrintableAscii(address[i]) || detail::isReservedInAddress(address[i]))
-        {
-            return ParseError { Error::IllegalByte, i };
-        }
-        else if (++partLength > kMaxAddressPartLength)
-        {
-            return ParseError { Error::PartTooLong, i };
-        }
-    }
-    return std::nullopt;
-}
-
 class ParseResult;
 
 /// A validated address pattern. Holds a view of the caller's bytes, which
@@ -98,8 +25,7 @@ class ParseResult;
 class Pattern
 {
 public:
-    /// Parses `text`, yielding the pattern or the first fault by byte offset
-    /// as `validatePattern` reports it.
+    /// Parses `text`, yielding the pattern or the first fault.
     static constexpr ParseResult parse(std::string_view text) noexcept;
 
     /// Whether this pattern matches `address`, which is compared byte for
@@ -137,7 +63,7 @@ private:
     bool m_isLiteral = false;
 };
 
-/// A `Pattern` or the `ParseError` that stopped it parsing.
+/// A `Pattern` or the `Error` that stopped it parsing.
 class ParseResult
 {
 public:
@@ -154,7 +80,7 @@ public:
     }
 
     /// The fault; meaningful only when the result is false.
-    constexpr const ParseError& error() const noexcept
+    constexpr Error error() const noexcept
     {
         return m_error;
     }
@@ -168,19 +94,19 @@ private:
     {
     }
 
-    constexpr explicit ParseResult(ParseError error) noexcept
+    constexpr explicit ParseResult(Error error) noexcept
         : m_error(error)
     {
     }
 
     Pattern m_pattern;
-    ParseError m_error { Error::MissingLeadingSlash, 0 };
+    Error m_error = Error::MissingLeadingSlash;
     bool m_parsed = false;
 };
 
 constexpr ParseResult Pattern::parse(std::string_view text) noexcept
 {
-    const std::optional<ParseError> fault = validatePattern(text);
+    const std::optional<Error> fault = detail::validatePattern(text);
     return fault.has_value() ? ParseResult(*fault) : ParseResult(Pattern(text));
 }
 

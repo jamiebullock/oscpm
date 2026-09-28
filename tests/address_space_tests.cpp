@@ -37,6 +37,11 @@ namespace
 
 using Addresses = std::vector<std::string>;
 
+bool faults(const std::optional<Error>& result, Error kind)
+{
+    return result == kind;
+}
+
 Pattern parsed(std::string_view text)
 {
     const oscpm::ParseResult result = Pattern::parse(text);
@@ -124,11 +129,36 @@ TEST_CASE("add registers a well-formed address once")
 {
     AddressSpace<int> space;
     CHECK_FALSE(space.add("/synth/1/freq", 1).has_value());
-    CHECK(space.add("/synth/1/freq", 2) == Error::Duplicate);
-    CHECK(space.add("synth", 3) == Error::MissingLeadingSlash);
-    CHECK(space.add("/synth/", 4) == Error::TrailingSlash);
-    CHECK(space.add("/synth//freq", 5) == Error::EmptyPart);
-    CHECK(space.add("/synth/*", 6) == Error::IllegalByte);
+    CHECK(faults(space.add("/synth/1/freq", 2), Error::Duplicate));
+    CHECK(faults(space.add("synth", 3), Error::MissingLeadingSlash));
+    CHECK(faults(space.add("/synth/", 4), Error::TrailingSlash));
+    CHECK(faults(space.add("/synth//freq", 5), Error::EmptyPart));
+    CHECK(faults(space.add("/synth/*", 6), Error::IllegalByte));
+    CHECK(space.size() == 1);
+}
+
+TEST_CASE("add reports the first fault in an address")
+{
+    AddressSpace<int> space;
+    CHECK_FALSE(space.add("/!\"$%&'()+-.0123456789:;<=>@ABCXYZ\\^_`abcxyz|~", 0).has_value());
+    CHECK(faults(space.add(" /a", 0), Error::MissingLeadingSlash));
+    CHECK(faults(space.add("/", 0), Error::TrailingSlash));
+    CHECK(faults(space.add("/a/b/", 0), Error::TrailingSlash));
+    CHECK(faults(space.add("/a///b", 0), Error::EmptyPart));
+    CHECK(faults(space.add("/x/y/z*", 0), Error::IllegalByte));
+    CHECK(faults(space.add("/a\x7f", 0), Error::IllegalByte));
+    CHECK(faults(space.add("/a//?", 0), Error::EmptyPart));
+    CHECK(space.size() == 1);
+}
+
+TEST_CASE("add rejects an address part longer than the supported length")
+{
+    const std::string longest(oscpm::kMaxAddressPartLength, 'a');
+    const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
+    AddressSpace<int> space;
+    CHECK_FALSE(space.add("/" + longest + "/" + longest, 0).has_value());
+    CHECK(faults(space.add("/" + tooLong, 0), Error::PartTooLong));
+    CHECK(faults(space.add("/a/" + tooLong, 0), Error::PartTooLong));
     CHECK(space.size() == 1);
 }
 
@@ -136,10 +166,11 @@ TEST_CASE("remove unregisters an address that is registered")
 {
     AddressSpace<int> space;
     populate(space, { "/a", "/b" });
-    CHECK(space.remove("/c") == Error::NotFound);
-    CHECK(space.remove("c") == Error::MissingLeadingSlash);
+    CHECK(faults(space.remove("/c"), Error::NotFound));
+    CHECK(faults(space.remove("c"), Error::MissingLeadingSlash));
+    CHECK(faults(space.remove("/a/"), Error::TrailingSlash));
     CHECK_FALSE(space.remove("/a").has_value());
-    CHECK(space.remove("/a") == Error::NotFound);
+    CHECK(faults(space.remove("/a"), Error::NotFound));
     CHECK(allAddresses(space) == Addresses { "/b" });
 }
 
@@ -210,11 +241,10 @@ TEST_CASE("dispatch reports a malformed pattern and visits nothing")
     {
         const char* pattern;
         Error kind;
-        std::size_t offset;
     } cases[] = {
-        { "synth/1/freq", Error::MissingLeadingSlash, 0 },
-        { "/synth/[1/freq", Error::UnterminatedClass, 7 },
-        { "/synth/{1/freq", Error::UnterminatedBraces, 7 },
+        { "synth/1/freq", Error::MissingLeadingSlash },
+        { "/synth/[1/freq", Error::UnterminatedClass },
+        { "/synth/{1/freq", Error::UnterminatedBraces },
     };
     for (const auto& malformed : cases)
     {
@@ -229,8 +259,7 @@ TEST_CASE("dispatch reports a malformed pattern and visits nothing")
         {
             CHECK(result.matched == 0);
             REQUIRE(result.error.has_value());
-            CHECK(std::string(oscpm::toString(result.error->kind)) == std::string(oscpm::toString(malformed.kind)));
-            CHECK(result.error->offset == malformed.offset);
+            CHECK(faults(result.error, malformed.kind));
         }
     }
 }
@@ -288,8 +317,7 @@ TEST_CASE("dispatch reports a pattern longer than the supported length and visit
     CHECK(visits == 0);
     CHECK(result.matched == 0);
     REQUIRE(result.error.has_value());
-    CHECK(std::string(oscpm::toString(result.error->kind)) == "PatternTooLong");
-    CHECK(result.error->offset == oscpm::kMaxPatternLength);
+    CHECK(std::string(oscpm::toString(*result.error)) == "PatternTooLong");
 }
 
 TEST_CASE("dispatch through a const space passes a const value")
@@ -719,11 +747,11 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
     std::vector<oscpm_test::CorpusCase> malformed;
     for (const oscpm_test::CorpusCase& corpusCase : oscpm_test::loadCorpus(OSCPM_CORPUS_PATH))
     {
-        if (!oscpm::validateAddress(corpusCase.address) && registered.insert(corpusCase.address).second)
+        if (registered.count(corpusCase.address) == 0 && !space.add(corpusCase.address, 0).has_value())
         {
-            REQUIRE_FALSE(space.add(corpusCase.address, 0).has_value());
+            registered.insert(corpusCase.address);
         }
-        if (!oscpm::validatePattern(corpusCase.pattern))
+        if (Pattern::parse(corpusCase.pattern))
         {
             patterns.push_back(corpusCase.pattern);
         }
@@ -751,8 +779,7 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
         CHECK(dispatchAddresses(space, corpusCase.pattern, result).empty());
         CHECK(result.matched == 0);
         REQUIRE(result.error.has_value());
-        CHECK(std::string(oscpm::toString(result.error->kind)) == corpusCase.errorName);
-        CHECK(result.error->offset == corpusCase.offset);
+        CHECK(std::string(oscpm::toString(*result.error)) == corpusCase.errorName);
     }
 }
 
