@@ -11,13 +11,11 @@
 namespace oscpm
 {
 
-/// The longest address part that matches; `AddressSpace::add` reports a
-/// longer one as `PartTooLong`.
+/// The maximum length, in bytes, of one part of an address.
 constexpr std::size_t kMaxAddressPartLength = 4095;
 
-/// The longest pattern containing a wildcard, class, brace list or "//" that
-/// `Pattern::parse` accepts; a longer one is `PatternTooLong`. A literal
-/// pattern has no limit.
+/// The maximum length, in bytes, of a pattern containing a wildcard, class,
+/// brace list or "//". A literal pattern has no limit.
 constexpr std::size_t kMaxPatternLength = 1024;
 
 /// A fault in a pattern, an address or an `AddressSpace` operation.
