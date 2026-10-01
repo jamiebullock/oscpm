@@ -45,6 +45,8 @@ if(OSCPM_SANITIZE)
     target_link_options(oscpm_tests PRIVATE -fsanitize=address,undefined)
 endif()
 
+set_target_properties(oscpm_tests PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
+
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(oscpm_tests)
 
