@@ -61,7 +61,7 @@ if(OSCPM_MULL_PLUGIN)
             --mutation-score-threshold ${OSCPM_MUTATION_THRESHOLD}
             $<TARGET_FILE:oscpm_tests>
         DEPENDS oscpm_tests
-        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         USES_TERMINAL
         VERBATIM
     )
