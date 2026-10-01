@@ -21,20 +21,25 @@ and depends on nothing outside the standard library.
 #include <oscpm/address_space.h>
 #include <oscpp/server.hpp>
 
-oscpm::AddressSpace<float> parameters;
-parameters.add("/synth/1/freq", 440.0f);
-parameters.add("/synth/2/freq", 220.0f);
+float frequency1 = 440.0f;
+float frequency2 = 220.0f;
+
+oscpm::AddressSpace<float*> parameters;
+parameters.add("/synth/1/freq", &frequency1);
+parameters.add("/synth/2/freq", &frequency2);
 
 // for each OSCPP::Server::Message received
 const float value = OSCPP::Server::ArgStream(message.args()).float32();
-parameters.dispatch(message.address(), [value](std::string_view address, float& parameter)
-    { parameter = value; });
+parameters.dispatch(message.address(), [value](std::string_view address, float* parameter)
+    { *parameter = value; });
+// a message "/synth/*/freq" 550 leaves frequency1 and frequency2 at 550
 ```
 
-A message addressed to `/synth/*/freq` sets both parameters; one addressed to
-`/synth/1/freq` sets the first. [`examples/dispatch.cpp`](examples/dispatch.cpp)
-is a complete program: it builds a bundle with oscpp, reads it back and
-dispatches each message.
+The space maps each address to something the application owns, here a
+pointer to a parameter. `dispatch` hands every method the message's pattern
+matches to the visitor, which does the invoking.
+[`examples/dispatch.cpp`](examples/dispatch.cpp) is a complete program: it
+builds a bundle with oscpp, reads it back and dispatches each message.
 
 ## Matching
 
@@ -80,8 +85,9 @@ if (!result)
 ## Address space
 
 `AddressSpace<T>` is a set of methods, each a well-formed address with a
-value of type `T`, that an incoming pattern is dispatched to. `T` is any
-type: a handler, as here, or the parameter itself, as in the opening example.
+value of type `T`, that an incoming pattern is dispatched to. `T` is
+whatever the application needs to invoke a method: a pointer to a parameter,
+as in the opening example, a handler, as here, an index or a struct.
 
 ```cpp
 #include <oscpm/address_space.h>
@@ -107,11 +113,13 @@ result.error; // the parse fault, when the pattern was malformed and nothing was
   `Duplicate` from `add` or `NotFound` from `remove`.
 - `dispatch(pattern, visitor)` parses the pattern and calls
   `visitor(address, value)` for every method it matches, in bytewise address
-  order.
-- `lookup(pattern, visitor)` does the same with an already parsed `Pattern`
-  and returns the number of methods visited.
+  order. The visitor is the invoking step: it joins the message, which the
+  space never sees, to the method's value.
+- `find(address)` returns a pointer to the value registered under one
+  address, or null when there is none. The pointer is valid until the next
+  `add` or `remove`.
 - `forEach(visitor)` visits every method; `size()` counts them.
-- A visitor may call `lookup` and `dispatch` on the space that called it, and
+- A visitor may call `dispatch` and `find` on the space that called it, and
   copy it, but must not add or remove methods, move from it or assign to it.
   To change the space in response to a message, collect the changes while
   visiting and apply them once the call has returned. A build without
@@ -119,7 +127,7 @@ result.error; // the parse fault, when the pattern was malformed and nothing was
 - An address space is not safe to use from several threads at once.
 
 `AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the result of a
-lookup until the next `add` or `remove`:
+dispatch until the next `add` or `remove`:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
@@ -222,13 +230,13 @@ format other implementations can reuse.
 
 ## Guarantees
 
-`match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::lookup`,
-`AddressSpace::dispatch` and `AddressSpace::forEach`, the last three apart
+`match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::find`,
+`AddressSpace::dispatch` and `AddressSpace::forEach`, the last two apart
 from whatever the visitor they call does:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
-- never throw, and are declared `noexcept` outside the address space;
+- never throw, and all but `dispatch` and `forEach` are declared `noexcept`;
 - run in time bounded by the product of the pattern and address lengths,
   whatever the pattern contains;
 - are `constexpr` outside the address space, so a fixed pattern is parsed

@@ -6,9 +6,11 @@
 
 - `ParseError` is removed and no fault carries a byte offset. `ParseResult::error` returns the `Error`, and `DispatchResult::error` is a `std::optional<Error>`.
 - `validatePattern` and `validateAddress` are no longer public. `Pattern::parse` reports a pattern's fault and `AddressSpace::add` an address's.
+- `AddressSpace::lookup` is removed. `dispatch` is the one call that visits the methods a pattern matches; a caller holding a parsed `Pattern` passes `pattern.text()`.
 
 ### Added
 
+- `AddressSpace::find`: a pointer to the value registered under an address, or null when there is none. The pointer is valid until the next `add` or `remove`.
 - `oscpm/pattern.h`, holding `Pattern`, `ParseResult` and `match`, and `oscpm/error.h`, holding `Error`, `toString`, `kMaxAddressPartLength` and `kMaxPatternLength`. Including `oscpm/pattern.h` gives the matcher without `AddressSpace` or the standard containers it uses.
 - A build without `NDEBUG` asserts when a visitor adds or removes a method on the `AddressSpace` that called it, assigns to it or moves from it. A copy of a space made during a visit starts outside any visit. A release build is unchanged.
 
@@ -19,7 +21,7 @@
 ### Fixed
 
 - oscpm configures as a subproject of a project that has a CMake module named `ProjectVersion` or `CheckFormat` on its module path. oscpm included its own modules by name after appending its `cmake` directory to the module path, so the consumer's module was found first and oscpm configured with no version.
-- `AddressSpace::dispatch` and `lookup` deliver the full result when a visitor dispatches or looks up another pattern on the same space. A nested call that used the memo entry being delivered could overwrite it, so the outer call visited the wrong methods or stopped early.
+- `AddressSpace::dispatch` delivers the full result when a visitor dispatches another pattern on the same space. A nested call that used the memo entry being delivered could overwrite it, so the outer call visited the wrong methods or stopped early.
 
 ## 0.3.0 - 2026-09-23
 
