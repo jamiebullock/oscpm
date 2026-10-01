@@ -19,8 +19,9 @@ target_compile_features(oscpm INTERFACE cxx_std_17)
 
 if(PROJECT_IS_TOP_LEVEL)
     file(GLOB_RECURSE OSCPM_HEADERS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h)
-    target_sources(oscpm PRIVATE ${OSCPM_HEADERS})
+    target_sources(oscpm PRIVATE ${OSCPM_HEADERS} README.md)
     source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include FILES ${OSCPM_HEADERS})
+    source_group("" FILES README.md)
 endif()
 
 include(GNUInstallDirs)
