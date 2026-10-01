@@ -130,7 +130,7 @@ parsed `Pattern` for a pattern that is reused. Both visit every matching
 method in bytewise address order; `forEach` visits them all. A visitor may
 call `lookup` and `dispatch` on the space that called it, and copy it, but
 must not add or remove methods, move from it or assign to it, and a build
-without `NDEBUG` asserts when one does. To
+without `NDEBUG` asserts when one adds or removes. To
 change the space in response to a message, collect the changes while
 visiting and apply them once the call has returned. Here a message to
 `/synth/*/free` releases every voice it names:
