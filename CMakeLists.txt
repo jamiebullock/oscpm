@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.26)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ProjectVersion.cmake")
 project(oscpm VERSION ${OSCPM_VERSION} LANGUAGES CXX)
@@ -16,6 +16,13 @@ target_include_directories(oscpm INTERFACE
     $<INSTALL_INTERFACE:include>
 )
 target_compile_features(oscpm INTERFACE cxx_std_17)
+
+if(PROJECT_IS_TOP_LEVEL)
+    file(GLOB_RECURSE OSCPM_HEADERS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h)
+    target_sources(oscpm PRIVATE ${OSCPM_HEADERS} README.md)
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/include FILES ${OSCPM_HEADERS})
+    source_group("" FILES README.md)
+endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -44,7 +51,9 @@ install(
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/oscpm
 )
 
-option(OSCPM_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
+if(PROJECT_IS_TOP_LEVEL)
+    option(BUILD_TESTING "Build and register the tests" ON)
+endif()
 option(OSCPM_BUILD_EXAMPLES "Build the example, which fetches oscpp" ${PROJECT_IS_TOP_LEVEL})
 option(OSCPM_CHECK_FORMAT "Fail the build on clang-format violations" ${PROJECT_IS_TOP_LEVEL})
 option(OSCPM_BUILD_BENCHMARKS "Build the benchmarks, which fetch Google Benchmark" OFF)
@@ -65,11 +74,8 @@ if(OSCPM_CHECK_FORMAT)
     add_clang_format_check(SOURCES ${OSCPM_FORMATTED_SOURCES})
 endif()
 
-if(OSCPM_BUILD_TESTS OR OSCPM_BUILD_FUZZERS OR OSCPM_BUILD_EXAMPLES OR OSCPM_BUILD_BENCHMARKS)
-    include(CTest)
-endif()
-
-if(OSCPM_BUILD_TESTS)
+if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 

@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
+set(CMAKE_FOLDER tests)
+
 include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -44,6 +46,8 @@ if(OSCPM_SANITIZE)
     target_compile_options(oscpm_tests PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
     target_link_options(oscpm_tests PRIVATE -fsanitize=address,undefined)
 endif()
+
+set_target_properties(oscpm_tests PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(oscpm_tests)

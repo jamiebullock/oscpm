@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
+set(CMAKE_FOLDER fuzz)
+
 # The seeds are generated at build time from corpus/matching.txt.
 set(OSCPM_FUZZ_SEEDS_DIR ${CMAKE_CURRENT_BINARY_DIR}/seeds)
 set(OSCPM_FUZZ_SEEDS_STAMP ${CMAKE_CURRENT_BINARY_DIR}/seeds.stamp)
