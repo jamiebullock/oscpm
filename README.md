@@ -288,8 +288,10 @@ ctest --preset release
 
 `debug` and `release` use Ninja; `windows` uses Visual Studio 2022. The tests
 use doctest and the example uses oscpp, both fetched at configure time;
-`DEPENDENCIES.md` lists what is fetched and why. `-DOSCPM_BUILD_EXAMPLES=OFF`
-skips the example and its fetch. `-DOSCPM_BUILD_FUZZERS=ON` adds a libFuzzer
+`DEPENDENCIES.md` lists what is fetched and why. `-DBUILD_TESTING=OFF` skips
+the tests and their fetch, and registers nothing with CTest; the tests are
+never built when oscpm is a subproject. `-DOSCPM_BUILD_EXAMPLES=OFF` skips the
+example and its fetch. `-DOSCPM_BUILD_FUZZERS=ON` adds a libFuzzer
 target under AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the
 corpus; it needs an LLVM clang. `-DOSCPM_SANITIZE=ON` builds the tests under
 the same sanitizers. `-DOSCPM_BUILD_BENCHMARKS=ON`, which the `bench` preset

@@ -60,9 +60,10 @@ def git(*arguments):
 
 
 def configureAndBuild(sourceDir, buildDir, workDir, includeDir=None):
+    # A base revision may predate BUILD_TESTING and read OSCPM_BUILD_TESTS instead.
     command = [
         "cmake", "--preset", "bench", "-B", str(buildDir),
-        "-DOSCPM_BUILD_TESTS=OFF", "-DOSCPM_BUILD_EXAMPLES=OFF", "-DOSCPM_CHECK_FORMAT=OFF",
+        "-DBUILD_TESTING=OFF", "-DOSCPM_BUILD_TESTS=OFF", "-DOSCPM_BUILD_EXAMPLES=OFF", "-DOSCPM_CHECK_FORMAT=OFF",
         f"-DFETCHCONTENT_BASE_DIR={workDir / '_deps'}",
     ]
     if includeDir is not None:

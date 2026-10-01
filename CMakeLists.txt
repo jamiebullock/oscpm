@@ -51,7 +51,9 @@ install(
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/oscpm
 )
 
-option(OSCPM_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
+if(PROJECT_IS_TOP_LEVEL)
+    option(BUILD_TESTING "Build and register the tests" ON)
+endif()
 option(OSCPM_BUILD_EXAMPLES "Build the example, which fetches oscpp" ${PROJECT_IS_TOP_LEVEL})
 option(OSCPM_CHECK_FORMAT "Fail the build on clang-format violations" ${PROJECT_IS_TOP_LEVEL})
 option(OSCPM_BUILD_BENCHMARKS "Build the benchmarks, which fetch Google Benchmark" OFF)
@@ -72,11 +74,8 @@ if(OSCPM_CHECK_FORMAT)
     add_clang_format_check(SOURCES ${OSCPM_FORMATTED_SOURCES})
 endif()
 
-if(OSCPM_BUILD_TESTS OR OSCPM_BUILD_FUZZERS OR OSCPM_BUILD_EXAMPLES OR OSCPM_BUILD_BENCHMARKS)
+if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     enable_testing()
-endif()
-
-if(OSCPM_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
