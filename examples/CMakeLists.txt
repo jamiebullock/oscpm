@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
+set(CMAKE_FOLDER examples)
+
 include(FetchContent)
 
 # SYSTEM keeps oscpp's own warnings out of the example's build.

@@ -3,6 +3,8 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
+set(CMAKE_FOLDER bench)
+
 include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 17)

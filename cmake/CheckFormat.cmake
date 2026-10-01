@@ -27,4 +27,6 @@ function(add_clang_format_check)
         COMMENT "Applying clang-format"
         VERBATIM
     )
+
+    set_target_properties(check-format format PROPERTIES FOLDER utilities)
 endfunction()
