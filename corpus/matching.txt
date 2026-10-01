@@ -204,6 +204,7 @@
 "/[abc]"            "/b"                match
 "/[abc]"            "/d"                nomatch
 "/[abc]"            "/ab"               nomatch
+"/[abc]"            "/]"                malformed-address IllegalByte nomatch
 "/[a]"              "/a"                match
 "/[a]/b"            "/a/b"              match
 "/[a]"              "/a/b"              nomatch

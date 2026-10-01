@@ -47,6 +47,26 @@ if(OSCPM_SANITIZE)
     target_link_options(oscpm_tests PRIVATE -fsanitize=address,undefined)
 endif()
 
+if(OSCPM_MULL_PLUGIN)
+    set(OSCPM_MULL_RUNNER mull-runner CACHE STRING "Mull runner of the same LLVM version as OSCPM_MULL_PLUGIN")
+    set(OSCPM_MUTATION_THRESHOLD 89 CACHE STRING "Lowest mutation score, out of 100, the mutation target accepts")
+    target_compile_options(oscpm_tests PRIVATE -fpass-plugin=${OSCPM_MULL_PLUGIN} -grecord-command-line)
+    # Makes libstdc++ fail on an out-of-range index, so a mutant that reads one element past a view or an array is killed.
+    target_compile_definitions(oscpm_tests PRIVATE _GLIBCXX_ASSERTIONS)
+    add_custom_target(mutation
+        COMMAND ${OSCPM_MULL_RUNNER}
+            --reporters IDE --reporters Elements
+            --report-dir ${CMAKE_BINARY_DIR}/reports --report-name mutation
+            --timeout 10000
+            --mutation-score-threshold ${OSCPM_MUTATION_THRESHOLD}
+            $<TARGET_FILE:oscpm_tests>
+        DEPENDS oscpm_tests
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        USES_TERMINAL
+        VERBATIM
+    )
+endif()
+
 set_target_properties(oscpm_tests PROPERTIES XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED NO)
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)

@@ -110,6 +110,14 @@ struct MayThrowOnMove
     int value;
 };
 
+std::optional<std::size_t> indexedPosition(const oscpm::detail::AddressIndex& index, const Addresses& sorted, const std::string& address)
+{
+    std::size_t position = 0;
+    const bool found = index.find(oscpm::detail::hashOf(address), [&](std::size_t candidate)
+        { return sorted[candidate] == address; }, position);
+    return found ? std::optional<std::size_t>(position) : std::nullopt;
+}
+
 Addresses expectedMatches(const std::set<std::string>& registered, std::string_view pattern)
 {
     Addresses expected;
@@ -567,6 +575,40 @@ TEST_CASE("every registered address dispatches to itself alone through interleav
         CHECK(dispatchAddresses(space, "/m/600", absent).empty());
         CHECK(space.find("/m/600") == nullptr);
     }
+}
+
+TEST_CASE("the address index finds every address it holds and none it has erased through interleaved inserts and erases")
+{
+    oscpm::detail::AddressIndex index;
+    Addresses sorted;
+    std::mt19937 generator(11);
+    for (int step = 0; step < 3000; ++step)
+    {
+        const std::string address = "/m/" + std::to_string(generator() % 400);
+        const auto place = std::lower_bound(sorted.begin(), sorted.end(), address);
+        const auto offset = static_cast<std::size_t>(place - sorted.begin());
+        if (place != sorted.end() && *place == address)
+        {
+            sorted.erase(place);
+            index.erase(offset);
+        }
+        else if (generator() % 3 != 0)
+        {
+            index.reserveForInsert();
+            sorted.insert(place, address);
+            index.insert(offset, oscpm::detail::hashOf(address));
+        }
+        if (step % 25 != 0)
+        {
+            continue;
+        }
+        for (std::size_t expected = 0; expected < sorted.size(); ++expected)
+        {
+            REQUIRE(indexedPosition(index, sorted, sorted[expected]) == expected);
+        }
+        REQUIRE_FALSE(indexedPosition(index, sorted, "/m/400").has_value());
+    }
+    CHECK_FALSE(sorted.empty());
 }
 
 TEST_CASE("a value type whose move may throw is dispatched exactly as an int is")

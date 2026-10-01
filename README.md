@@ -360,8 +360,11 @@ ctest --preset release
 ```
 
 `debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and
-`bench` is `release` with the benchmarks. `DEPENDENCIES.md` lists what is
-fetched at configure time and why.
+`bench` is `release` with the benchmarks. `mutation` builds the tests under
+clang-18 with the [Mull](https://github.com/mull-project/mull) plugin and the
+sanitizers, and its build runs them once per mutant; it needs Mull for
+LLVM 18 on Linux. `DEPENDENCIES.md` lists what is fetched at configure time
+and why.
 
 | Option | Default | Effect |
 | --- | --- | --- |
@@ -371,6 +374,7 @@ fetched at configure time and why.
 | `OSCPM_BUILD_BENCHMARKS` | `OFF` | builds the benchmarks and fetches Google Benchmark; the `bench` preset sets it |
 | `OSCPM_BUILD_FUZZERS` | `OFF` | builds a libFuzzer target under AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the corpus; needs an LLVM clang |
 | `OSCPM_SANITIZE` | `OFF` | builds the tests under the same sanitizers |
+| `OSCPM_MULL_PLUGIN` | empty | the Mull IR plugin to compile the tests with; adds the `mutation` target, which fails when the mutation score is below `OSCPM_MUTATION_THRESHOLD`. The `mutation` preset sets it |
 
 ## Versioning
 

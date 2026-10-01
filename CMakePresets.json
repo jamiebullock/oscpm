@@ -37,6 +37,19 @@
       }
     },
     {
+      "name": "mutation",
+      "displayName": "Mutation tests (Ninja, clang-18 with Mull, sanitizers)",
+      "inherits": "debug",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++-18",
+        "OSCPM_MULL_PLUGIN": "/usr/lib/mull-ir-frontend-18",
+        "OSCPM_MULL_RUNNER": "mull-runner-18",
+        "OSCPM_SANITIZE": "ON",
+        "OSCPM_CHECK_FORMAT": "OFF",
+        "OSCPM_BUILD_EXAMPLES": "OFF"
+      }
+    },
+    {
       "name": "windows",
       "displayName": "Windows (Visual Studio 2022, x64)",
       "generator": "Visual Studio 17 2022",
@@ -48,6 +61,7 @@
     { "name": "debug", "configurePreset": "debug" },
     { "name": "release", "configurePreset": "release" },
     { "name": "bench", "configurePreset": "bench" },
+    { "name": "mutation", "configurePreset": "mutation", "targets": ["mutation"] },
     { "name": "windows", "configurePreset": "windows", "configuration": "Release" },
     { "name": "windows-debug", "configurePreset": "windows", "configuration": "Debug" }
   ],
