@@ -49,7 +49,7 @@ public:
         }
         const std::size_t mask = m_slots.size() - 1;
         std::size_t slot = hash & mask;
-        while (m_slots[slot] != 0U)
+        while (m_slots[slot] != kEmptySlot)
         {
             slot = (slot + 1) & mask;
         }
@@ -77,7 +77,7 @@ public:
             return false;
         }
         const std::size_t mask = m_slots.size() - 1;
-        for (std::size_t slot = hash & mask; m_slots[slot] != 0U; slot = (slot + 1) & mask)
+        for (std::size_t slot = hash & mask; m_slots[slot] != kEmptySlot; slot = (slot + 1) & mask)
         {
             const std::size_t candidate = m_slots[slot] - 1;
             if (m_hashes[candidate] == hash && isEntry(candidate))
@@ -91,6 +91,7 @@ public:
 
 private:
     static constexpr std::size_t kMinSlots = 16;
+    static constexpr std::uint32_t kEmptySlot = 0;
 
     void rebuild()
     {
@@ -104,11 +105,11 @@ private:
         {
             numSlots *= 2;
         }
-        std::vector<std::uint32_t> slots(numSlots, 0U);
+        std::vector<std::uint32_t> slots(numSlots, kEmptySlot);
         for (std::size_t index = 0; index < m_hashes.size(); ++index)
         {
             std::size_t slot = m_hashes[index] & (numSlots - 1);
-            while (slots[slot] != 0U)
+            while (slots[slot] != kEmptySlot)
             {
                 slot = (slot + 1) & (numSlots - 1);
             }
@@ -125,7 +126,7 @@ private:
         {
             hole = (hole + 1) & mask;
         }
-        for (std::size_t next = (hole + 1) & mask; m_slots[next] != 0U; next = (next + 1) & mask)
+        for (std::size_t next = (hole + 1) & mask; m_slots[next] != kEmptySlot; next = (next + 1) & mask)
         {
             const std::size_t home = m_hashes[m_slots[next] - 1] & mask;
             const std::size_t distanceFromHome = (next - home) & mask;
@@ -136,7 +137,7 @@ private:
                 hole = next;
             }
         }
-        m_slots[hole] = 0U;
+        m_slots[hole] = kEmptySlot;
         const auto removed = static_cast<std::uint32_t>(index + 1);
         for (std::uint32_t& slot : m_slots)
         {

@@ -105,9 +105,11 @@ public:
 
 private:
     static constexpr std::size_t kNumBuckets = std::size_t { 1 } << CacheBits;
+    static constexpr std::uint64_t kNeverStored = 0;
+
     struct Bucket
     {
-        std::uint64_t generation = 0;
+        std::uint64_t generation = kNeverStored;
         std::size_t patternLength = 0;
         std::size_t numResults = 0;
         std::size_t numReaders = 0;
@@ -163,7 +165,7 @@ private:
     }
 
     std::vector<Bucket> m_buckets;
-    std::uint64_t m_generation = 1;
+    std::uint64_t m_generation = kNeverStored + 1;
 };
 
 }

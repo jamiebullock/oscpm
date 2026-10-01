@@ -16,7 +16,6 @@
 namespace oscpm::detail
 {
 
-/// The first fault in `pattern`, or nothing when it parses.
 constexpr std::optional<Error> validatePattern(std::string_view pattern) noexcept
 {
     if (!hasLeadingSlash(pattern))
@@ -57,8 +56,6 @@ constexpr std::optional<Error> validatePattern(std::string_view pattern) noexcep
     return std::nullopt;
 }
 
-/// The first fault in `address`, or nothing when it is a well-formed OSC
-/// address.
 constexpr std::optional<Error> validateAddress(std::string_view address) noexcept
 {
     if (!hasLeadingSlash(address))

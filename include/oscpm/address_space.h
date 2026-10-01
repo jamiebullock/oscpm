@@ -25,20 +25,24 @@ namespace oscpm
 /// every time.
 constexpr std::size_t kMaxMemoPatternLength = 256;
 
-/// The number of methods `dispatch` visited, and the parse fault when the
-/// pattern was malformed and nothing was visited.
+/// The outcome of `AddressSpace::dispatch`.
 struct DispatchResult
 {
-    std::size_t matched;
-    std::optional<Error> error;
+    std::size_t matched; ///< the number of methods visited
+    std::optional<Error> error; ///< the parse fault when the pattern was malformed and nothing was visited
 };
 
 /// A set of methods, each a well-formed address with a value of type `T`,
-/// that a pattern is dispatched to. `add` and `remove` allocate; nothing
-/// else does. Not safe for concurrent use.
-/// @tparam Memo whether a lookup's result is kept until the next `add` or `remove`
-/// @tparam CacheBits the memo holds `1 << CacheBits` patterns of up to `kMaxMemoPatternLength` bytes
-/// @tparam InlineResults the most methods a memoised result holds; a lookup beyond either limit is delivered in full but not kept
+/// that a pattern is dispatched to. No method allocates unless its
+/// documentation says so; copying the space allocates. Not safe for
+/// concurrent use.
+/// @tparam Memo whether a lookup's result is kept until the next `add` or
+/// `remove`
+/// @tparam CacheBits the memo has `1 << CacheBits` entries, each holding one
+/// pattern of up to `kMaxMemoPatternLength` bytes
+/// @tparam InlineResults the most methods a kept result lists; a lookup that
+/// matches more, or whose pattern is too long, is delivered in full but not
+/// kept
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
 {
@@ -48,8 +52,9 @@ public:
     {
     }
 
-    /// Registers `value` under `address`. Fails with the first fault in the
-    /// address, or `Duplicate` when the address is already registered.
+    /// Registers `value` under `address`; allocates. Fails with the first
+    /// fault in the address, or `Duplicate` when the address is already
+    /// registered.
     std::optional<Error> add(std::string_view address, T value)
     {
         assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
@@ -60,8 +65,8 @@ public:
         return m_table.insert(address, std::move(value)) ? std::nullopt : std::optional<Error>(Error::Duplicate);
     }
 
-    /// Unregisters `address`. Fails with the first fault in the address, or
-    /// `NotFound` when the address is not registered.
+    /// Unregisters `address`; allocates. Fails with the first fault in the
+    /// address, or `NotFound` when the address is not registered.
     std::optional<Error> remove(std::string_view address)
     {
         assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
@@ -84,7 +89,7 @@ public:
         return m_table.lookup(pattern, visitor);
     }
 
-    /// As above, with `const T&`.
+    /// The `const` overload; the visitor receives `const T&`.
     template <typename Visitor>
     std::size_t lookup(const Pattern& pattern, Visitor&& visitor) const
     {
@@ -93,7 +98,7 @@ public:
     }
 
     /// `Pattern::parse` then `lookup`; a malformed pattern visits nothing and
-    /// is reported.
+    /// is returned as the result's `error`.
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
@@ -101,7 +106,7 @@ public:
         return m_table.template dispatch<DispatchResult>(pattern, visitor);
     }
 
-    /// As above, with `const T&`.
+    /// The `const` overload; the visitor receives `const T&`.
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor) const
     {
@@ -118,7 +123,7 @@ public:
         m_table.forEach(visitor);
     }
 
-    /// As above, with `const T&`.
+    /// The `const` overload; the visitor receives `const T&`.
     template <typename Visitor>
     void forEach(Visitor&& visitor) const
     {
