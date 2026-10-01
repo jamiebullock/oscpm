@@ -31,20 +31,31 @@ kRegressionFloor = 4
 kProbeNoiseBudget = 100000
 kMaxIterations = 500
 kRegexSpecials = set(".^$|()[]{}*+?\\")
-kHeadline = [
-    ("Dispatch/repeat/literal/large", "Repeated literal address"),
-    ("Dispatch/repeat/example/large", "Repeated `/synth[3-6]/voice/*/osc/{saw,square}/freq`, 128 methods"),
-    ("Dispatch/repeat/descendant-freq/large", "Repeated `//freq`, 512 methods"),
-    ("Dispatch/stream/large", "One message of a repeating stream of 64"),
-    ("Dispatch/cold/literal/large", "First lookup, literal address"),
-    ("Dispatch/cold/example/large", "First lookup, `/synth[3-6]/voice/*/osc/{saw,square}/freq`"),
-    ("Dispatch/cold/descendant-freq/large", "First lookup, `//freq`"),
-    ("Match/prepared/literal-hit", "`Pattern::matches`, literal"),
-    ("Match/prepared/example-hit", "`Pattern::matches`, wildcards"),
-    ("Match/parse/example-hit", "`oscpm::match`: parse and match, wildcards"),
-    ("Dispatch/rejected/large", "A 64 KB wildcard pattern, rejected"),
-]
+kNanosecondsPerUnit = {"ns": 1.0, "us": 1e3, "ms": 1e6, "s": 1e9}
+kWorstAdversarial = "worst adversarial"
 kWorstAdversarialFilter = "Dispatch/adversarial/.*-1024/large"
+kHeadline = [
+    ("Repeated dispatch of a pattern", "Pattern", "ns", [
+        ("Dispatch/repeat/literal/large", "Literal address"),
+        ("Dispatch/repeat/example/large", "`/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 methods"),
+        ("Dispatch/repeat/descendant-freq/large", "`//freq`, matching 512 methods"),
+        ("Dispatch/stream/large", "One message of a repeating stream of 64"),
+    ]),
+    ("First dispatch of a pattern", "Pattern", "ns", [
+        ("Dispatch/cold/literal/large", "Literal address"),
+        ("Dispatch/cold/example/large", "`/synth[3-6]/voice/*/osc/{saw,square}/freq`"),
+        ("Dispatch/cold/descendant-freq/large", "`//freq`"),
+    ]),
+    ("One pattern against one address", "Operation", "ns", [
+        ("Match/prepared/literal-hit", "`Pattern::matches`, literal"),
+        ("Match/prepared/example-hit", "`Pattern::matches`, wildcards"),
+        ("Match/parse/example-hit", "`oscpm::match` (parse and match), wildcards"),
+    ]),
+    ("Hostile patterns", "Pattern", "us", [
+        (kWorstAdversarial, "The slowest pattern of 1024 bytes (`{shape}`)"),
+        ("Dispatch/rejected/large", "A 64 KB wildcard pattern, rejected"),
+    ]),
+]
 
 
 def run(command, **kwargs):
@@ -209,16 +220,15 @@ def timesByName(binary, filterPattern, extraArguments):
     if filterPattern:
         command.append(f"--benchmark_filter={filterPattern}")
     report = json.loads(run(command, capture_output=True).stdout)
-    scale = {"ns": 1.0, "us": 1e3, "ms": 1e6, "s": 1e9}
     return report, {
-        entry["run_name"]: timePerItem(entry, scale)
+        entry["run_name"]: timePerItem(entry)
         for entry in report["benchmarks"]
         if entry.get("aggregate_name", "median") == "median"
     }
 
 
-def timePerItem(entry, scale):
-    return entry["real_time"] * scale[entry["time_unit"]] / entry.get("messages", 1)
+def timePerItem(entry):
+    return entry["real_time"] * kNanosecondsPerUnit[entry["time_unit"]] / entry.get("messages", 1)
 
 
 def formatTime(nanoseconds):
@@ -226,6 +236,11 @@ def formatTime(nanoseconds):
         if nanoseconds >= size:
             return f"{nanoseconds / size:.3g} {unit}"
     return f"{nanoseconds:.3g} ns"
+
+
+def formatIn(unit, nanoseconds):
+    threeFigures = float(f"{nanoseconds / kNanosecondsPerUnit[unit]:.3g}")
+    return f"{threeFigures:,.10g}"
 
 
 def compareTimes(arguments, workDir):
@@ -293,28 +308,26 @@ def report(arguments, workDir):
         sys.exit("head does not build")
     extra = [f"--benchmark_repetitions={arguments.repetitions}", "--benchmark_report_aggregates_only=true",
              f"--benchmark_min_time={arguments.minTime}"]
-    headlineFilter = "|".join(anchored(name) for name, _ in kHeadline)
-    context, medians = timesByName(binary, headlineFilter, extra)
+    names = [name for _, _, _, rows in kHeadline for name, _ in rows if name != kWorstAdversarial]
+    context, medians = timesByName(binary, "|".join(anchored(name) for name in names), extra)
     _, adversarial = timesByName(binary, kWorstAdversarialFilter, extra)
     worst = max(adversarial, key=adversarial.get)
     shape = worst.split("/")[2].rsplit("-", 1)[0]
-
-    rows = [(name, description) for name, description in kHeadline if name != "Dispatch/rejected/large"]
-    rows.append((worst, f"The slowest hostile pattern of 1024 bytes (`{shape}`)"))
-    rows.append(("Dispatch/rejected/large", dict(kHeadline)["Dispatch/rejected/large"]))
-    medians.update(adversarial)
+    medians[kWorstAdversarial] = adversarial[worst]
 
     compiler = context["context"].get("compiler", "unknown compiler")
-    version = libraryVersion()
     lines = [
-        f"{processorName()}, {operatingSystem()}, {compiler} `{cachedFlags(workDir / 'head')}`, "
-        f"oscpm {version}, {datetime.date.today().isoformat()}. Median of {arguments.repetitions} "
-        f"repetitions; dispatch into the 1,856-method space.",
-        "",
-        "| Operation | Median |",
-        "|---|---:|",
+        f"- Processor: {processorName()}",
+        f"- Operating system: {operatingSystem()}",
+        f"- Compiler: {compiler}, `{cachedFlags(workDir / 'head')}`",
+        f"- oscpm: {libraryVersion()}, measured {datetime.date.today().isoformat()}",
+        f"- Method: median wall-clock time of {arguments.repetitions} repetitions; dispatch is into a space of "
+        f"1,856 methods",
     ]
-    lines += [f"| {description} | {formatTime(medians[name])} |" for name, description in rows]
+    for title, subject, unit, rows in kHeadline:
+        lines += ["", f"**{title}**", "", f"| {subject} | Median ({unit}) |", "|---|---:|"]
+        lines += [f"| {description.replace('{shape}', shape)} | {formatIn(unit, medians[name])} |"
+                  for name, description in rows]
     writeSummary(arguments.summary, lines)
     return 0
 
