@@ -124,11 +124,12 @@ a handler takes, so the visitor passes the message through. `T` need not be
 callable: `examples/dispatch.cpp` stores a `Parameter` struct that its
 visitor writes each message's argument into.
 
-`dispatch` is `Pattern::parse` followed by `lookup`, returning the number of
-methods visited and the parse fault together; `lookup` takes an already
-parsed `Pattern` for a pattern that is reused. Both visit every matching
-method in bytewise address order; `forEach` visits them all. A visitor may
-call `lookup` and `dispatch` on the space that called it, and copy it, but
+`dispatch` parses the pattern and visits every matching method in bytewise
+address order, returning the number of methods visited and the parse fault
+together; `forEach` visits them all. `find` returns a pointer to the value
+registered under one address, or null when there is none; the pointer is
+valid until the next `add` or `remove`. A visitor may
+call `dispatch` and `find` on the space that called it, and copy it, but
 must not add or remove methods, move from it or assign to it, and a build
 without `NDEBUG` asserts when one adds or removes. To
 change the space in response to a message, collect the changes while
@@ -149,7 +150,7 @@ for (const std::string& address : released)
 ```
 
 `AddressSpace<T, Memo, CacheBits, InlineResults>`
-memoises a lookup's result until the next `add` or `remove`; `Memo = false`
+memoises a dispatch's result until the next `add` or `remove`; `Memo = false`
 turns the memo off, and `CacheBits` and `InlineResults` size it. A pattern
 longer than `kMaxMemoPatternLength` or a result larger than `InlineResults`
 is delivered in full but not memoised. An address space
@@ -162,13 +163,13 @@ and filters the incoming addresses through a stored pattern.
 
 ## Guarantees
 
-`match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::lookup`,
-`AddressSpace::dispatch` and `AddressSpace::forEach`, the last three apart
+`match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::find`,
+`AddressSpace::dispatch` and `AddressSpace::forEach`, the last two apart
 from whatever the visitor they call does:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
-- never throw, and are declared `noexcept` outside the address space;
+- never throw, and all but `dispatch` and `forEach` are declared `noexcept`;
 - run in time bounded by the product of the pattern and address lengths,
   whatever the pattern contains: a part is matched by a reach-set
   simulation, never by backtracking over alternatives, and `//` keeps a

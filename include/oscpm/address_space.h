@@ -21,8 +21,8 @@
 namespace oscpm
 {
 
-/// The longest pattern a lookup memoises; a longer one is matched afresh
-/// every time.
+/// The longest pattern whose dispatch result is kept; a longer one is matched
+/// afresh every time.
 constexpr std::size_t kMaxMemoPatternLength = 256;
 
 /// The outcome of `AddressSpace::dispatch`.
@@ -36,13 +36,13 @@ struct DispatchResult
 /// that a pattern is dispatched to. No method allocates unless its
 /// documentation says so; copying the space allocates. Not safe for
 /// concurrent use.
-/// @tparam Memo whether a lookup's result is kept until the next `add` or
+/// @tparam Memo whether a dispatch's result is kept until the next `add` or
 /// `remove`
 /// @tparam CacheBits the memo has `1 << CacheBits` entries, each holding one
 /// pattern of up to `kMaxMemoPatternLength` bytes
-/// @tparam InlineResults the most methods a kept result lists; a lookup that
-/// matches more, or whose pattern is too long, is delivered in full but not
-/// kept
+/// @tparam InlineResults the most methods a kept result lists; a dispatch
+/// that matches more, or whose pattern is too long, is delivered in full but
+/// not kept
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
 {
@@ -77,28 +77,25 @@ public:
         return m_table.erase(address) ? std::nullopt : std::optional<Error>(Error::NotFound);
     }
 
-    /// Calls `visitor(std::string_view address, T& value)` for every method
-    /// `pattern` matches, in bytewise address order, and returns how many.
-    /// The visitor may look up or dispatch on this space and may copy it, but
+    /// The value registered under `address`, or null when there is none. The
+    /// pointer is valid until the next `add` or `remove`.
+    T* find(std::string_view address) noexcept
+    {
+        return m_table.find(address);
+    }
+
+    /// The `const` overload; returns `const T*`.
+    const T* find(std::string_view address) const noexcept
+    {
+        return m_table.find(address);
+    }
+
+    /// Parses `pattern` and calls `visitor(std::string_view address, T& value)`
+    /// for every method it matches, in bytewise address order. A malformed
+    /// pattern visits nothing and is returned as the result's `error`. The
+    /// visitor may dispatch on this space, call `find` and copy the space, but
     /// must not add or remove methods, move from it or assign to it; a build
     /// without `NDEBUG` asserts when it adds or removes.
-    template <typename Visitor>
-    std::size_t lookup(const Pattern& pattern, Visitor&& visitor)
-    {
-        [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
-        return m_table.lookup(pattern, visitor);
-    }
-
-    /// The `const` overload; the visitor receives `const T&`.
-    template <typename Visitor>
-    std::size_t lookup(const Pattern& pattern, Visitor&& visitor) const
-    {
-        [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
-        return m_table.lookup(pattern, visitor);
-    }
-
-    /// `Pattern::parse` then `lookup`; a malformed pattern visits nothing and
-    /// is returned as the result's `error`.
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
@@ -115,7 +112,7 @@ public:
     }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method,
-    /// in bytewise address order, under the same visitor rule as `lookup`.
+    /// in bytewise address order, under the same visitor rule as `dispatch`.
     template <typename Visitor>
     void forEach(Visitor&& visitor)
     {

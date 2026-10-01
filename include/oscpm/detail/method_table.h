@@ -81,16 +81,14 @@ public:
         return true;
     }
 
-    template <typename Visitor>
-    std::size_t lookup(const Pattern& pattern, Visitor& visitor)
+    T* find(std::string_view address) noexcept
     {
-        return lookupIn(*this, pattern, visitor);
+        return findIn(*this, address);
     }
 
-    template <typename Visitor>
-    std::size_t lookup(const Pattern& pattern, Visitor& visitor) const
+    const T* find(std::string_view address) const noexcept
     {
-        return lookupIn(*this, pattern, visitor);
+        return findIn(*this, address);
     }
 
     template <typename Result, typename Visitor>
@@ -151,6 +149,20 @@ private:
         visitor(std::string_view(method.address), method.value);
     }
 
+    template <typename Self>
+    static auto findIn(Self& self, std::string_view address) noexcept
+    {
+        auto& methods = self.m_methods;
+        std::size_t index = 0;
+        if (self.m_index.find(hashOf(address), [&](std::size_t candidate)
+                { return methods[candidate].address == address; }, index))
+        {
+            return &methods[index].value;
+        }
+        const auto position = lowerBound(methods, address);
+        return position != methods.end() && position->address == address ? &position->value : nullptr;
+    }
+
     template <typename Result, typename Self, typename Visitor>
     static Result dispatchIn(Self& self, std::string_view text, Visitor& visitor)
     {
@@ -164,7 +176,7 @@ private:
         {
             return Result { 0, parsed.error() };
         }
-        return Result { lookupIn(self, parsed.pattern(), visitor), std::nullopt };
+        return Result { dispatchParsed(self, parsed.pattern(), visitor), std::nullopt };
     }
 
     template <typename Self, typename Visitor>
@@ -188,7 +200,7 @@ private:
     }
 
     template <typename Self, typename Visitor>
-    static std::size_t lookupIn(Self& self, const Pattern& pattern, Visitor& visitor)
+    static std::size_t dispatchParsed(Self& self, const Pattern& pattern, Visitor& visitor)
     {
         auto& methods = self.m_methods;
         const std::string_view text = pattern.text();
@@ -208,16 +220,6 @@ private:
         }
 
         const bool memoisable = self.m_memo.accepts(text) && methods.size() <= MemoTable::kMaxMethods;
-        const std::size_t hash = memoisable ? hashOf(text) : 0;
-        if (memoisable)
-        {
-            std::size_t numMemoised = 0;
-            if (self.m_memo.visit(text, hash, methods, visitor, numMemoised))
-            {
-                return numMemoised;
-            }
-        }
-
         typename MemoTable::Results found { };
         std::size_t numFound = 0;
         PreparedParts prepared;
@@ -241,7 +243,7 @@ private:
 
         if (memoisable && numFound <= MemoTable::kInlineResults)
         {
-            self.m_memo.store(text, hash, found, numFound);
+            self.m_memo.store(text, hashOf(text), found, numFound);
         }
         return numFound;
     }

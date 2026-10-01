@@ -50,20 +50,21 @@ Pattern parsed(std::string_view text)
 }
 
 template <typename Space>
-Addresses lookupAddresses(const Space& space, std::string_view pattern)
-{
-    Addresses found;
-    space.lookup(parsed(pattern), [&](std::string_view address, const auto&)
-        { found.emplace_back(address); });
-    return found;
-}
-
-template <typename Space>
 Addresses dispatchAddresses(const Space& space, std::string_view pattern, oscpm::DispatchResult& result)
 {
     Addresses found;
     result = space.dispatch(pattern, [&](std::string_view address, const auto&)
         { found.emplace_back(address); });
+    return found;
+}
+
+template <typename Space>
+Addresses matchingAddresses(const Space& space, std::string_view pattern)
+{
+    oscpm::DispatchResult result { 0, std::nullopt };
+    Addresses found = dispatchAddresses(space, pattern, result);
+    REQUIRE_FALSE(result.error.has_value());
+    REQUIRE(result.matched == found.size());
     return found;
 }
 
@@ -185,49 +186,130 @@ TEST_CASE("a literal pattern finds exactly the method with its text")
 {
     AddressSpace<int> space;
     populate(space, { "/synth/1/freq", "/synth/1/freqs", "/synth/1", "/synth/10/freq" });
-    CHECK(lookupAddresses(space, "/synth/1/freq") == Addresses { "/synth/1/freq" });
-    CHECK(lookupAddresses(space, "/synth/1/fre") == Addresses { });
-    CHECK(lookupAddresses(space, "/synth/1/freq/") == Addresses { });
-    CHECK(lookupAddresses(space, "/synth/1/freq]") == Addresses { });
-    CHECK(lookupAddresses(space, "/") == Addresses { });
+    CHECK(matchingAddresses(space, "/synth/1/freq") == Addresses { "/synth/1/freq" });
+    CHECK(matchingAddresses(space, "/synth/1/fre") == Addresses { });
+    CHECK(matchingAddresses(space, "/synth/1/freq/") == Addresses { });
+    CHECK(matchingAddresses(space, "/synth/1/freq]") == Addresses { });
+    CHECK(matchingAddresses(space, "/") == Addresses { });
 }
 
 TEST_CASE("a wildcard pattern finds every matching method in address order")
 {
     AddressSpace<int> space;
     populate(space, { "/synth/2/amp", "/synth/1/freq", "/synth/1/amp", "/mixer/1/amp", "/synth/12/amp" });
-    CHECK(lookupAddresses(space, "/synth/*/amp") == Addresses { "/synth/1/amp", "/synth/12/amp", "/synth/2/amp" });
-    CHECK(lookupAddresses(space, "/synth/?/{amp,freq}") == Addresses { "/synth/1/amp", "/synth/1/freq", "/synth/2/amp" });
-    CHECK(lookupAddresses(space, "//amp") == Addresses { "/mixer/1/amp", "/synth/1/amp", "/synth/12/amp", "/synth/2/amp" });
-    CHECK(lookupAddresses(space, "//gain") == Addresses { });
-    CHECK(lookupAddresses(space, "//") == allAddresses(space));
+    CHECK(matchingAddresses(space, "/synth/*/amp") == Addresses { "/synth/1/amp", "/synth/12/amp", "/synth/2/amp" });
+    CHECK(matchingAddresses(space, "/synth/?/{amp,freq}") == Addresses { "/synth/1/amp", "/synth/1/freq", "/synth/2/amp" });
+    CHECK(matchingAddresses(space, "//amp") == Addresses { "/mixer/1/amp", "/synth/1/amp", "/synth/12/amp", "/synth/2/amp" });
+    CHECK(matchingAddresses(space, "//gain") == Addresses { });
+    CHECK(matchingAddresses(space, "//") == allAddresses(space));
 }
 
-TEST_CASE("lookup returns the number of methods visited and lets the visitor change the value")
+TEST_CASE("dispatch returns the number of methods visited and lets the visitor change the value")
 {
     AddressSpace<int> space;
     populate(space, { "/a/1", "/a/2", "/b/1" });
-    CHECK(space.lookup(parsed("/a/*"), [](std::string_view, int& value)
-              { value += 10; })
-        == 2);
+    const oscpm::DispatchResult result = space.dispatch("/a/*", [](std::string_view, int& value)
+        { value += 10; });
+    CHECK(result.matched == 2);
+    CHECK_FALSE(result.error.has_value());
     std::map<std::string, int> values;
     space.forEach([&](std::string_view address, const int& value)
         { values[std::string(address)] = value; });
     CHECK(values == std::map<std::string, int> { { "/a/1", 10 }, { "/a/2", 10 }, { "/b/1", 0 } });
 }
 
-TEST_CASE("dispatch parses the pattern and visits what lookup visits")
+TEST_CASE("find returns the value registered under an address and null when there is none")
+{
+    AddressSpace<int> space;
+    REQUIRE_FALSE(space.add("/synth/1/freq", 440).has_value());
+    REQUIRE_FALSE(space.add("/synth/2/freq", 220).has_value());
+
+    int* const found = space.find("/synth/1/freq");
+    REQUIRE(found != nullptr);
+    CHECK(*found == 440);
+    *found = 550;
+    int dispatched = 0;
+    space.dispatch("/synth/1/freq", [&](std::string_view, int& value)
+        { dispatched = value; });
+    CHECK(dispatched == 550);
+
+    for (const char* absent : { "/synth/3/freq", "/synth/1", "/synth/1/freq/", "/synth/*/freq", "synth/1/freq", "/", "" })
+    {
+        INFO("address " << absent);
+        CHECK(space.find(absent) == nullptr);
+    }
+
+    REQUIRE_FALSE(space.remove("/synth/1/freq").has_value());
+    CHECK(space.find("/synth/1/freq") == nullptr);
+    REQUIRE(space.find("/synth/2/freq") != nullptr);
+    CHECK(*space.find("/synth/2/freq") == 220);
+}
+
+TEST_CASE("find through a const space returns a pointer to a const value")
+{
+    AddressSpace<int> space;
+    REQUIRE_FALSE(space.add("/a", 7).has_value());
+    const AddressSpace<int>& constSpace = space;
+    static_assert(std::is_same_v<decltype(constSpace.find("/a")), const int*>);
+    static_assert(std::is_same_v<decltype(space.find("/a")), int*>);
+    REQUIRE(constSpace.find("/a") != nullptr);
+    CHECK(*constSpace.find("/a") == 7);
+    CHECK(constSpace.find("/b") == nullptr);
+}
+
+TEST_CASE("find reaches a value whose move may throw, a move-only value and a value in a space without a memo")
+{
+    AddressSpace<MayThrowOnMove> mayThrow;
+    REQUIRE_FALSE(mayThrow.add("/a", MayThrowOnMove(1)).has_value());
+    REQUIRE_FALSE(mayThrow.add("/b", MayThrowOnMove(2)).has_value());
+    REQUIRE(mayThrow.find("/b") != nullptr);
+    CHECK(mayThrow.find("/b")->value == 2);
+    CHECK(mayThrow.find("/c") == nullptr);
+
+    AddressSpace<std::unique_ptr<int>> moveOnly;
+    REQUIRE_FALSE(moveOnly.add("/a", std::make_unique<int>(3)).has_value());
+    REQUIRE(moveOnly.find("/a") != nullptr);
+    CHECK(**moveOnly.find("/a") == 3);
+
+    AddressSpace<int, false> unmemoised;
+    REQUIRE_FALSE(unmemoised.add("/a", 4).has_value());
+    REQUIRE(unmemoised.find("/a") != nullptr);
+    CHECK(*unmemoised.find("/a") == 4);
+    CHECK(unmemoised.find("/b") == nullptr);
+}
+
+TEST_CASE("a visitor may call find on the space that called it")
+{
+    AddressSpace<int> space;
+    REQUIRE_FALSE(space.add("/a/1", 1).has_value());
+    REQUIRE_FALSE(space.add("/a/2", 2).has_value());
+    REQUIRE_FALSE(space.add("/total", 0).has_value());
+    const oscpm::DispatchResult result = space.dispatch("/a/*", [&](std::string_view, int& value)
+        { *space.find("/total") += value; });
+    CHECK(result.matched == 2);
+    CHECK(*space.find("/total") == 3);
+}
+
+TEST_CASE("dispatch visits the methods a pattern matches and none for a pattern that matches nothing")
 {
     AddressSpace<int> space;
     populate(space, { "/synth/1/freq", "/synth/1/amp", "/synth/2/freq", "/mixer/gain" });
-    for (const char* pattern : { "/synth/1/freq", "/synth/*/freq", "//amp", "/synth/3/*" })
+    const struct
     {
-        INFO("pattern " << pattern);
+        const char* pattern;
+        Addresses expected;
+    } cases[] = {
+        { "/synth/1/freq", { "/synth/1/freq" } },
+        { "/synth/*/freq", { "/synth/1/freq", "/synth/2/freq" } },
+        { "//amp", { "/synth/1/amp" } },
+        { "/synth/3/*", { } },
+    };
+    for (const auto& expectation : cases)
+    {
+        INFO("pattern " << expectation.pattern);
         oscpm::DispatchResult result { 0, std::nullopt };
-        const Addresses dispatched = dispatchAddresses(space, pattern, result);
-        const Addresses looked = lookupAddresses(space, pattern);
-        CHECK(dispatched == looked);
-        CHECK(result.matched == looked.size());
+        CHECK(dispatchAddresses(space, expectation.pattern, result) == expectation.expected);
+        CHECK(result.matched == expectation.expected.size());
         CHECK_FALSE(result.error.has_value());
     }
 }
@@ -278,12 +360,12 @@ TEST_CASE("a pattern of up to 64 parts and one of more are both matched in full"
     AddressSpace<int> space;
     const std::string deep = repeated("/a", 70);
     populate(space, { "/a", repeated("/a", 64), repeated("/a", 64) + "/b", deep, deep + "/b" });
-    CHECK(lookupAddresses(space, repeated("/*", 64)) == Addresses { repeated("/a", 64) });
-    CHECK(lookupAddresses(space, repeated("/*", 65)) == Addresses { repeated("/a", 64) + "/b" });
-    CHECK(lookupAddresses(space, repeated("/*", 70)) == Addresses { deep });
-    CHECK(lookupAddresses(space, repeated("/*", 70) + "/b") == Addresses { deep + "/b" });
-    CHECK(lookupAddresses(space, repeated("/a", 69) + "//b") == Addresses { deep + "/b" });
-    CHECK(lookupAddresses(space, "/a" + repeated("//a", 69)) == Addresses { deep });
+    CHECK(matchingAddresses(space, repeated("/*", 64)) == Addresses { repeated("/a", 64) });
+    CHECK(matchingAddresses(space, repeated("/*", 65)) == Addresses { repeated("/a", 64) + "/b" });
+    CHECK(matchingAddresses(space, repeated("/*", 70)) == Addresses { deep });
+    CHECK(matchingAddresses(space, repeated("/*", 70) + "/b") == Addresses { deep + "/b" });
+    CHECK(matchingAddresses(space, repeated("/a", 69) + "//b") == Addresses { deep + "/b" });
+    CHECK(matchingAddresses(space, "/a" + repeated("//a", 69)) == Addresses { deep });
 }
 
 TEST_CASE("a value type whose move may throw is matched exactly as an int is")
@@ -303,7 +385,7 @@ TEST_CASE("a value type whose move may throw is matched exactly as an int is")
     for (const std::string& pattern : { std::string("/synth/*/freq"), std::string("//gain"), std::string("/*/2/{amp,freq}"), std::string("/a//b"), deep + "/*" })
     {
         INFO("pattern " << pattern);
-        CHECK(lookupAddresses(mayThrow, pattern) == lookupAddresses(ints, pattern));
+        CHECK(matchingAddresses(mayThrow, pattern) == matchingAddresses(ints, pattern));
     }
 }
 
@@ -333,19 +415,19 @@ TEST_CASE("dispatch through a const space passes a const value")
     CHECK(sum == 2);
 }
 
-TEST_CASE("a repeated lookup gives the same result and a change to the space is seen at once")
+TEST_CASE("a repeated dispatch gives the same result and a change to the space is seen at once")
 {
     AddressSpace<int> space;
     populate(space, { "/a/1", "/a/2" });
-    const Addresses first = lookupAddresses(space, "/a/*");
-    CHECK(lookupAddresses(space, "/a/*") == first);
+    const Addresses first = matchingAddresses(space, "/a/*");
+    CHECK(matchingAddresses(space, "/a/*") == first);
     CHECK(first == Addresses { "/a/1", "/a/2" });
 
     REQUIRE_FALSE(space.add("/a/0", 0).has_value());
-    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
+    CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
     REQUIRE_FALSE(space.remove("/a/1").has_value());
-    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
-    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
+    CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
+    CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
 }
 
 TEST_CASE("a single-bucket memo serves alternating patterns correctly")
@@ -354,9 +436,9 @@ TEST_CASE("a single-bucket memo serves alternating patterns correctly")
     populate(space, { "/a/1", "/a/2", "/b/1" });
     for (int round = 0; round < 3; ++round)
     {
-        CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
-        CHECK(lookupAddresses(space, "/b/*") == Addresses { "/b/1" });
-        CHECK(lookupAddresses(space, "/*/1") == Addresses { "/a/1", "/b/1" });
+        CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
+        CHECK(matchingAddresses(space, "/b/*") == Addresses { "/b/1" });
+        CHECK(matchingAddresses(space, "/*/1") == Addresses { "/a/1", "/b/1" });
     }
 }
 
@@ -386,28 +468,8 @@ TEST_CASE("a visitor may dispatch into the same space while a memoised result is
     CHECK(nested("/c/1").empty());
     CHECK(nested("/c/1").empty());
     CHECK(nested("/a/*") == Addresses { "/a/1", "/a/2", "/a/3" });
-    CHECK(lookupAddresses(space, "/b/*") == Addresses { "/b/1", "/b/2" });
-    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2", "/a/3" });
-}
-
-TEST_CASE("a visitor may look up another pattern while a memoised result is delivered")
-{
-    AddressSpace<int, true, 0, 4> space;
-    populate(space, { "/a/1", "/a/2", "/b/1" });
-    REQUIRE(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
-    Addresses outer;
-    Addresses inner;
-    const Pattern pattern = parsed("/a/*");
-    const std::size_t matched = space.lookup(pattern, [&](std::string_view address, int&)
-        {
-            if (outer.empty())
-            {
-                inner = lookupAddresses(space, "/b/*");
-            }
-            outer.emplace_back(address); });
-    CHECK(matched == 2);
-    CHECK(outer == Addresses { "/a/1", "/a/2" });
-    CHECK(inner == Addresses { "/b/1" });
+    CHECK(matchingAddresses(space, "/b/*") == Addresses { "/b/1", "/b/2" });
+    CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2", "/a/3" });
 }
 
 TEST_CASE("a result larger than the inline limit and a pattern longer than the memo limit are still delivered in full")
@@ -416,13 +478,13 @@ TEST_CASE("a result larger than the inline limit and a pattern longer than the m
     populate(space, { "/a/1", "/a/2", "/a/3", "/a/4" });
     for (int round = 0; round < 2; ++round)
     {
-        CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2", "/a/3", "/a/4" });
-        CHECK(lookupAddresses(space, "/a/[12]") == Addresses { "/a/1", "/a/2" });
+        CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2", "/a/3", "/a/4" });
+        CHECK(matchingAddresses(space, "/a/[12]") == Addresses { "/a/1", "/a/2" });
     }
     const std::string longPattern = "/a/*" + std::string(oscpm::kMaxMemoPatternLength, '*');
     for (int round = 0; round < 2; ++round)
     {
-        CHECK(lookupAddresses(space, longPattern) == Addresses { "/a/1", "/a/2", "/a/3", "/a/4" });
+        CHECK(matchingAddresses(space, longPattern) == Addresses { "/a/1", "/a/2", "/a/3", "/a/4" });
     }
 }
 
@@ -439,8 +501,8 @@ TEST_CASE("a default space serves a result of 1024 methods from its memo unchang
     std::sort(voices.begin(), voices.end());
     for (int round = 0; round < 3; ++round)
     {
-        CHECK(lookupAddresses(space, "/voice/*") == voices);
-        CHECK(lookupAddresses(space, "/master/*") == Addresses { "/master/gain", "/master/pan" });
+        CHECK(matchingAddresses(space, "/voice/*") == voices);
+        CHECK(matchingAddresses(space, "/master/*") == Addresses { "/master/gain", "/master/pan" });
     }
 }
 
@@ -448,11 +510,11 @@ TEST_CASE("an address space without a memo behaves the same")
 {
     AddressSpace<int, false> space;
     populate(space, { "/a/1", "/a/2", "/b/1" });
-    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
-    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
-    CHECK(lookupAddresses(space, "/a/1") == Addresses { "/a/1" });
+    CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(matchingAddresses(space, "/a/1") == Addresses { "/a/1" });
     REQUIRE_FALSE(space.add("/a/0", 0).has_value());
-    CHECK(lookupAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
+    CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
 }
 
 TEST_CASE("dispatch sees every add and remove after a pattern has been dispatched")
@@ -499,9 +561,11 @@ TEST_CASE("every registered address dispatches to itself alone through interleav
         {
             oscpm::DispatchResult result { };
             REQUIRE(dispatchAddresses(space, expected, result) == Addresses { expected });
+            REQUIRE(space.find(expected) != nullptr);
         }
         oscpm::DispatchResult absent { };
         CHECK(dispatchAddresses(space, "/m/600", absent).empty());
+        CHECK(space.find("/m/600") == nullptr);
     }
 }
 
@@ -632,30 +696,30 @@ TEST_CASE("a moved address space keeps its methods and the moved-from one stays 
 {
     AddressSpace<int> source;
     populate(source, { "/a/1", "/a/2" });
-    CHECK(lookupAddresses(source, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(matchingAddresses(source, "/a/*") == Addresses { "/a/1", "/a/2" });
 
     AddressSpace<int> constructed(std::move(source));
-    CHECK(lookupAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
-    CHECK(lookupAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
-    CHECK(lookupAddresses(source, "/a/*") == Addresses { });
+    CHECK(matchingAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(matchingAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(matchingAddresses(source, "/a/*") == Addresses { });
     REQUIRE_FALSE(source.add("/b", 0).has_value());
-    CHECK(lookupAddresses(source, "/*") == Addresses { "/b" });
-    CHECK(lookupAddresses(source, "/*") == Addresses { "/b" });
+    CHECK(matchingAddresses(source, "/*") == Addresses { "/b" });
+    CHECK(matchingAddresses(source, "/*") == Addresses { "/b" });
 
     AddressSpace<int> assigned;
     assigned = std::move(constructed);
-    CHECK(lookupAddresses(assigned, "/a/*") == Addresses { "/a/1", "/a/2" });
+    CHECK(matchingAddresses(assigned, "/a/*") == Addresses { "/a/1", "/a/2" });
     REQUIRE_FALSE(constructed.add("/c", 0).has_value());
-    CHECK(lookupAddresses(constructed, "//") == Addresses { "/c" });
-    CHECK(lookupAddresses(constructed, "//") == Addresses { "/c" });
+    CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
+    CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
 }
 
-TEST_CASE("a move-only value type is stored and reached through lookup")
+TEST_CASE("a move-only value type is stored and reached through dispatch")
 {
     AddressSpace<std::unique_ptr<int>> space;
     REQUIRE_FALSE(space.add("/a", std::make_unique<int>(1)).has_value());
     REQUIRE_FALSE(space.add("/b", std::make_unique<int>(2)).has_value());
-    space.lookup(parsed("/*"), [](std::string_view, std::unique_ptr<int>& value)
+    space.dispatch("/*", [](std::string_view, std::unique_ptr<int>& value)
         { *value *= 10; });
     int sum = 0;
     space.forEach([&](std::string_view, const std::unique_ptr<int>& value)
@@ -699,7 +763,7 @@ TEST_CASE("a space of handlers dispatches to every matching handler without allo
     CHECK(calls == expected);
 }
 
-TEST_CASE("lookup and forEach allocate nothing")
+TEST_CASE("dispatch, find and forEach allocate nothing")
 {
     AddressSpace<int> space;
     Addresses addresses;
@@ -708,35 +772,36 @@ TEST_CASE("lookup and forEach allocate nothing")
         addresses.push_back("/synth/" + std::to_string(i) + "/freq");
     }
     populate(space, addresses);
-    const Pattern literal = parsed("/synth/42/freq");
-    const Pattern wildcard = parsed("/synth/?/freq");
-    const std::string longText = "/synth/*/freq" + std::string(oscpm::kMaxMemoPatternLength, '*');
-    const Pattern unmemoised = parsed(longText);
+    const std::string unmemoised = "/synth/*/freq" + std::string(oscpm::kMaxMemoPatternLength, '*');
     std::size_t visited = 0;
     const auto count = [&](std::string_view, const int&)
     { ++visited; };
 
     const std::size_t before = oscpm_test::allocationCount();
-    space.lookup(literal, count);
-    space.lookup(wildcard, count);
-    space.lookup(wildcard, count);
-    space.lookup(unmemoised, count);
-    space.forEach(count);
     const oscpm::DispatchResult literalResult = space.dispatch("/synth/42/freq", count);
     const oscpm::DispatchResult wildcardResult = space.dispatch("/synth/?/freq", count);
+    const oscpm::DispatchResult wildcardAgainResult = space.dispatch("/synth/?/freq", count);
+    const oscpm::DispatchResult unmemoisedResult = space.dispatch(unmemoised, count);
+    space.forEach(count);
     const oscpm::DispatchResult malformedResult = space.dispatch("/synth/[4/freq", count);
     const oscpm::DispatchResult absentResult = space.dispatch("/synth/42/gain", count);
     const oscpm::DispatchResult absentAgainResult = space.dispatch("/synth/42/gain", count);
+    const int* const found = space.find("/synth/42/freq");
+    const int* const notFound = space.find("/synth/42/gain");
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);
-    CHECK(visited == 1 + 10 + 10 + 100 + 100 + 1 + 10);
+    CHECK(visited == 1 + 10 + 10 + 100 + 100);
     CHECK(literalResult.matched == 1);
     CHECK(wildcardResult.matched == 10);
+    CHECK(wildcardAgainResult.matched == 10);
+    CHECK(unmemoisedResult.matched == 100);
     CHECK(malformedResult.matched == 0);
     CHECK(malformedResult.error.has_value());
     CHECK(absentResult.matched == 0);
     CHECK(absentAgainResult.matched == 0);
+    CHECK(found != nullptr);
+    CHECK(notFound == nullptr);
 }
 
 TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says")
@@ -766,7 +831,6 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
     {
         INFO("pattern " << pattern);
         const Addresses expected = expectedMatches(registered, pattern);
-        CHECK(lookupAddresses(space, pattern) == expected);
         oscpm::DispatchResult result { 0, std::nullopt };
         CHECK(dispatchAddresses(space, pattern, result) == expected);
         CHECK(result.matched == expected.size());
@@ -783,7 +847,7 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
     }
 }
 
-TEST_CASE("random adds, removes and lookups agree with the standalone matcher")
+TEST_CASE("random adds, removes and dispatches agree with the standalone matcher")
 {
     AddressSpace<int, true, 2, 4> space;
     std::set<std::string> model;
@@ -836,7 +900,7 @@ TEST_CASE("random adds, removes and lookups agree with the standalone matcher")
         {
             const std::string pattern = randomPattern();
             INFO("step " << step << " pattern " << pattern);
-            CHECK(lookupAddresses(space, pattern) == expectedMatches(model, pattern));
+            CHECK(matchingAddresses(space, pattern) == expectedMatches(model, pattern));
         }
         CHECK(allAddresses(space) == Addresses(model.begin(), model.end()));
     }
