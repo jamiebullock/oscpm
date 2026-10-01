@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Jamie Bullock
 # SPDX-License-Identifier: Zlib
 
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.26)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ProjectVersion.cmake")
 project(oscpm VERSION ${OSCPM_VERSION} LANGUAGES CXX)
