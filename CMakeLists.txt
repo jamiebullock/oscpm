@@ -59,6 +59,7 @@ option(OSCPM_CHECK_FORMAT "Fail the build on clang-format violations" ${PROJECT_
 option(OSCPM_BUILD_BENCHMARKS "Build the benchmarks, which fetch Google Benchmark" OFF)
 option(OSCPM_BUILD_FUZZERS "Build the libFuzzer target under sanitizers; needs a compiler that ships libFuzzer" OFF)
 option(OSCPM_SANITIZE "Build the tests under AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+set(OSCPM_MULL_PLUGIN "" CACHE FILEPATH "Mull IR plugin to compile the tests with; adds the mutation target")
 
 if(OSCPM_CHECK_FORMAT)
     include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckFormat.cmake")

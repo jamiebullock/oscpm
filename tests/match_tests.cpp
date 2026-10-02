@@ -125,7 +125,8 @@ TEST_CASE("every construct matches a part either side of 64 bytes")
         const std::string part(length, 'a');
         const std::string lastByteDiffers = std::string(length - 1, 'a') + "b";
         const std::string allButLast(length - 1, 'a');
-        for (const std::string& pattern : { "/" + allButLast + "?", std::string("/*a"), "/" + allButLast + "[a-c]", "/" + allButLast + "{x,a}", std::string("/*a*") })
+        const std::string allButLastTwo(length - 2, 'a');
+        for (const std::string& pattern : { "/" + allButLast + "?", std::string("/*a"), "/" + allButLast + "[a-c]", "/" + allButLast + "{x,a}", std::string("/*a*"), "/" + allButLastTwo + "*a" })
         {
             INFO("pattern " << pattern);
             CHECK(match(pattern, "/" + part));
