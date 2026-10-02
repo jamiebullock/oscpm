@@ -114,8 +114,8 @@ public:
     /// Parses `pattern` and calls `value(args...)` on every method it matches,
     /// in bytewise address order, under the same visitor rule as `dispatch`.
     /// A malformed pattern calls nothing and is returned as the result's
-    /// `error`. Every call receives the same `args` objects, so none is moved
-    /// from.
+    /// `error`. Every call receives the same `args` objects; `invoke` itself
+    /// does not move from them.
     template <typename... Args>
     DispatchResult invoke(std::string_view pattern, Args&&... args)
     {

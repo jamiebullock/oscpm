@@ -852,9 +852,11 @@ TEST_CASE("invoke calls every matching handler with the same arguments without a
     CHECK(calls == expected);
 
     calls.clear();
-    handlers.invoke("/synth/*/freq", 880, std::string("note"));
+    std::string movable = "note";
+    handlers.invoke("/synth/*/freq", 880, std::move(movable));
     REQUIRE(calls.size() == 2);
-    CHECK(calls[0].name == calls[1].name);
+    CHECK(calls[0].name == &movable);
+    CHECK(calls[1].name == &movable);
     CHECK(calls[0].nameIntact);
     CHECK(calls[1].nameIntact);
 }
