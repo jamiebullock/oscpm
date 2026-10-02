@@ -360,10 +360,11 @@ ctest --preset release
 ```
 
 `debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and
-`bench` is `release` with the benchmarks. `mutation` builds the tests under
-clang-18 with the [Mull](https://github.com/mull-project/mull) plugin, and
-its build runs them once per mutant; it needs Mull for LLVM 18 on Linux.
-`DEPENDENCIES.md` lists what is fetched at configure time and why.
+`bench` is `release` with the benchmarks. `mutation` is `release` with the
+tests compiled under clang-18 with the
+[Mull](https://github.com/mull-project/mull) plugin, and its build runs them
+once per mutant; it needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists
+what is fetched at configure time and why.
 
 | Option | Default | Effect |
 | --- | --- | --- |

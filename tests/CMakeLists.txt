@@ -50,7 +50,7 @@ endif()
 if(OSCPM_MULL_PLUGIN)
     set(OSCPM_MULL_RUNNER mull-runner CACHE STRING "Mull runner of the same LLVM version as OSCPM_MULL_PLUGIN")
     set(OSCPM_MUTATION_THRESHOLD 89 CACHE STRING "Lowest mutation score, out of 100, the mutation target accepts")
-    target_compile_options(oscpm_tests PRIVATE -fpass-plugin=${OSCPM_MULL_PLUGIN} -grecord-command-line)
+    target_compile_options(oscpm_tests PRIVATE -fpass-plugin=${OSCPM_MULL_PLUGIN} -g -grecord-command-line)
     # Makes libstdc++ fail on an out-of-range index, so a mutant that reads one element past a view or an array is killed.
     target_compile_definitions(oscpm_tests PRIVATE _GLIBCXX_ASSERTIONS)
     add_custom_target(mutation
