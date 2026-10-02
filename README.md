@@ -23,23 +23,27 @@ standard library.
 #include <oscpm/address_space.h>
 #include <oscpp/server.hpp>
 
-float frequency1 = 440.0f;
-float frequency2 = 220.0f;
+#include <functional>
 
-oscpm::AddressSpace<float*> parameters;
-parameters.add("/synth/1/freq", &frequency1);
-parameters.add("/synth/2/freq", &frequency2);
+using Handler = std::function<void(const OSCPP::Server::Message&)>;
+
+void setFrequency(const OSCPP::Server::Message& message)
+{
+    synth.setFrequency(OSCPP::Server::ArgStream(message.args()).float32());
+}
+
+oscpm::AddressSpace<Handler> methods;
+methods.add("/synth/freq", setFrequency);
 
 // for each OSCPP::Server::Message received
-const float value = OSCPP::Server::ArgStream(message.args()).float32();
-parameters.dispatch(message.address(), [value](std::string_view address, float* parameter)
-    { *parameter = value; });
-// a message "/synth/*/freq" 550 leaves frequency1 and frequency2 at 550
+methods.dispatch(message.address(), [&](std::string_view, Handler& handler)
+    { handler(message); });
+// a message to "/synth/freq" or to "/synth/*" invokes setFrequency
 ```
 
-The space maps each address to something the application owns, here a
-pointer to a parameter. `dispatch` hands every method the message's pattern
-matches to the visitor, which does the invoking.
+Each method maps an address to something the application owns, here a
+handler. `dispatch` hands every method the message's pattern matches to the
+visitor, which does the invoking.
 [`examples/dispatch.cpp`](examples/dispatch.cpp) is a complete program: it
 builds a bundle with oscpp, reads it back and dispatches each message.
 
@@ -88,26 +92,28 @@ if (!result)
 
 `AddressSpace<T>` is a set of methods, each a well-formed address with a
 value of type `T`, that an incoming pattern is dispatched to. `T` is
-whatever the application needs to invoke a method: a pointer to a parameter,
-as in the opening example, a handler, as here, an index or a struct.
+whatever the application needs to invoke a method: a handler, as in the
+opening example, a parameter, as here, an index or a struct.
 
 ```cpp
 #include <oscpm/address_space.h>
 
-#include <oscpp/server.hpp>
+struct Parameter
+{
+    float value = 0.0f;
+};
 
-#include <functional>
+oscpm::AddressSpace<Parameter> parameters;
+parameters.add("/synth/1/freq", Parameter { 440.0f });
+parameters.add("/synth/2/freq", Parameter { 220.0f });
 
-using Handler = std::function<void(const OSCPP::Server::Message&)>;
+const oscpm::DispatchResult result = parameters.dispatch("/synth/*/freq", [](std::string_view, Parameter& parameter)
+    { parameter.value = 550.0f; });
+result.matched; // 2, the number of methods visited
+result.error; // empty; the parse fault when the pattern was malformed and nothing was visited
 
-oscpm::AddressSpace<Handler> methods;
-methods.add("/synth/1/freq", setFrequency);
-methods.add("/synth/2/freq", setFrequency);
-
-const oscpm::DispatchResult result = methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
-    { handler(message); });
-result.matched; // the number of methods visited
-result.error; // the parse fault, when the pattern was malformed and nothing was visited
+const Parameter* parameter = parameters.find("/synth/1/freq"); // value is 550
+parameters.find("/synth/3/freq"); // nullptr
 ```
 
 - `add(address, value)` and `remove(address)` return an `Error` on failure:
