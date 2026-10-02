@@ -53,8 +53,10 @@ if(OSCPM_MULL_PLUGIN)
     target_compile_options(oscpm_tests PRIVATE -fpass-plugin=${OSCPM_MULL_PLUGIN} -g -grecord-command-line)
     # Makes libstdc++ fail on an out-of-range index, so a mutant that reads one element past a view or an array is killed.
     target_compile_definitions(oscpm_tests PRIVATE _GLIBCXX_ASSERTIONS)
+    find_program(OSCPM_MULL_RUNNER_PATH NAMES ${OSCPM_MULL_RUNNER} REQUIRED)
+    # Mull's instrumentation calls getenv on every call of a mutated function, so the tests slow down with the size of the environment.
     add_custom_target(mutation
-        COMMAND ${OSCPM_MULL_RUNNER}
+        COMMAND env -i ${OSCPM_MULL_RUNNER_PATH}
             --reporters IDE --reporters Elements
             --report-dir ${CMAKE_BINARY_DIR}/reports --report-name mutation
             --timeout 10000
