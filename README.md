@@ -115,6 +115,9 @@ result.error; // the parse fault, when the pattern was malformed and nothing was
   `visitor(address, value)` for every method it matches, in bytewise address
   order. The visitor is the invoking step: it joins the message, which the
   space never sees, to the method's value.
+- `invoke(pattern, args...)` is `dispatch` with a visitor that calls
+  `value(args...)`, for a space whose values are handlers. Every matched
+  handler receives the same `args` objects.
 - `find(address)` returns a pointer to the value registered under one
   address, or null when there is none. The pointer is valid until the next
   `add` or `remove`.
@@ -231,12 +234,13 @@ format other implementations can reuse.
 ## Guarantees
 
 `match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::find`,
-`AddressSpace::dispatch` and `AddressSpace::forEach`, the last two apart
-from whatever the visitor they call does:
+`AddressSpace::dispatch`, `AddressSpace::invoke` and `AddressSpace::forEach`,
+the last three apart from whatever the visitor or handler they call does:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
-- never throw, and all but `dispatch` and `forEach` are declared `noexcept`;
+- never throw, and all but `dispatch`, `invoke` and `forEach` are declared
+  `noexcept`;
 - run in time bounded by the product of the pattern and address lengths,
   whatever the pattern contains;
 - are `constexpr` outside the address space, so a fixed pattern is parsed

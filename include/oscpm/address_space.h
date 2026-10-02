@@ -111,6 +111,26 @@ public:
         return m_table.template dispatch<DispatchResult>(pattern, visitor);
     }
 
+    /// Parses `pattern` and calls `value(args...)` on every method it matches,
+    /// in bytewise address order, under the same visitor rule as `dispatch`.
+    /// A malformed pattern calls nothing and is returned as the result's
+    /// `error`. Every call receives the same `args` objects, so none is moved
+    /// from.
+    template <typename... Args>
+    DispatchResult invoke(std::string_view pattern, Args&&... args)
+    {
+        return dispatch(pattern, [&](std::string_view, T& value)
+            { value(args...); });
+    }
+
+    /// The `const` overload; calls `value(args...)` on a `const T`.
+    template <typename... Args>
+    DispatchResult invoke(std::string_view pattern, Args&&... args) const
+    {
+        return dispatch(pattern, [&](std::string_view, const T& value)
+            { value(args...); });
+    }
+
     /// Calls `visitor(std::string_view address, T& value)` for every method,
     /// in bytewise address order, under the same visitor rule as `dispatch`.
     template <typename Visitor>

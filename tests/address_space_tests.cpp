@@ -805,6 +805,60 @@ TEST_CASE("a space of handlers dispatches to every matching handler without allo
     CHECK(calls == expected);
 }
 
+TEST_CASE("invoke calls every matching handler with the same arguments without allocating")
+{
+    using Handler = std::function<void(int, const std::string&)>;
+    struct Call
+    {
+        std::string_view address;
+        int argument;
+        const std::string* name;
+        bool nameIntact;
+        bool operator==(const Call& other) const
+        {
+            return address == other.address && argument == other.argument && name == other.name && nameIntact == other.nameIntact;
+        }
+    };
+    AddressSpace<Handler> handlers;
+    std::vector<Call> calls;
+    for (const char* address : { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp" })
+    {
+        REQUIRE_FALSE(handlers.add(address, [&calls, address](int argument, const std::string& name)
+                                  { calls.push_back(Call { address, argument, &name, name == "note" }); })
+                .has_value());
+    }
+    calls.reserve(8);
+    const std::string name = "note";
+
+    const std::size_t before = oscpm_test::allocationCount();
+    const oscpm::DispatchResult wildcard = handlers.invoke("/synth/*/freq", 440, name);
+    const oscpm::DispatchResult literal = handlers.invoke("/synth/2/amp", 1, name);
+    const oscpm::DispatchResult absent = handlers.invoke("/synth/3/freq", 0, name);
+    const oscpm::DispatchResult malformed = handlers.invoke("/synth/[1/freq", 0, name);
+    const oscpm::DispatchResult viaConst = std::as_const(handlers).invoke("/synth/2/*", 220, name);
+    const std::size_t after = oscpm_test::allocationCount();
+
+    CHECK(after == before);
+    CHECK(wildcard.matched == 2);
+    CHECK(literal.matched == 1);
+    CHECK(absent.matched == 0);
+    CHECK(malformed.matched == 0);
+    CHECK(faults(malformed.error, Error::UnterminatedClass));
+    CHECK(viaConst.matched == 2);
+    const std::vector<Call> expected {
+        { "/synth/1/freq", 440, &name, true }, { "/synth/2/freq", 440, &name, true }, { "/synth/2/amp", 1, &name, true },
+        { "/synth/2/amp", 220, &name, true }, { "/synth/2/freq", 220, &name, true }
+    };
+    CHECK(calls == expected);
+
+    calls.clear();
+    handlers.invoke("/synth/*/freq", 880, std::string("note"));
+    REQUIRE(calls.size() == 2);
+    CHECK(calls[0].name == calls[1].name);
+    CHECK(calls[0].nameIntact);
+    CHECK(calls[1].nameIntact);
+}
+
 TEST_CASE("dispatch, find and forEach allocate nothing")
 {
     AddressSpace<int> space;
