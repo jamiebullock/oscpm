@@ -6,14 +6,16 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 [![Latest tag](https://img.shields.io/github/v/tag/jamiebullock/oscpm?sort=semver&label=tag)](https://github.com/jamiebullock/oscpm/tags)
 [![Licence](https://img.shields.io/github/license/jamiebullock/oscpm?label=licence)](LICENSE)
 
-oscpm matches OSC address patterns against OSC addresses: the `?`, `*`,
-`[...]` and `{a,b}` syntax of
-[OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html), plus the `//`
-operator that [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html)
-took from XPath. It complements [oscpp](https://github.com/kaoskorobase/oscpp),
-which reads and writes OSC packets but leaves address matching to the caller:
-the address oscpp hands you is what oscpm matches. oscpm is usable on its own
-and depends on nothing outside the standard library.
+oscpm matches OSC address patterns against OSC addresses, and provides an
+address space for dispatching address patterns to OSC methods. It supports the
+[OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching
+syntax, and the proposed `//` operator from
+[OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
+
+It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp),
+which reads and writes OSC packets but does not provide pattern matching or an
+address space. oscpm does not depend on oscpp, or on anything outside the
+standard library.
 
 ## Example
 
