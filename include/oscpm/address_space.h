@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <optional>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 namespace oscpm
@@ -25,11 +26,11 @@ namespace oscpm
 /// afresh every time.
 constexpr std::size_t kMaxMemoPatternLength = 256;
 
-/// The outcome of `AddressSpace::dispatch`.
+/// The outcome of `AddressSpace::dispatch` and `AddressSpace::invoke`.
 struct DispatchResult
 {
-    std::size_t matched; ///< the number of methods visited
-    std::optional<Error> error; ///< the parse fault when the pattern was malformed and nothing was visited
+    std::size_t matched; ///< the number of methods visited or called
+    std::optional<Error> error; ///< the parse fault when the pattern was malformed and no method was reached
 };
 
 /// A set of methods, each a well-formed address with a value of type `T`,
@@ -119,16 +120,18 @@ public:
     template <typename... Args>
     DispatchResult invoke(std::string_view pattern, Args&&... args)
     {
+        static_assert(std::is_invocable_v<T&, Args&...>, "invoke needs a T that is callable with these arguments; use dispatch for other values");
         return dispatch(pattern, [&](std::string_view, T& value)
-            { value(args...); });
+            { static_cast<void>(value(args...)); });
     }
 
     /// The `const` overload; calls `value(args...)` on a `const T`.
     template <typename... Args>
     DispatchResult invoke(std::string_view pattern, Args&&... args) const
     {
+        static_assert(std::is_invocable_v<const T&, Args&...>, "invoke needs a T that is callable with these arguments; use dispatch for other values");
         return dispatch(pattern, [&](std::string_view, const T& value)
-            { value(args...); });
+            { static_cast<void>(value(args...)); });
     }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method,

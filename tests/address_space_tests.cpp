@@ -861,6 +861,26 @@ TEST_CASE("invoke calls every matching handler with the same arguments without a
     CHECK(calls[1].nameIntact);
 }
 
+TEST_CASE("invoke hands every handler that takes an argument by value its own copy, even of an rvalue")
+{
+    using Handler = std::function<void(std::string)>;
+    AddressSpace<Handler> handlers;
+    std::vector<std::string> received;
+    for (const char* address : { "/synth/1/freq", "/synth/2/freq" })
+    {
+        REQUIRE_FALSE(handlers.add(address, [&received](std::string name)
+                                  { received.push_back(std::move(name)); })
+                .has_value());
+    }
+
+    std::string name = "a name too long for the small string buffer";
+    const std::string expected = name;
+    const oscpm::DispatchResult result = handlers.invoke("/synth/*/freq", std::move(name));
+
+    CHECK(result.matched == 2);
+    CHECK(received == std::vector<std::string> { expected, expected });
+}
+
 TEST_CASE("dispatch, find and forEach allocate nothing")
 {
     AddressSpace<int> space;
