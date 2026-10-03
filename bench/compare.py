@@ -7,8 +7,9 @@
 """Runs the oscpm benchmarks and compares two revisions.
 
 instructions  instructions per iteration under Cachegrind, base against head;
-              exits 1 when a benchmark regresses past the threshold at every
-              heap position it is measured at
+              exits 1 when a benchmark regresses past the threshold, taking
+              the lowest count of each side over several heap positions once
+              the first measurement is past it
 time          wall-clock, base against head, in interleaved rounds
 report        wall-clock medians of the headline benchmarks, as Markdown
 """
