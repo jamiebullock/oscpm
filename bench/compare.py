@@ -7,7 +7,8 @@
 """Runs the oscpm benchmarks and compares two revisions.
 
 instructions  instructions per iteration under Cachegrind, base against head;
-              exits 1 when a benchmark regresses past the threshold
+              exits 1 when a benchmark regresses past the threshold at every
+              heap position it is measured at
 time          wall-clock, base against head, in interleaved rounds
 report        wall-clock medians of the headline benchmarks, as Markdown
 """
@@ -30,6 +31,7 @@ kRegressionRatio = 1.02
 kRegressionFloor = 4
 kProbeNoiseBudget = 100000
 kMaxIterations = 500
+kHeapPaddings = (16, 48, 112, 240, 496, 1008, 2032, 4080)
 kRegexSpecials = set(".^$|()[]{}*+?\\")
 kNanosecondsPerUnit = {"ns": 1.0, "us": 1e3, "ms": 1e6, "s": 1e9}
 kWorstAdversarial = "worst adversarial"
@@ -124,10 +126,16 @@ def iterationsFor(estimate):
     return max(1, min(kMaxIterations, -(-kProbeNoiseBudget // max(1, int(estimate)))))
 
 
-def instructionsAt(binary, name, iterations):
+def filterFor(name, heapPadding):
+    # The benchmark library copies the filter to the heap before a benchmark allocates, so an alternative
+    # that matches no benchmark moves everything the benchmark allocates by about its length.
+    return anchored(name) + (f"|^{'-' * heapPadding}$" if heapPadding else "")
+
+
+def instructionsAt(binary, name, iterations, heapPadding):
     completed = run([
         "valgrind", "--tool=cachegrind", "--cache-sim=no", "--cachegrind-out-file=/dev/null",
-        str(binary), f"--benchmark_filter={anchored(name)}", f"--benchmark_min_time={iterations}x",
+        str(binary), f"--benchmark_filter={filterFor(name, heapPadding)}", f"--benchmark_min_time={iterations}x",
     ], capture_output=True)
     found = re.search(r"I\s+refs:\s+([\d,]+)", completed.stderr)
     if found is None:
@@ -135,8 +143,9 @@ def instructionsAt(binary, name, iterations):
     return int(found.group(1).replace(",", ""))
 
 
-def instructionsPerIteration(binary, name, iterations):
-    return (instructionsAt(binary, name, 2 * iterations) - instructionsAt(binary, name, iterations)) / iterations
+def instructionsPerIteration(binary, name, iterations, heapPadding=0):
+    return (instructionsAt(binary, name, 2 * iterations, heapPadding)
+            - instructionsAt(binary, name, iterations, heapPadding)) / iterations
 
 
 def probedIterations(binary, name):
@@ -154,6 +163,16 @@ def countInstructions(binary, iterations, jobs):
 
 def isRegression(base, head):
     return head > base * kRegressionRatio and head - base > kRegressionFloor
+
+
+def lowestAcrossHeapPositions(binary, name, iterations, first):
+    return min([first] + [instructionsPerIteration(binary, name, iterations, padding) for padding in kHeapPaddings])
+
+
+def withLowest(binary, counts, iterations, names, jobs):
+    lowest = inParallel(lambda name: lowestAcrossHeapPositions(binary, name, iterations[name], counts[name]),
+                        names, jobs)
+    return {**counts, **lowest}
 
 
 def instructionTable(base, head):
@@ -192,10 +211,14 @@ def compareInstructions(arguments, workDir):
     iterations = inParallel(lambda name: probedIterations(headBinary, name), names, arguments.jobs)
     head = countInstructions(headBinary, iterations, arguments.jobs)
     base = {}
+    remeasured = []
     if baseBinary is not None:
         baseNames = benchmarkNames(baseBinary, arguments.filter)
         baseIterations = {name: iterations.get(name) or probedIterations(baseBinary, name) for name in baseNames}
         base = countInstructions(baseBinary, baseIterations, arguments.jobs)
+        remeasured = sorted(name for name in head if name in base and isRegression(base[name], head[name]))
+        head = withLowest(headBinary, head, iterations, remeasured, arguments.jobs)
+        base = withLowest(baseBinary, base, baseIterations, remeasured, arguments.jobs)
     (workDir / "instructions-head.json").write_text(json.dumps(head, indent=1))
     (workDir / "instructions-base.json").write_text(json.dumps(base, indent=1))
 
@@ -211,6 +234,10 @@ def compareInstructions(arguments, workDir):
     verdict = (f"{len(regressions)} benchmark(s) rose by more than {kRegressionRatio - 1:.0%} "
                f"and {kRegressionFloor} instructions: {', '.join(regressions)}"
                if regressions else "No benchmark regressed.")
+    if remeasured:
+        verdict += (f"\n\n{len(remeasured)} benchmark(s) exceeded the threshold as first measured and were measured "
+                    f"again at {len(kHeapPaddings)} more heap positions; the table shows the lowest count of each "
+                    f"side: {', '.join(remeasured)}")
     writeSummary(arguments.summary, [heading, "", verdict, "", *table])
     return 1 if regressions and not arguments.allowRegressions else 0
 
