@@ -11,6 +11,7 @@
 ### Added
 
 - `AddressSpace::find`: a pointer to the value registered under an address, or null when there is none. The pointer is valid until the next `add` or `remove`.
+- `AddressSpace::invoke(pattern, args...)`: calls `value(args...)` on every method the pattern matches, for a space whose values are handlers. It is `dispatch` with a visitor that passes `args` through, and every call receives the same `args` objects.
 - `oscpm/pattern.h`, holding `Pattern`, `ParseResult` and `match`, and `oscpm/error.h`, holding `Error`, `toString`, `kMaxAddressPartLength` and `kMaxPatternLength`. Including `oscpm/pattern.h` gives the matcher without `AddressSpace` or the standard containers it uses.
 - A build without `NDEBUG` asserts when a visitor adds or removes a method on the `AddressSpace` that called it, assigns to it or moves from it. A copy of a space made during a visit starts outside any visit. A release build is unchanged.
 
