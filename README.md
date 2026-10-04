@@ -70,7 +70,7 @@ if (const auto result = oscpm::Pattern::parse(text))
 }
 else
 {
-    std::printf("%s\n", oscpm::toString(result.error())); // "/synth/[1-3" gives UnterminatedClass
+    oscpm::toString(result.error()); // "UnterminatedClass" when text is "/synth/[1-3"
 }
 ```
 
@@ -114,7 +114,8 @@ parameters.find("/synth/3/freq"); // nullptr
   order.
 - `invoke(pattern, args...)` is `dispatch` with a visitor that calls
   `value(args...)`, for a space whose values are handlers, as in the opening
-  example. Every matched handler receives the same `args` objects.
+  example. Every handler is called with the same `args` objects, which
+  `invoke` does not move from.
 - `find(address)` returns a pointer to the value registered under one
   address, or null when there is none. The pointer is valid until the next
   `add` or `remove`.
@@ -240,10 +241,10 @@ format other implementations can reuse.
 - are `constexpr` outside the address space, so a fixed pattern is parsed
   or matched at compile time.
 
-`AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing, never
-throw and keep the same bound on time, apart from whatever the visitor or
-handler they call does; they are not declared `noexcept`.
-`AddressSpace::add` and `remove` allocate. A libFuzzer target checks the
+`AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing and never
+throw, apart from whatever the visitor or handler they call does; they are
+not declared `noexcept`. A dispatch takes at most the time bound above for
+each registered method. `AddressSpace::add` and `remove` allocate. A libFuzzer target checks the
 matcher, the pattern value and `AddressSpace::add` against each other under
 AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
