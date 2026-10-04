@@ -9,7 +9,7 @@
 
 ### Added
 
-- `Address`, a validated address, in `oscpm/address.h`: `Address::parse` returns an `Address::ParseResult` holding the address or the first fault, at compile time for a fixed address, and `text` is the bytes it was parsed from. An address space registers methods under it, so an application that keeps addresses of its own validates each one where it enters, and `add` cannot fail on the address.
+- `Address`, a validated address, in `oscpm/address.h`: `Address::parse` returns an `Address::ParseResult` holding the address or the first fault, at compile time for a fixed address, and `text` is the bytes it was parsed from. An address space registers methods under it, so an application that keeps addresses of its own validates each one where it enters, and `add` cannot fail on the address. A build without `NDEBUG` asserts in `add` and `remove` when the bytes an `Address` views have changed so that they no longer parse.
 
 ### Changed
 

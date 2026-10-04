@@ -106,7 +106,9 @@ address or the `Error` that stopped it parsing, and rejects an address only
 for one of the faults under [Malformed addresses](#malformed-addresses). An
 `Address` is a view of its text, which must outlive it unchanged: the
 validation holds for the bytes that were parsed, and `AddressSpace::add`
-registers whatever the view reads at the time. It is what an address space
+registers whatever the view reads at the time. A build without `NDEBUG`
+asserts in `add` and `remove` when those bytes no longer parse as an
+address. It is what an address space
 registers methods under, so an application that keeps
 addresses of its own, in a document or a preset, parses each one where it
 enters and stores text it knows to be well formed.

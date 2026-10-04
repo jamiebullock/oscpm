@@ -9,6 +9,7 @@
 #include <oscpm/address.h>
 #include <oscpm/detail/dispatch_memo.h>
 #include <oscpm/detail/method_table.h>
+#include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
 #include <oscpm/pattern.h>
 
@@ -54,18 +55,22 @@ public:
     }
 
     /// Registers `value` under `address`; allocates. Returns false, and
-    /// registers nothing, when the address is already registered.
+    /// registers nothing, when the address is already registered. A build
+    /// without `NDEBUG` asserts when the bytes the address views no longer
+    /// parse as an address.
     bool add(const Address& address, T value)
     {
         assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
+        assert(!detail::validateAddress(address.text()) && "the bytes an Address views must stay unchanged after it is parsed");
         return m_table.insert(address.text(), std::move(value));
     }
 
     /// Unregisters `address`; allocates. Returns false when the address is
-    /// not registered.
+    /// not registered, and asserts as `add` does.
     bool remove(const Address& address)
     {
         assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
+        assert(!detail::validateAddress(address.text()) && "the bytes an Address views must stay unchanged after it is parsed");
         return m_table.erase(address.text());
     }
 
