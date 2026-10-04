@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Breaking changes
+
+- `AddressSpace::add` and `remove` take an `Address` and return whether the set changed: `add` returns false when the address is already registered, `remove` false when it is not. The overloads taking the address as bytes are removed, and with them `Error::Duplicate` and `Error::NotFound`.
+- `ParseResult` is `Pattern::ParseResult`.
+
+### Added
+
+- `Address`, a validated address, in `oscpm/address.h`: `Address::parse` returns an `Address::ParseResult` holding the address or the first fault, at compile time for a fixed address, and `text` is the bytes it was parsed from. An address space registers methods under it, so an application that keeps addresses of its own validates each one where it enters, and `add` cannot fail on the address. A build without `NDEBUG` asserts in `add` and `remove` when the bytes an `Address` views have changed so that they no longer parse.
+
+### Changed
+
+- `oscpm/oscpm.h` includes `oscpm/address.h`.
+
 ## 0.5.6 - 2026-10-04
 
 ### Breaking changes

@@ -18,15 +18,14 @@
 #include <type_traits>
 
 using oscpm::Error;
-using oscpm::ParseResult;
 using oscpm::Pattern;
 
 namespace
 {
 
-constexpr ParseResult kWildcard = Pattern::parse("/synth/*/{freq,amp}");
-constexpr ParseResult kDescendant = Pattern::parse("//gain");
-constexpr ParseResult kUnterminated = Pattern::parse("/synth/[1-3");
+constexpr Pattern::ParseResult kWildcard = Pattern::parse("/synth/*/{freq,amp}");
+constexpr Pattern::ParseResult kDescendant = Pattern::parse("//gain");
+constexpr Pattern::ParseResult kUnterminated = Pattern::parse("/synth/[1-3");
 
 static_assert(kWildcard);
 static_assert(kWildcard.pattern().matches("/synth/12/amp"));
@@ -35,9 +34,9 @@ static_assert(kDescendant.pattern().matches("/mixer/bus/3/gain"));
 static_assert(!kUnterminated);
 static_assert(kUnterminated.error() == Error::UnterminatedClass);
 static_assert(std::is_trivially_copyable_v<Pattern>);
-static_assert(std::is_trivially_copyable_v<ParseResult>);
+static_assert(std::is_trivially_copyable_v<Pattern::ParseResult>);
 
-constexpr bool faults(const ParseResult& result, Error kind)
+constexpr bool faults(const Pattern::ParseResult& result, Error kind)
 {
     return !result && result.error() == kind;
 }
@@ -69,7 +68,7 @@ TEST_CASE("parse reports the first fault")
 TEST_CASE("a pattern keeps a view of the text it was parsed from")
 {
     constexpr std::string_view text = "/synth/*/freq";
-    constexpr ParseResult parsed = Pattern::parse(text);
+    constexpr Pattern::ParseResult parsed = Pattern::parse(text);
     static_assert(parsed.pattern().text() == text);
     static_assert(parsed.pattern().text().data() == text.data());
 }
@@ -147,7 +146,7 @@ TEST_CASE("every byte the matcher treats as an opener makes a pattern non-litera
         INFO("byte " << value);
         const char other = byte == 'z' ? 'y' : 'z';
         const std::string self = std::string("/") + byte + "x";
-        const ParseResult parsed = Pattern::parse(self);
+        const Pattern::ParseResult parsed = Pattern::parse(self);
         const bool literalByFlag = parsed && parsed.pattern().isLiteral();
         const bool literalByBehaviour = parsed
             && oscpm::match(self, self)
@@ -164,7 +163,7 @@ TEST_CASE("the literal shortcut agrees with the general matcher")
     const char* const addresses[] = { "", "a", "/", "/a", "/a/", "/a/b", "/a]", "/a}", "/a,b", "/#bundle", "/a b", "/synth/1/freq", "/synth/1/fre", "/synth/1/freq/" };
     for (const char* pattern : patterns)
     {
-        const ParseResult parsed = Pattern::parse(pattern);
+        const Pattern::ParseResult parsed = Pattern::parse(pattern);
         REQUIRE(parsed);
         REQUIRE(parsed.pattern().isLiteral());
         for (const char* address : addresses)
@@ -191,10 +190,10 @@ TEST_CASE("parsing and matching allocate nothing")
     const std::string malformed = "/synth/[1-3";
 
     const std::size_t before = oscpm_test::allocationCount();
-    const ParseResult parsed = Pattern::parse(text);
+    const Pattern::ParseResult parsed = Pattern::parse(text);
     const bool matched = parsed.pattern().matches(address);
     const bool convenience = oscpm::match(text, address);
-    const ParseResult failed = Pattern::parse(malformed);
+    const Pattern::ParseResult failed = Pattern::parse(malformed);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);

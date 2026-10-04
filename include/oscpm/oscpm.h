@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <oscpm/address.h>
 #include <oscpm/address_space.h>
 #include <oscpm/error.h>
 #include <oscpm/pattern.h>

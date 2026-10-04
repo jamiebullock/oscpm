@@ -10,7 +10,7 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
-#include <string_view>
+#include <string>
 
 #ifdef _MSC_VER
 #include <crtdbg.h>
@@ -31,7 +31,7 @@ extern "C" void exitAfterAssertion(int)
 int main()
 {
 #ifdef NDEBUG
-    std::puts("assertions are compiled out of this build, so the visitor rule is not checked");
+    std::puts("assertions are compiled out of this build, so the address rule is not checked");
     return 0;
 #else
 #ifdef _MSC_VER
@@ -40,12 +40,12 @@ int main()
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
     std::signal(SIGABRT, exitAfterAssertion);
-    const oscpm::Address address = oscpm::Address::parse("/a").address();
+    std::string text = "/a";
+    const oscpm::Address address = oscpm::Address::parse(text).address();
+    text.back() = '/';
     oscpm::AddressSpace<int> space;
     space.add(address, 1);
-    space.dispatch("/a", [&](std::string_view, int&)
-        { space.remove(address); });
-    std::puts("the visitor removed a method and nothing asserted");
+    std::puts("the address's bytes were changed and nothing asserted");
     return 1;
 #endif
 }

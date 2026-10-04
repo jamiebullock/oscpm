@@ -41,8 +41,9 @@ namespace
     template <typename AddressSpace>
     void fill(AddressSpace& addressSpace, const Space& space)
     {
-        for (const std::string& address : space.addresses)
+        for (const std::string& text : space.addresses)
         {
+            const oscpm::Address address = oscpm::Address::parse(text).address();
             if constexpr (std::is_same_v<AddressSpace, HandlerSpace>)
             {
                 addressSpace.add(address, Handler(receive));

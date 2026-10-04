@@ -23,6 +23,7 @@ add_executable(oscpm_tests
     allocation_counter.cpp
     corpus.cpp
     corpus_tests.cpp
+    address_tests.cpp
     error_tests.cpp
     match_tests.cpp
     pattern_tests.cpp
@@ -91,3 +92,13 @@ target_compile_options(oscpm_visitor_rule PRIVATE
 add_test(NAME "a visitor that removes a method trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule)
 set_tests_properties("a visitor that removes a method trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must not add or remove methods|assertions are compiled out")
+
+add_executable(oscpm_address_rule address_rule.cpp)
+target_link_libraries(oscpm_address_rule PRIVATE oscpm::oscpm)
+target_compile_options(oscpm_address_rule PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
+)
+add_test(NAME "an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" COMMAND oscpm_address_rule)
+set_tests_properties("an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" PROPERTIES
+    PASS_REGULAR_EXPRESSION "must stay unchanged after it is parsed|assertions are compiled out")

@@ -171,7 +171,7 @@ private:
         {
             return Result { numVisited, std::nullopt };
         }
-        const ParseResult parsed = Pattern::parse(text);
+        const Pattern::ParseResult parsed = Pattern::parse(text);
         if (!parsed)
         {
             return Result { 0, parsed.error() };

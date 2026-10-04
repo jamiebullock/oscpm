@@ -33,7 +33,7 @@ void setFrequency(const OSCPP::Server::Message& message)
 }
 
 oscpm::AddressSpace<Handler> methods;
-methods.add("/synth/freq", setFrequency);
+methods.add(oscpm::Address::parse("/synth/freq").address(), setFrequency);
 
 // for each OSCPP::Server::Message received
 methods.invoke(message.address(), message);
@@ -76,9 +76,42 @@ else
 }
 ```
 
-A `Pattern` is a view of the text it was parsed from, which must outlive it.
-`Pattern::parse` returns a `ParseResult` holding either the pattern or the
-`Error` that stopped it parsing.
+A `Pattern` is a view of the text it was parsed from, which must outlive it
+unchanged. `Pattern::parse` returns a `Pattern::ParseResult` holding either the pattern
+or the `Error` that stopped it parsing.
+
+## Addresses
+
+An `Address` is a validated OSC address, parsed the same way:
+
+```cpp
+#include <oscpm/address.h>
+
+constexpr auto parsed = oscpm::Address::parse("/synth/1/freq");
+static_assert(parsed);
+
+if (const auto result = oscpm::Address::parse(text))
+{
+    const oscpm::Address& address = result.address();
+    address.text(); // the bytes it was parsed from
+}
+else
+{
+    oscpm::toString(result.error()); // TrailingSlash for "/synth/1/"
+}
+```
+
+`Address::parse` returns an `Address::ParseResult` holding either the
+address or the `Error` that stopped it parsing, and rejects an address only
+for one of the faults under [Malformed addresses](#malformed-addresses). An
+`Address` is a view of its text, which must outlive it unchanged: the
+validation holds for the bytes that were parsed, and `AddressSpace::add`
+registers whatever the view reads at the time. A build without `NDEBUG`
+asserts in `add` and `remove` when those bytes no longer parse as an
+address. It is what an address space
+registers methods under, so an application that keeps
+addresses of its own, in a document or a preset, parses each one where it
+enters and stores text it knows to be well formed.
 
 ## Address space
 
@@ -96,8 +129,8 @@ struct Parameter
 };
 
 oscpm::AddressSpace<Parameter> parameters;
-parameters.add("/synth/1/freq", Parameter { 440.0f });
-parameters.add("/synth/2/freq", Parameter { 220.0f });
+parameters.add(oscpm::Address::parse("/synth/1/freq").address(), Parameter { 440.0f });
+parameters.add(oscpm::Address::parse("/synth/2/freq").address(), Parameter { 220.0f });
 
 const oscpm::DispatchResult result = parameters.dispatch("/synth/*/freq", [](std::string_view, Parameter& parameter)
     { parameter.value = 550.0f; });
@@ -108,9 +141,9 @@ const Parameter* parameter = parameters.find("/synth/1/freq"); // value is 550
 parameters.find("/synth/3/freq"); // nullptr
 ```
 
-- `add(address, value)` and `remove(address)` return an `Error` on failure:
-  the first fault in the address (`/synth/1/` is a `TrailingSlash`),
-  `Duplicate` from `add` or `NotFound` from `remove`.
+- `add(address, value)` registers `value` under an `Address` and returns
+  false when the address is already registered; `remove(address)` returns
+  false when it is not.
 - `dispatch(pattern, visitor)` parses the pattern and calls
   `visitor(address, value)` for every method it matches, in bytewise address
   order.
@@ -227,13 +260,29 @@ a leading `!` negates.
 Every other pattern parses. A rejected pattern matches nothing: `match`
 returns false, and `AddressSpace::dispatch` and `invoke` reach no method.
 
+### Malformed addresses
+
+`Address::parse` rejects an address only for one of these faults:
+
+| Fault | `Error` |
+| --- | --- |
+| no leading `/` | `MissingLeadingSlash` |
+| a final `/`, including the bare `/` | `TrailingSlash` |
+| two adjacent slashes | `EmptyPart` |
+| a byte outside printable ASCII, or one of `space`, `#`, `*`, `,`, `?`, `[`, `]`, `{`, `}` | `IllegalByte` |
+| a part longer than `kMaxAddressPartLength` | `PartTooLong` |
+
+Every well-formed address also parses as a literal pattern that matches
+only itself.
+
 [`corpus/matching.txt`](corpus/matching.txt) is the executable record of
 these rules: one case per line, replayed by the test suite, in a plain-text
 format other implementations can reuse.
 
 ## Guarantees
 
-`match`, `Pattern::parse`, `Pattern::matches` and `AddressSpace::find`:
+`match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and
+`AddressSpace::find`:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
@@ -249,7 +298,7 @@ not declared `noexcept`. A dispatch takes at most the time bound above for
 each registered method. `AddressSpace::add` and `remove` allocate.
 
 A libFuzzer target checks the matcher, the pattern value and
-`AddressSpace::add` against each other under AddressSanitizer and
+`Address::parse` against each other under AddressSanitizer and
 UndefinedBehaviorSanitizer on every change.
 
 ## Performance
@@ -350,9 +399,10 @@ With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
 
 Without CMake, put `include/` on the include path.
 
-`oscpm/pattern.h` holds the matcher, `oscpm/address_space.h` the dispatcher
-and `oscpm/error.h` the faults both report; `oscpm/oscpm.h` includes all
-three. Nothing under `oscpm/detail/` is public API.
+`oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value,
+`oscpm/address_space.h` the dispatcher and `oscpm/error.h` the faults they
+report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is
+public API.
 
 ## Building
 

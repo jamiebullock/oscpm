@@ -20,7 +20,7 @@ namespace
 
     void matchPrepared(benchmark::State& state, const MatchPair* pair)
     {
-        const oscpm::ParseResult parsed = oscpm::Pattern::parse(pair->pattern);
+        const oscpm::Pattern::ParseResult parsed = oscpm::Pattern::parse(pair->pattern);
         if (!parsed || parsed.pattern().matches(pair->address) != pair->matches)
         {
             failBenchmark(state, "unexpected parse or match result");

@@ -18,13 +18,14 @@
 namespace oscpm
 {
 
-class ParseResult;
-
 /// A validated address pattern. Holds a view of the caller's bytes, which
-/// must outlive every use; copying the value copies the view.
+/// must outlive every use and stay unchanged; copying the value copies the
+/// view.
 class Pattern
 {
 public:
+    class ParseResult;
+
     /// Parses `text`, yielding the pattern or the first fault.
     static constexpr ParseResult parse(std::string_view text) noexcept;
 
@@ -49,8 +50,6 @@ public:
     }
 
 private:
-    friend class ParseResult;
-
     constexpr Pattern() noexcept = default;
 
     constexpr explicit Pattern(std::string_view text) noexcept
@@ -64,7 +63,7 @@ private:
 };
 
 /// A `Pattern` or the `Error` that stopped it parsing.
-class ParseResult
+class Pattern::ParseResult
 {
 public:
     /// Whether parsing succeeded and `pattern()` holds the result.
@@ -104,7 +103,7 @@ private:
     bool m_parsed = false;
 };
 
-constexpr ParseResult Pattern::parse(std::string_view text) noexcept
+constexpr Pattern::ParseResult Pattern::parse(std::string_view text) noexcept
 {
     const std::optional<Error> fault = detail::validatePattern(text);
     return fault.has_value() ? ParseResult(*fault) : ParseResult(Pattern(text));
@@ -114,7 +113,7 @@ constexpr ParseResult Pattern::parse(std::string_view text) noexcept
 /// matches nothing.
 constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
-    const ParseResult parsed = Pattern::parse(pattern);
+    const Pattern::ParseResult parsed = Pattern::parse(pattern);
     return parsed && parsed.pattern().matches(address);
 }
 
