@@ -36,14 +36,13 @@ oscpm::AddressSpace<Handler> methods;
 methods.add("/synth/freq", setFrequency);
 
 // for each OSCPP::Server::Message received
-methods.dispatch(message.address(), [&](std::string_view, Handler& handler)
-    { handler(message); });
+methods.invoke(message.address(), message);
 // a message to "/synth/freq" or to "/synth/*" invokes setFrequency
 ```
 
 Each method maps an address to something the application owns, here a
-handler. `dispatch` hands every method the message's pattern matches to the
-visitor, which does the invoking.
+handler. `invoke` calls every handler the message's pattern matches and
+passes it the message.
 [`examples/dispatch.cpp`](examples/dispatch.cpp) is a complete program: it
 builds a bundle with oscpp, reads it back and dispatches each message.
 
@@ -124,8 +123,8 @@ parameters.find("/synth/3/freq"); // nullptr
   order. The visitor is the invoking step: it joins the message, which the
   space never sees, to the method's value.
 - `invoke(pattern, args...)` is `dispatch` with a visitor that calls
-  `value(args...)`, for a space whose values are handlers. Every matched
-  handler receives the same `args` objects.
+  `value(args...)`, for a space whose values are handlers, as in the opening
+  example. Every matched handler receives the same `args` objects.
 - `find(address)` returns a pointer to the value registered under one
   address, or null when there is none. The pointer is valid until the next
   `add` or `remove`.
