@@ -244,9 +244,11 @@ format other implementations can reuse.
 `AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing and never
 throw, apart from whatever the visitor or handler they call does; they are
 not declared `noexcept`. A dispatch takes at most the time bound above for
-each registered method. `AddressSpace::add` and `remove` allocate. A libFuzzer target checks the
-matcher, the pattern value and `AddressSpace::add` against each other under
-AddressSanitizer and UndefinedBehaviorSanitizer on every change.
+each registered method. `AddressSpace::add` and `remove` allocate.
+
+A libFuzzer target checks the matcher, the pattern value and
+`AddressSpace::add` against each other under AddressSanitizer and
+UndefinedBehaviorSanitizer on every change.
 
 ## Performance
 
