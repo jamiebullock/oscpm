@@ -19,7 +19,8 @@ namespace oscpm
 {
 
 /// A validated address pattern. Holds a view of the caller's bytes, which
-/// must outlive every use; copying the value copies the view.
+/// must outlive every use and stay unchanged; copying the value copies the
+/// view.
 class Pattern
 {
 public:

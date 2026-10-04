@@ -76,8 +76,8 @@ else
 }
 ```
 
-A `Pattern` is a view of the text it was parsed from, which must outlive it.
-`Pattern::parse` returns a `Pattern::ParseResult` holding either the pattern
+A `Pattern` is a view of the text it was parsed from, which must outlive it
+unchanged. `Pattern::parse` returns a `Pattern::ParseResult` holding either the pattern
 or the `Error` that stopped it parsing.
 
 ## Addresses
@@ -104,8 +104,10 @@ else
 `Address::parse` returns an `Address::ParseResult` holding either the
 address or the `Error` that stopped it parsing, and rejects an address only
 for one of the faults under [Malformed addresses](#malformed-addresses). An
-`Address` is a view of its text, which must outlive it. It is what an
-address space registers methods under, so an application that keeps
+`Address` is a view of its text, which must outlive it unchanged: the
+validation holds for the bytes that were parsed, and `AddressSpace::add`
+registers whatever the view reads at the time. It is what an address space
+registers methods under, so an application that keeps
 addresses of its own, in a document or a preset, parses each one where it
 enters and stores text it knows to be well formed.
 
