@@ -59,6 +59,8 @@ oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 matched many times is parsed once into a `Pattern` value:
 
 ```cpp
+#include <cstdio>
+
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
 static_assert(parsed);
 static_assert(parsed.pattern().matches("/synth/12/amp"));
@@ -70,7 +72,7 @@ if (const auto result = oscpm::Pattern::parse(text))
 }
 else
 {
-    oscpm::toString(result.error()); // "UnterminatedClass" when text is "/synth/[1-3"
+    std::printf("%s\n", oscpm::toString(result.error())); // UnterminatedClass for "/synth/[1-3"
 }
 ```
 
