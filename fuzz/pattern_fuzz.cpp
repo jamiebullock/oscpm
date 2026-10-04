@@ -31,7 +31,7 @@ bool isNamed(oscpm::Error error) noexcept
 
 void checkPattern(std::string_view pattern, std::string_view address)
 {
-    const oscpm::ParseResult parsed = oscpm::Pattern::parse(pattern);
+    const oscpm::Pattern::ParseResult parsed = oscpm::Pattern::parse(pattern);
     const bool convenience = oscpm::match(pattern, address);
 
     if (!parsed)
@@ -49,18 +49,21 @@ void checkPattern(std::string_view pattern, std::string_view address)
 
 void checkAddress(std::string_view address)
 {
-    oscpm::AddressSpace<int, false> space;
-    const std::optional<oscpm::Error> fault = space.add(address, 0);
-    if (fault)
+    const oscpm::Address::ParseResult parsed = oscpm::Address::parse(address);
+    if (!parsed)
     {
-        require(*fault != oscpm::Error::Duplicate);
-        require(isNamed(*fault));
-        require(space.size() == 0);
+        require(isNamed(parsed.error()));
         return;
     }
-    require(space.size() == 1);
+    require(parsed.address().text() == address);
 
-    const oscpm::ParseResult self = oscpm::Pattern::parse(address);
+    oscpm::AddressSpace<int, false> space;
+    require(space.add(parsed.address(), 0));
+    require(!space.add(parsed.address(), 0));
+    require(space.size() == 1);
+    require(space.find(address) != nullptr);
+
+    const oscpm::Pattern::ParseResult self = oscpm::Pattern::parse(address);
     require(static_cast<bool>(self));
     require(self.pattern().isLiteral());
     require(self.pattern().matches(address));

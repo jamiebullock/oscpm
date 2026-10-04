@@ -6,9 +6,9 @@
 
 #pragma once
 
+#include <oscpm/address.h>
 #include <oscpm/detail/dispatch_memo.h>
 #include <oscpm/detail/method_table.h>
-#include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
 #include <oscpm/pattern.h>
 
@@ -53,29 +53,20 @@ public:
     {
     }
 
-    /// Registers `value` under `address`; allocates. Fails with the first
-    /// fault in the address, or `Duplicate` when the address is already
-    /// registered.
-    std::optional<Error> add(std::string_view address, T value)
+    /// Registers `value` under `address`; allocates. Returns false, and
+    /// registers nothing, when the address is already registered.
+    bool add(const Address& address, T value)
     {
         assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
-        if (const std::optional<Error> fault = detail::validateAddress(address))
-        {
-            return fault;
-        }
-        return m_table.insert(address, std::move(value)) ? std::nullopt : std::optional<Error>(Error::Duplicate);
+        return m_table.insert(address.text(), std::move(value));
     }
 
-    /// Unregisters `address`; allocates. Fails with the first fault in the
-    /// address, or `NotFound` when the address is not registered.
-    std::optional<Error> remove(std::string_view address)
+    /// Unregisters `address`; allocates. Returns false when the address is
+    /// not registered.
+    bool remove(const Address& address)
     {
         assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
-        if (const std::optional<Error> fault = detail::validateAddress(address))
-        {
-            return fault;
-        }
-        return m_table.erase(address) ? std::nullopt : std::optional<Error>(Error::NotFound);
+        return m_table.erase(address.text());
     }
 
     /// The value registered under `address`, or null when there is none. The

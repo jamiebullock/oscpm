@@ -15,13 +15,12 @@
 
 using oscpm::Error;
 using oscpm::match;
-using oscpm::ParseResult;
 using oscpm::Pattern;
 
 namespace
 {
 
-constexpr bool faults(const ParseResult& result, Error kind)
+constexpr bool faults(const Pattern::ParseResult& result, Error kind)
 {
     return !result && result.error() == kind;
 }

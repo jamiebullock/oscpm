@@ -23,6 +23,7 @@ add_executable(oscpm_tests
     allocation_counter.cpp
     corpus.cpp
     corpus_tests.cpp
+    address_tests.cpp
     error_tests.cpp
     match_tests.cpp
     pattern_tests.cpp

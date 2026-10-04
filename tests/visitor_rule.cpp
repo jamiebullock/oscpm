@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Zlib
  */
 
+#include <oscpm/address.h>
 #include <oscpm/address_space.h>
 
 #include <csignal>
@@ -39,9 +40,10 @@ int main()
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
     std::signal(SIGABRT, exitAfterAssertion);
+    const oscpm::Address address = oscpm::Address::parse("/a").address();
     oscpm::AddressSpace<int> space;
-    space.add("/a", 1);
-    space.dispatch("/a", [&](std::string_view address, int&)
+    space.add(address, 1);
+    space.dispatch("/a", [&](std::string_view, int&)
         { space.remove(address); });
     std::puts("the visitor removed a method and nothing asserted");
     return 1;

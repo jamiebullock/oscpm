@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Zlib
  */
 
+#include <oscpm/address.h>
 #include <oscpm/address_space.h>
 #include <oscpm/pattern.h>
 
@@ -94,16 +95,18 @@ void dispatchPacket(const OSCPP::Server::Packet& packet, oscpm::AddressSpace<Par
 int main()
 {
     oscpm::AddressSpace<Parameter> parameters;
-    for (const char* address : { "/synth/1/freq", "/synth/1/amp", "/synth/2/freq", "/synth/2/amp", "/mixer/master/gain" })
+    for (const char* text : { "/synth/1/freq", "/synth/1/amp", "/synth/2/freq", "/synth/2/amp", "/mixer/master/gain" })
     {
-        if (const auto fault = parameters.add(address, Parameter { }))
+        const oscpm::Address::ParseResult address = oscpm::Address::parse(text);
+        if (!address)
         {
-            std::printf("cannot register %s: %s\n", address, oscpm::toString(*fault));
+            std::printf("%s is not an address: %s\n", text, oscpm::toString(address.error()));
             return 1;
         }
+        parameters.add(address.address(), Parameter { });
     }
 
-    const oscpm::ParseResult frequencyWatch = oscpm::Pattern::parse("//freq");
+    const oscpm::Pattern::ParseResult frequencyWatch = oscpm::Pattern::parse("//freq");
     if (!frequencyWatch)
     {
         return 1;

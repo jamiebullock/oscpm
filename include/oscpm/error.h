@@ -28,9 +28,7 @@ enum class Error
     TrailingSlash, ///< address: a final '/', including the bare "/"
     EmptyPart, ///< address: two adjacent slashes
     IllegalByte, ///< address: a byte outside printable ASCII or one of " #*,?[]{}"
-    PartTooLong, ///< address: a part longer than `kMaxAddressPartLength`
-    Duplicate, ///< `AddressSpace::add`: the address is already registered
-    NotFound ///< `AddressSpace::remove`: the address is not registered
+    PartTooLong ///< address: a part longer than `kMaxAddressPartLength`
 };
 
 /// The enumerator's name, for diagnostics.
@@ -54,10 +52,6 @@ constexpr const char* toString(Error error) noexcept
         return "IllegalByte";
     case Error::PartTooLong:
         return "PartTooLong";
-    case Error::Duplicate:
-        return "Duplicate";
-    case Error::NotFound:
-        return "NotFound";
     }
     return "";
 }

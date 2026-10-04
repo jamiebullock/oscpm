@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+using oscpm::Address;
 using oscpm::AddressSpace;
 using oscpm::Error;
 using oscpm::Pattern;
@@ -44,9 +45,16 @@ bool faults(const std::optional<Error>& result, Error kind)
 
 Pattern parsed(std::string_view text)
 {
-    const oscpm::ParseResult result = Pattern::parse(text);
+    const Pattern::ParseResult result = Pattern::parse(text);
     REQUIRE(result);
     return result.pattern();
+}
+
+Address parsedAddress(std::string_view text)
+{
+    const Address::ParseResult result = Address::parse(text);
+    REQUIRE(result);
+    return result.address();
 }
 
 template <typename Space>
@@ -82,7 +90,7 @@ void populate(Space& space, const Addresses& addresses)
 {
     for (const std::string& address : addresses)
     {
-        REQUIRE_FALSE(space.add(address, 0).has_value());
+        REQUIRE(space.add(parsedAddress(address), 0));
     }
 }
 
@@ -134,52 +142,22 @@ Addresses expectedMatches(const std::set<std::string>& registered, std::string_v
 
 }
 
-TEST_CASE("add registers a well-formed address once")
+TEST_CASE("add registers an address once")
 {
     AddressSpace<int> space;
-    CHECK_FALSE(space.add("/synth/1/freq", 1).has_value());
-    CHECK(faults(space.add("/synth/1/freq", 2), Error::Duplicate));
-    CHECK(faults(space.add("synth", 3), Error::MissingLeadingSlash));
-    CHECK(faults(space.add("/synth/", 4), Error::TrailingSlash));
-    CHECK(faults(space.add("/synth//freq", 5), Error::EmptyPart));
-    CHECK(faults(space.add("/synth/*", 6), Error::IllegalByte));
+    CHECK(space.add(parsedAddress("/synth/1/freq"), 1));
+    CHECK_FALSE(space.add(parsedAddress("/synth/1/freq"), 2));
     CHECK(space.size() == 1);
-}
-
-TEST_CASE("add reports the first fault in an address")
-{
-    AddressSpace<int> space;
-    CHECK_FALSE(space.add("/!\"$%&'()+-.0123456789:;<=>@ABCXYZ\\^_`abcxyz|~", 0).has_value());
-    CHECK(faults(space.add(" /a", 0), Error::MissingLeadingSlash));
-    CHECK(faults(space.add("/", 0), Error::TrailingSlash));
-    CHECK(faults(space.add("/a/b/", 0), Error::TrailingSlash));
-    CHECK(faults(space.add("/a///b", 0), Error::EmptyPart));
-    CHECK(faults(space.add("/x/y/z*", 0), Error::IllegalByte));
-    CHECK(faults(space.add("/a\x7f", 0), Error::IllegalByte));
-    CHECK(faults(space.add("/a//?", 0), Error::EmptyPart));
-    CHECK(space.size() == 1);
-}
-
-TEST_CASE("add rejects an address part longer than the supported length")
-{
-    const std::string longest(oscpm::kMaxAddressPartLength, 'a');
-    const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
-    AddressSpace<int> space;
-    CHECK_FALSE(space.add("/" + longest + "/" + longest, 0).has_value());
-    CHECK(faults(space.add("/" + tooLong, 0), Error::PartTooLong));
-    CHECK(faults(space.add("/a/" + tooLong, 0), Error::PartTooLong));
-    CHECK(space.size() == 1);
+    CHECK(*space.find("/synth/1/freq") == 1);
 }
 
 TEST_CASE("remove unregisters an address that is registered")
 {
     AddressSpace<int> space;
     populate(space, { "/a", "/b" });
-    CHECK(faults(space.remove("/c"), Error::NotFound));
-    CHECK(faults(space.remove("c"), Error::MissingLeadingSlash));
-    CHECK(faults(space.remove("/a/"), Error::TrailingSlash));
-    CHECK_FALSE(space.remove("/a").has_value());
-    CHECK(faults(space.remove("/a"), Error::NotFound));
+    CHECK_FALSE(space.remove(parsedAddress("/c")));
+    CHECK(space.remove(parsedAddress("/a")));
+    CHECK_FALSE(space.remove(parsedAddress("/a")));
     CHECK(allAddresses(space) == Addresses { "/b" });
 }
 
@@ -229,8 +207,8 @@ TEST_CASE("dispatch returns the number of methods visited and lets the visitor c
 TEST_CASE("find returns the value registered under an address and null when there is none")
 {
     AddressSpace<int> space;
-    REQUIRE_FALSE(space.add("/synth/1/freq", 440).has_value());
-    REQUIRE_FALSE(space.add("/synth/2/freq", 220).has_value());
+    REQUIRE(space.add(parsedAddress("/synth/1/freq"), 440));
+    REQUIRE(space.add(parsedAddress("/synth/2/freq"), 220));
 
     int* const found = space.find("/synth/1/freq");
     REQUIRE(found != nullptr);
@@ -247,7 +225,7 @@ TEST_CASE("find returns the value registered under an address and null when ther
         CHECK(space.find(absent) == nullptr);
     }
 
-    REQUIRE_FALSE(space.remove("/synth/1/freq").has_value());
+    REQUIRE(space.remove(parsedAddress("/synth/1/freq")));
     CHECK(space.find("/synth/1/freq") == nullptr);
     REQUIRE(space.find("/synth/2/freq") != nullptr);
     CHECK(*space.find("/synth/2/freq") == 220);
@@ -256,7 +234,7 @@ TEST_CASE("find returns the value registered under an address and null when ther
 TEST_CASE("find through a const space returns a pointer to a const value")
 {
     AddressSpace<int> space;
-    REQUIRE_FALSE(space.add("/a", 7).has_value());
+    REQUIRE(space.add(parsedAddress("/a"), 7));
     const AddressSpace<int>& constSpace = space;
     static_assert(std::is_same_v<decltype(constSpace.find("/a")), const int*>);
     static_assert(std::is_same_v<decltype(space.find("/a")), int*>);
@@ -268,19 +246,19 @@ TEST_CASE("find through a const space returns a pointer to a const value")
 TEST_CASE("find reaches a value whose move may throw, a move-only value and a value in a space without a memo")
 {
     AddressSpace<MayThrowOnMove> mayThrow;
-    REQUIRE_FALSE(mayThrow.add("/a", MayThrowOnMove(1)).has_value());
-    REQUIRE_FALSE(mayThrow.add("/b", MayThrowOnMove(2)).has_value());
+    REQUIRE(mayThrow.add(parsedAddress("/a"), MayThrowOnMove(1)));
+    REQUIRE(mayThrow.add(parsedAddress("/b"), MayThrowOnMove(2)));
     REQUIRE(mayThrow.find("/b") != nullptr);
     CHECK(mayThrow.find("/b")->value == 2);
     CHECK(mayThrow.find("/c") == nullptr);
 
     AddressSpace<std::unique_ptr<int>> moveOnly;
-    REQUIRE_FALSE(moveOnly.add("/a", std::make_unique<int>(3)).has_value());
+    REQUIRE(moveOnly.add(parsedAddress("/a"), std::make_unique<int>(3)));
     REQUIRE(moveOnly.find("/a") != nullptr);
     CHECK(**moveOnly.find("/a") == 3);
 
     AddressSpace<int, false> unmemoised;
-    REQUIRE_FALSE(unmemoised.add("/a", 4).has_value());
+    REQUIRE(unmemoised.add(parsedAddress("/a"), 4));
     REQUIRE(unmemoised.find("/a") != nullptr);
     CHECK(*unmemoised.find("/a") == 4);
     CHECK(unmemoised.find("/b") == nullptr);
@@ -289,9 +267,9 @@ TEST_CASE("find reaches a value whose move may throw, a move-only value and a va
 TEST_CASE("a visitor may call find on the space that called it")
 {
     AddressSpace<int> space;
-    REQUIRE_FALSE(space.add("/a/1", 1).has_value());
-    REQUIRE_FALSE(space.add("/a/2", 2).has_value());
-    REQUIRE_FALSE(space.add("/total", 0).has_value());
+    REQUIRE(space.add(parsedAddress("/a/1"), 1));
+    REQUIRE(space.add(parsedAddress("/a/2"), 2));
+    REQUIRE(space.add(parsedAddress("/total"), 0));
     const oscpm::DispatchResult result = space.dispatch("/a/*", [&](std::string_view, int& value)
         { *space.find("/total") += value; });
     CHECK(result.matched == 2);
@@ -388,8 +366,8 @@ TEST_CASE("a value type whose move may throw is matched exactly as an int is")
     const Addresses addresses { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp", "/mixer/gain", deep, deep + "/b" };
     populate(ints, addresses);
     populate(mayThrow, addresses);
-    REQUIRE_FALSE(ints.remove("/synth/1/freq").has_value());
-    REQUIRE_FALSE(mayThrow.remove("/synth/1/freq").has_value());
+    REQUIRE(ints.remove(parsedAddress("/synth/1/freq")));
+    REQUIRE(mayThrow.remove(parsedAddress("/synth/1/freq")));
     for (const std::string& pattern : { std::string("/synth/*/freq"), std::string("//gain"), std::string("/*/2/{amp,freq}"), std::string("/a//b"), deep + "/*" })
     {
         INFO("pattern " << pattern);
@@ -431,9 +409,9 @@ TEST_CASE("a repeated dispatch gives the same result and a change to the space i
     CHECK(matchingAddresses(space, "/a/*") == first);
     CHECK(first == Addresses { "/a/1", "/a/2" });
 
-    REQUIRE_FALSE(space.add("/a/0", 0).has_value());
+    REQUIRE(space.add(parsedAddress("/a/0"), 0));
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
-    REQUIRE_FALSE(space.remove("/a/1").has_value());
+    REQUIRE(space.remove(parsedAddress("/a/1")));
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
 }
@@ -521,7 +499,7 @@ TEST_CASE("an address space without a memo behaves the same")
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(space, "/a/1") == Addresses { "/a/1" });
-    REQUIRE_FALSE(space.add("/a/0", 0).has_value());
+    REQUIRE(space.add(parsedAddress("/a/0"), 0));
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
 }
 
@@ -535,10 +513,10 @@ TEST_CASE("dispatch sees every add and remove after a pattern has been dispatche
         CHECK(dispatchAddresses(space, "/b", result) == Addresses { });
         CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/a" });
     }
-    REQUIRE_FALSE(space.add("/b", 0).has_value());
+    REQUIRE(space.add(parsedAddress("/b"), 0));
     CHECK(dispatchAddresses(space, "/b", result) == Addresses { "/b" });
     CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/a", "/b" });
-    REQUIRE_FALSE(space.remove("/a").has_value());
+    REQUIRE(space.remove(parsedAddress("/a")));
     CHECK(dispatchAddresses(space, "/a", result) == Addresses { });
     CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/b" });
 }
@@ -553,12 +531,12 @@ TEST_CASE("every registered address dispatches to itself alone through interleav
         const std::string address = "/m/" + std::to_string(generator() % 600);
         if (generator() % 3 != 0)
         {
-            space.add(address, 0);
+            space.add(parsedAddress(address), 0);
             registered.insert(address);
         }
         else
         {
-            space.remove(address);
+            space.remove(parsedAddress(address));
             registered.erase(address);
         }
         if (step % 50 != 0)
@@ -618,8 +596,8 @@ TEST_CASE("a value type whose move may throw is dispatched exactly as an int is"
     const Addresses addresses { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp", "/mixer/gain" };
     populate(ints, addresses);
     populate(mayThrow, addresses);
-    REQUIRE_FALSE(ints.remove("/synth/1/freq").has_value());
-    REQUIRE_FALSE(mayThrow.remove("/synth/1/freq").has_value());
+    REQUIRE(ints.remove(parsedAddress("/synth/1/freq")));
+    REQUIRE(mayThrow.remove(parsedAddress("/synth/1/freq")));
     oscpm::DispatchResult intsResult { 0, std::nullopt };
     oscpm::DispatchResult mayThrowResult { 0, std::nullopt };
     for (int round = 0; round < 2; ++round)
@@ -643,7 +621,7 @@ TEST_CASE("a copied address space and a moved-from one dispatch correctly")
     CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { "/a/1", "/a/2" });
 
     const AddressSpace<int> copy(source);
-    REQUIRE_FALSE(source.remove("/a/1").has_value());
+    REQUIRE(source.remove(parsedAddress("/a/1")));
     CHECK(dispatchAddresses(copy, "/a/1", result) == Addresses { "/a/1" });
     CHECK(dispatchAddresses(copy, "/a/*", result) == Addresses { "/a/1", "/a/2" });
     CHECK(dispatchAddresses(source, "/a/1", result) == Addresses { });
@@ -664,11 +642,11 @@ TEST_CASE("a space copied or moved during a visit starts outside any visit")
     space.dispatch("/a/1", [&](std::string_view, int&)
         {
             AddressSpace<int> copy(space);
-            REQUIRE_FALSE(copy.add("/b", 0).has_value());
-            REQUIRE_FALSE(copy.remove("/a/2").has_value());
+            REQUIRE(copy.add(parsedAddress("/b"), 0));
+            REQUIRE(copy.remove(parsedAddress("/a/2")));
             copied = allAddresses(copy);
             AddressSpace<int> taken(std::move(copy));
-            REQUIRE_FALSE(taken.add("/c", 0).has_value());
+            REQUIRE(taken.add(parsedAddress("/c"), 0));
             moved = allAddresses(taken); });
     CHECK(copied == Addresses { "/a/1", "/b" });
     CHECK(moved == Addresses { "/a/1", "/b", "/c" });
@@ -744,14 +722,14 @@ TEST_CASE("a moved address space keeps its methods and the moved-from one stays 
     CHECK(matchingAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(source, "/a/*") == Addresses { });
-    REQUIRE_FALSE(source.add("/b", 0).has_value());
+    REQUIRE(source.add(parsedAddress("/b"), 0));
     CHECK(matchingAddresses(source, "/*") == Addresses { "/b" });
     CHECK(matchingAddresses(source, "/*") == Addresses { "/b" });
 
     AddressSpace<int> assigned;
     assigned = std::move(constructed);
     CHECK(matchingAddresses(assigned, "/a/*") == Addresses { "/a/1", "/a/2" });
-    REQUIRE_FALSE(constructed.add("/c", 0).has_value());
+    REQUIRE(constructed.add(parsedAddress("/c"), 0));
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
 }
@@ -759,8 +737,8 @@ TEST_CASE("a moved address space keeps its methods and the moved-from one stays 
 TEST_CASE("a move-only value type is stored and reached through dispatch")
 {
     AddressSpace<std::unique_ptr<int>> space;
-    REQUIRE_FALSE(space.add("/a", std::make_unique<int>(1)).has_value());
-    REQUIRE_FALSE(space.add("/b", std::make_unique<int>(2)).has_value());
+    REQUIRE(space.add(parsedAddress("/a"), std::make_unique<int>(1)));
+    REQUIRE(space.add(parsedAddress("/b"), std::make_unique<int>(2)));
     space.dispatch("/*", [](std::string_view, std::unique_ptr<int>& value)
         { *value *= 10; });
     int sum = 0;
@@ -777,9 +755,8 @@ TEST_CASE("a space of handlers dispatches to every matching handler without allo
     std::vector<std::pair<std::string_view, int>> calls;
     for (const char* address : { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp" })
     {
-        REQUIRE_FALSE(handlers.add(address, [&calls, address](int argument)
-                                  { calls.emplace_back(address, argument); })
-                .has_value());
+        REQUIRE(handlers.add(parsedAddress(address), [&calls, address](int argument)
+            { calls.emplace_back(address, argument); }));
     }
     calls.reserve(8);
     const auto pass = [](std::string_view, Handler& handler)
@@ -823,9 +800,8 @@ TEST_CASE("invoke calls every matching handler with the same arguments without a
     std::vector<Call> calls;
     for (const char* address : { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp" })
     {
-        REQUIRE_FALSE(handlers.add(address, [&calls, address](int argument, const std::string& name)
-                                  { calls.push_back(Call { address, argument, &name, name == "note" }); })
-                .has_value());
+        REQUIRE(handlers.add(parsedAddress(address), [&calls, address](int argument, const std::string& name)
+            { calls.push_back(Call { address, argument, &name, name == "note" }); }));
     }
     calls.reserve(8);
     const std::string name = "note";
@@ -868,9 +844,8 @@ TEST_CASE("invoke hands every handler that takes an argument by value its own co
     std::vector<std::string> received;
     for (const char* address : { "/synth/1/freq", "/synth/2/freq" })
     {
-        REQUIRE_FALSE(handlers.add(address, [&received](std::string name)
-                                  { received.push_back(std::move(name)); })
-                .has_value());
+        REQUIRE(handlers.add(parsedAddress(address), [&received](std::string name)
+            { received.push_back(std::move(name)); }));
     }
 
     std::string name = "a name too long for the small string buffer";
@@ -930,7 +905,8 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
     std::vector<oscpm_test::CorpusCase> malformed;
     for (const oscpm_test::CorpusCase& corpusCase : oscpm_test::loadCorpus(OSCPM_CORPUS_PATH))
     {
-        if (registered.count(corpusCase.address) == 0 && !space.add(corpusCase.address, 0).has_value())
+        const Address::ParseResult candidate = Address::parse(corpusCase.address);
+        if (candidate && registered.count(corpusCase.address) == 0 && space.add(candidate.address(), 0))
         {
             registered.insert(corpusCase.address);
         }
@@ -1006,13 +982,13 @@ TEST_CASE("random adds, removes and dispatches agree with the standalone matcher
         {
             const std::string address = randomAddress();
             const bool fresh = model.insert(address).second;
-            CHECK(space.add(address, step).has_value() == !fresh);
+            CHECK(space.add(parsedAddress(address), step) == fresh);
         }
         else if (operation == 1)
         {
             const std::string address = randomAddress();
             const bool present = model.erase(address) > 0;
-            CHECK(space.remove(address).has_value() == !present);
+            CHECK(space.remove(parsedAddress(address)) == present);
         }
         else
         {
