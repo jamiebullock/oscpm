@@ -6,14 +6,16 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 [![Latest tag](https://img.shields.io/github/v/tag/jamiebullock/oscpm?sort=semver&label=tag)](https://github.com/jamiebullock/oscpm/tags)
 [![Licence](https://img.shields.io/github/license/jamiebullock/oscpm?label=licence)](LICENSE)
 
-oscpm matches OSC address patterns against OSC addresses: the `?`, `*`,
-`[...]` and `{a,b}` syntax of
-[OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html), plus the `//`
-operator that [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html)
-took from XPath. It complements [oscpp](https://github.com/kaoskorobase/oscpp),
-which reads and writes OSC packets but leaves address matching to the caller:
-the address oscpp hands you is what oscpm matches. oscpm is usable on its own
-and depends on nothing outside the standard library.
+oscpm matches OSC address patterns against addresses and dispatches them to
+methods through an address space. It supports the
+[OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching
+syntax, and the proposed `//` operator from
+[OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
+
+It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp),
+which reads and writes OSC packets and leaves matching and dispatch to the
+caller. oscpm does not depend on oscpp, or on anything outside the standard
+library.
 
 ## Example
 
@@ -21,23 +23,25 @@ and depends on nothing outside the standard library.
 #include <oscpm/address_space.h>
 #include <oscpp/server.hpp>
 
-float frequency1 = 440.0f;
-float frequency2 = 220.0f;
+#include <functional>
 
-oscpm::AddressSpace<float*> parameters;
-parameters.add("/synth/1/freq", &frequency1);
-parameters.add("/synth/2/freq", &frequency2);
+using Handler = std::function<void(const OSCPP::Server::Message&)>;
+
+void setFrequency(const OSCPP::Server::Message& message)
+{
+    synth.setFrequency(OSCPP::Server::ArgStream(message.args()).float32());
+}
+
+oscpm::AddressSpace<Handler> methods;
+methods.add("/synth/freq", setFrequency);
 
 // for each OSCPP::Server::Message received
-const float value = OSCPP::Server::ArgStream(message.args()).float32();
-parameters.dispatch(message.address(), [value](std::string_view address, float* parameter)
-    { *parameter = value; });
-// a message "/synth/*/freq" 550 leaves frequency1 and frequency2 at 550
+methods.invoke(message.address(), message);
+// a message to "/synth/freq" or to "/synth/*" invokes setFrequency
 ```
 
-The space maps each address to something the application owns, here a
-pointer to a parameter. `dispatch` hands every method the message's pattern
-matches to the visitor, which does the invoking.
+`invoke` calls every handler the message's pattern matches and passes it the
+message.
 [`examples/dispatch.cpp`](examples/dispatch.cpp) is a complete program: it
 builds a bundle with oscpp, reads it back and dispatches each message.
 
@@ -55,6 +59,8 @@ oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 matched many times is parsed once into a `Pattern` value:
 
 ```cpp
+#include <cstdio>
+
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
 static_assert(parsed);
 static_assert(parsed.pattern().matches("/synth/12/amp"));
@@ -66,46 +72,40 @@ if (const auto result = oscpm::Pattern::parse(text))
 }
 else
 {
-    result.error(); // an Error
+    std::printf("%s\n", oscpm::toString(result.error())); // UnterminatedClass for "/synth/[1-3"
 }
 ```
 
 A `Pattern` is a view of the text it was parsed from, which must outlive it.
 `Pattern::parse` returns a `ParseResult` holding either the pattern or the
-`Error` that stopped it parsing:
-
-```cpp
-const auto result = oscpm::Pattern::parse("/synth/[1-3"); // UnterminatedClass
-if (!result)
-{
-    std::printf("%s\n", oscpm::toString(result.error()));
-}
-```
+`Error` that stopped it parsing.
 
 ## Address space
 
 `AddressSpace<T>` is a set of methods, each a well-formed address with a
 value of type `T`, that an incoming pattern is dispatched to. `T` is
-whatever the application needs to invoke a method: a pointer to a parameter,
-as in the opening example, a handler, as here, an index or a struct.
+whatever the application needs to invoke a method: a handler, as in the
+opening example, a parameter, as here, an index or a struct.
 
 ```cpp
 #include <oscpm/address_space.h>
 
-#include <oscpp/server.hpp>
+struct Parameter
+{
+    float value = 0.0f;
+};
 
-#include <functional>
+oscpm::AddressSpace<Parameter> parameters;
+parameters.add("/synth/1/freq", Parameter { 440.0f });
+parameters.add("/synth/2/freq", Parameter { 220.0f });
 
-using Handler = std::function<void(const OSCPP::Server::Message&)>;
+const oscpm::DispatchResult result = parameters.dispatch("/synth/*/freq", [](std::string_view, Parameter& parameter)
+    { parameter.value = 550.0f; });
+result.matched; // 2, the number of methods visited
+result.error; // empty; the parse fault when the pattern was malformed and nothing was visited
 
-oscpm::AddressSpace<Handler> methods;
-methods.add("/synth/1/freq", setFrequency);
-methods.add("/synth/2/freq", setFrequency);
-
-const oscpm::DispatchResult result = methods.dispatch(message.address(), [&](std::string_view address, Handler& handler)
-    { handler(message); });
-result.matched; // the number of methods visited
-result.error; // the parse fault, when the pattern was malformed and nothing was visited
+const Parameter* parameter = parameters.find("/synth/1/freq"); // value is 550
+parameters.find("/synth/3/freq"); // nullptr
 ```
 
 - `add(address, value)` and `remove(address)` return an `Error` on failure:
@@ -113,20 +113,20 @@ result.error; // the parse fault, when the pattern was malformed and nothing was
   `Duplicate` from `add` or `NotFound` from `remove`.
 - `dispatch(pattern, visitor)` parses the pattern and calls
   `visitor(address, value)` for every method it matches, in bytewise address
-  order. The visitor is the invoking step: it joins the message, which the
-  space never sees, to the method's value.
+  order.
 - `invoke(pattern, args...)` is `dispatch` with a visitor that calls
-  `value(args...)`, for a space whose values are handlers. Every matched
-  handler receives the same `args` objects.
+  `value(args...)`, for a space whose values are handlers, as in the opening
+  example. Every handler is called with the same `args` objects, which
+  `invoke` does not move from.
 - `find(address)` returns a pointer to the value registered under one
   address, or null when there is none. The pointer is valid until the next
   `add` or `remove`.
 - `forEach(visitor)` visits every method; `size()` counts them.
-- A visitor may call `dispatch` and `find` on the space that called it, and
-  copy it, but must not add or remove methods, move from it or assign to it.
-  To change the space in response to a message, collect the changes while
-  visiting and apply them once the call has returned. A build without
-  `NDEBUG` asserts when a visitor adds or removes.
+- A visitor, or a handler called by `invoke`, may call `dispatch`, `invoke`
+  and `find` on the space that called it, and copy it, but must not add or
+  remove methods, move from it or assign to it. To change the space in
+  response to a message, collect the changes and apply them once the call
+  has returned. A build without `NDEBUG` asserts when one adds or removes.
 - An address space is not safe to use from several threads at once.
 
 `AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the result of a
@@ -225,7 +225,7 @@ a leading `!` negates.
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
 Every other pattern parses. A rejected pattern matches nothing: `match`
-returns false and `AddressSpace::dispatch` visits no method.
+returns false, and `AddressSpace::dispatch` and `invoke` reach no method.
 
 [`corpus/matching.txt`](corpus/matching.txt) is the executable record of
 these rules: one case per line, replayed by the test suite, in a plain-text
@@ -233,22 +233,24 @@ format other implementations can reuse.
 
 ## Guarantees
 
-`match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::find`,
-`AddressSpace::dispatch`, `AddressSpace::invoke` and `AddressSpace::forEach`,
-the last three apart from whatever the visitor or handler they call does:
+`match`, `Pattern::parse`, `Pattern::matches` and `AddressSpace::find`:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
-- never throw, and all but `dispatch`, `invoke` and `forEach` are declared
-  `noexcept`;
+- never throw, and are declared `noexcept`;
 - run in time bounded by the product of the pattern and address lengths,
   whatever the pattern contains;
 - are `constexpr` outside the address space, so a fixed pattern is parsed
   or matched at compile time.
 
-`AddressSpace::add` and `remove` allocate. A libFuzzer target checks the
-matcher, the pattern value and `AddressSpace::add` against each other under
-AddressSanitizer and UndefinedBehaviorSanitizer on every change.
+`AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing and never
+throw, apart from whatever the visitor or handler they call does; they are
+not declared `noexcept`. A dispatch takes at most the time bound above for
+each registered method. `AddressSpace::add` and `remove` allocate.
+
+A libFuzzer target checks the matcher, the pattern value and
+`AddressSpace::add` against each other under AddressSanitizer and
+UndefinedBehaviorSanitizer on every change.
 
 ## Performance
 
@@ -313,9 +315,8 @@ and tables above.
 
 ## Integration
 
-oscpm needs C++17 and nothing outside the standard library. CI builds and
-tests it with GCC and Clang on Linux, AppleClang on macOS and MSVC on
-Windows.
+CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS
+and MSVC on Windows.
 
 With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
 
