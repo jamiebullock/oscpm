@@ -6,16 +6,16 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 [![Latest tag](https://img.shields.io/github/v/tag/jamiebullock/oscpm?sort=semver&label=tag)](https://github.com/jamiebullock/oscpm/tags)
 [![Licence](https://img.shields.io/github/license/jamiebullock/oscpm?label=licence)](LICENSE)
 
-oscpm matches OSC address patterns against OSC addresses, and provides an
-address space for dispatching address patterns to OSC methods. It supports the
+oscpm matches OSC address patterns against addresses and dispatches them to
+methods through an address space. It supports the
 [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching
 syntax, and the proposed `//` operator from
 [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
 
 It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp),
-which reads and writes OSC packets but does not provide pattern matching or an
-address space. oscpm does not depend on oscpp, or on anything outside the
-standard library.
+which reads and writes OSC packets and leaves matching and dispatch to the
+caller. oscpm does not depend on oscpp, or on anything outside the standard
+library.
 
 ## Example
 
@@ -40,9 +40,8 @@ methods.invoke(message.address(), message);
 // a message to "/synth/freq" or to "/synth/*" invokes setFrequency
 ```
 
-Each method maps an address to something the application owns, here a
-handler. `invoke` calls every handler the message's pattern matches and
-passes it the message.
+`invoke` calls every handler the message's pattern matches and passes it the
+message.
 [`examples/dispatch.cpp`](examples/dispatch.cpp) is a complete program: it
 builds a bundle with oscpp, reads it back and dispatches each message.
 
@@ -71,21 +70,13 @@ if (const auto result = oscpm::Pattern::parse(text))
 }
 else
 {
-    result.error(); // an Error
+    std::printf("%s\n", oscpm::toString(result.error())); // "/synth/[1-3" gives UnterminatedClass
 }
 ```
 
 A `Pattern` is a view of the text it was parsed from, which must outlive it.
 `Pattern::parse` returns a `ParseResult` holding either the pattern or the
-`Error` that stopped it parsing:
-
-```cpp
-const auto result = oscpm::Pattern::parse("/synth/[1-3"); // UnterminatedClass
-if (!result)
-{
-    std::printf("%s\n", oscpm::toString(result.error()));
-}
-```
+`Error` that stopped it parsing.
 
 ## Address space
 
@@ -120,8 +111,7 @@ parameters.find("/synth/3/freq"); // nullptr
   `Duplicate` from `add` or `NotFound` from `remove`.
 - `dispatch(pattern, visitor)` parses the pattern and calls
   `visitor(address, value)` for every method it matches, in bytewise address
-  order. The visitor is the invoking step: it joins the message, which the
-  space never sees, to the method's value.
+  order.
 - `invoke(pattern, args...)` is `dispatch` with a visitor that calls
   `value(args...)`, for a space whose values are handlers, as in the opening
   example. Every matched handler receives the same `args` objects.
@@ -129,11 +119,11 @@ parameters.find("/synth/3/freq"); // nullptr
   address, or null when there is none. The pointer is valid until the next
   `add` or `remove`.
 - `forEach(visitor)` visits every method; `size()` counts them.
-- A visitor may call `dispatch` and `find` on the space that called it, and
-  copy it, but must not add or remove methods, move from it or assign to it.
-  To change the space in response to a message, collect the changes while
-  visiting and apply them once the call has returned. A build without
-  `NDEBUG` asserts when a visitor adds or removes.
+- A visitor, or a handler called by `invoke`, may call `dispatch`, `invoke`
+  and `find` on the space that called it, and copy it, but must not add or
+  remove methods, move from it or assign to it. To change the space in
+  response to a message, collect the changes and apply them once the call
+  has returned. A build without `NDEBUG` asserts when one adds or removes.
 - An address space is not safe to use from several threads at once.
 
 `AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the result of a
@@ -232,7 +222,7 @@ a leading `!` negates.
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
 Every other pattern parses. A rejected pattern matches nothing: `match`
-returns false and `AddressSpace::dispatch` visits no method.
+returns false, and `AddressSpace::dispatch` and `invoke` reach no method.
 
 [`corpus/matching.txt`](corpus/matching.txt) is the executable record of
 these rules: one case per line, replayed by the test suite, in a plain-text
@@ -240,19 +230,19 @@ format other implementations can reuse.
 
 ## Guarantees
 
-`match`, `Pattern::parse`, `Pattern::matches`, `AddressSpace::find`,
-`AddressSpace::dispatch`, `AddressSpace::invoke` and `AddressSpace::forEach`,
-the last three apart from whatever the visitor or handler they call does:
+`match`, `Pattern::parse`, `Pattern::matches` and `AddressSpace::find`:
 
 - allocate nothing, which the test suite asserts with a counting
   `operator new`;
-- never throw, and all but `dispatch`, `invoke` and `forEach` are declared
-  `noexcept`;
+- never throw, and are declared `noexcept`;
 - run in time bounded by the product of the pattern and address lengths,
   whatever the pattern contains;
 - are `constexpr` outside the address space, so a fixed pattern is parsed
   or matched at compile time.
 
+`AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing, never
+throw and keep the same bound on time, apart from whatever the visitor or
+handler they call does; they are not declared `noexcept`.
 `AddressSpace::add` and `remove` allocate. A libFuzzer target checks the
 matcher, the pattern value and `AddressSpace::add` against each other under
 AddressSanitizer and UndefinedBehaviorSanitizer on every change.
@@ -320,9 +310,8 @@ and tables above.
 
 ## Integration
 
-oscpm needs C++17 and nothing outside the standard library. CI builds and
-tests it with GCC and Clang on Linux, AppleClang on macOS and MSVC on
-Windows.
+CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS
+and MSVC on Windows.
 
 With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
 
