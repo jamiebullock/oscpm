@@ -6,16 +6,9 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 [![Latest tag](https://img.shields.io/github/v/tag/jamiebullock/oscpm?sort=semver&label=tag)](https://github.com/jamiebullock/oscpm/tags)
 [![Licence](https://img.shields.io/github/license/jamiebullock/oscpm?label=licence)](LICENSE)
 
-oscpm matches OSC address patterns against addresses and dispatches them to
-methods through an address space. It supports the
-[OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching
-syntax, and the proposed `//` operator from
-[OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
+oscpm matches OSC address patterns against addresses and dispatches them to methods through an address space. It supports the [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching syntax, and the proposed `//` operator from [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
 
-It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp),
-which reads and writes OSC packets and leaves matching and dispatch to the
-caller. oscpm does not depend on oscpp, or on anything outside the standard
-library.
+It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp), which reads and writes OSC packets and leaves matching and dispatch to the caller. oscpm does not depend on oscpp, or on anything outside the standard library.
 
 ## Example
 
@@ -97,10 +90,7 @@ else
 
 ## Address space
 
-`AddressSpace<T>` is a set of methods, each a well-formed address with a
-value of type `T`, that an incoming pattern is dispatched to. `T` is
-whatever the application needs to invoke a method: a handler, as in the
-opening example, a parameter, as here, an index or a struct.
+`AddressSpace<T>` is a set of methods, each a well-formed address with a value of type `T`, that an incoming pattern is dispatched to. `T` is whatever the application needs to invoke a method: a handler, as in the opening example, a parameter, as here, an index or a struct.
 
 ```cpp
 #include <oscpm/address_space.h>
@@ -123,29 +113,15 @@ const Parameter* parameter = parameters.find("/synth/1/freq"); // value is 550
 parameters.find("/synth/3/freq"); // nullptr
 ```
 
-- `add(address, value)` registers `value` under an `Address` and returns
-  false when the address is already registered; `remove(address)` returns
-  false when it is not.
-- `dispatch(pattern, visitor)` parses the pattern and calls
-  `visitor(address, value)` for every method it matches, in bytewise address
-  order.
-- `invoke(pattern, args...)` is `dispatch` with a visitor that calls
-  `value(args...)`, for a space whose values are handlers, as in the opening
-  example. Every handler is called with the same `args` objects, which
-  `invoke` does not move from.
-- `find(address)` returns a pointer to the value registered under one
-  address, or null when there is none. The pointer is valid until the next
-  `add` or `remove`.
+- `add(address, value)` registers `value` under an `Address` and returns false when the address is already registered; `remove(address)` returns false when it is not.
+- `dispatch(pattern, visitor)` parses the pattern and calls `visitor(address, value)` for every method it matches, in bytewise address order.
+- `invoke(pattern, args...)` is `dispatch` with a visitor that calls `value(args...)`, for a space whose values are handlers, as in the opening example. Every handler is called with the same `args` objects, which `invoke` does not move from.
+- `find(address)` returns a pointer to the value registered under one address, or null when there is none. The pointer is valid until the next `add` or `remove`.
 - `forEach(visitor)` visits every method; `size()` counts them.
-- A visitor, or a handler called by `invoke`, may call `dispatch`, `invoke`
-  and `find` on the space that called it, and copy it, but must not add or
-  remove methods, move from it or assign to it. To change the space in
-  response to a message, collect the changes and apply them once the call
-  has returned. A build without `NDEBUG` asserts when one adds or removes.
+- A visitor, or a handler called by `invoke`, may call `dispatch`, `invoke` and `find` on the space that called it, and copy it, but must not add or remove methods, move from it or assign to it. To change the space in response to a message, collect the changes and apply them once the call has returned. A build without `NDEBUG` asserts when one adds or removes.
 - An address space is not safe to use from several threads at once.
 
-`AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the result of a
-dispatch until the next `add` or `remove`:
+`AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the result of a dispatch until the next `add` or `remove`:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
@@ -153,17 +129,11 @@ dispatch until the next `add` or `remove`:
 | `CacheBits` | `8` | `1 << CacheBits` patterns are kept |
 | `InlineResults` | `1024` | the most methods a kept result lists |
 
-A pattern longer than `kMaxMemoPatternLength` or a result larger than
-`InlineResults` is delivered in full but not kept. The default memo takes
-about 1.1 MiB, allocated when the space is constructed;
-`AddressSpace<T, true, 6, 64>` takes about 34 KiB and `AddressSpace<T, false>`
-none.
+A pattern longer than `kMaxMemoPatternLength` or a result larger than `InlineResults` is delivered in full but not kept. The default memo takes about 1.1 MiB, allocated when the space is constructed; `AddressSpace<T, true, 6, 64>` takes about 34 KiB and `AddressSpace<T, false>` none.
 
 ## Matching rules
 
-A pattern and an address are split into parts on `/`. Both must have the
-same number of parts, except where `//` applies, and every pattern part must
-match the address part in the same position.
+A pattern and an address are split into parts on `/`. Both must have the same number of parts, except where `//` applies, and every pattern part must match the address part in the same position.
 
 | Syntax | Meaning | Example | Matches | Does not match |
 | --- | --- | --- | --- | --- |
@@ -175,16 +145,12 @@ match the address part in the same position.
 | `//` | zero or more whole parts | `/a//c` | `/a/c`, `/a/b/c` | `/ab/c` |
 | anything else | itself | `/synth` | `/synth` | `/Synth` |
 
-Where the
-[OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0.html)
-leaves a case open, oscpm does the following.
+Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) leaves a case open, oscpm does the following.
 
 ### Parts and slashes
 
-- A wildcard, class or brace list never matches `/`: `/a*` does not match
-  `/a/b`.
-- A run of two or more slashes anywhere is one `//`, and the part before it
-  must match whole:
+- A wildcard, class or brace list never matches `/`: `/a*` does not match `/a/b`.
+- A run of two or more slashes anywhere is one `//`, and the part before it must match whole:
 
   | Pattern | Matches |
   | --- | --- |
@@ -193,14 +159,11 @@ leaves a case open, oscpm does the following.
   | `/a//` | `/a` and every address below it |
   | `//` | every address |
 
-- A single trailing `/` is an empty part that only an address ending in `/`
-  satisfies, so `/a/` does not match `/a`. The bare `/` likewise matches
-  only the address `/`.
+- A single trailing `/` is an empty part that only an address ending in `/` satisfies, so `/a/` does not match `/a`. The bare `/` likewise matches only the address `/`.
 
 ### Classes
 
-A `-` between two characters is a range; first or last it is a member. Only
-a leading `!` negates.
+A `-` between two characters is a range; first or last it is a member. Only a leading `!` negates.
 
 | Class | Matches |
 | --- | --- |
@@ -214,18 +177,12 @@ a leading `!` negates.
 
 ### Brace lists
 
-- Inside `{` and `}` every byte is literal, `,` always delimits and the
-  first `}` closes: `{a,{b,c}}` is the members `a`, `{b` and `c` followed by
-  a literal `}`.
+- Inside `{` and `}` every byte is literal, `,` always delimits and the first `}` closes: `{a,{b,c}}` is the members `a`, `{b` and `c` followed by a literal `}`.
 - An empty member matches the empty string: `{a,}` matches `a` or nothing.
 
 ### Other bytes
 
-- A `]`, `}` or `,` outside its construct, a `#`, a space and any byte
-  outside printable ASCII is a literal that matches only itself. No
-  well-formed address contains one, so a part holding one matches no
-  well-formed address. In a brace list only the member holding it is
-  affected: `{a b,c}` still matches `c`.
+- A `]`, `}` or `,` outside its construct, a `#`, a space and any byte outside printable ASCII is a literal that matches only itself. No well-formed address contains one, so a part holding one matches no well-formed address. In a brace list only the member holding it is affected: `{a b,c}` still matches `c`.
 - Matching is by byte and case-sensitive, and the address is not validated.
 
 ### Malformed patterns
@@ -239,8 +196,7 @@ a leading `!` negates.
 | a `{` with no `}` before the next `/` | `UnterminatedBraces` |
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
-Every other pattern parses. A rejected pattern matches nothing: `match`
-returns false, and `AddressSpace::dispatch` and `invoke` reach no method.
+Every other pattern parses. A rejected pattern matches nothing: `match` returns false, and `AddressSpace::dispatch` and `invoke` reach no method.
 
 ### Malformed addresses
 
@@ -254,34 +210,22 @@ returns false, and `AddressSpace::dispatch` and `invoke` reach no method.
 | a byte outside printable ASCII, or one of `space`, `#`, `*`, `,`, `?`, `[`, `]`, `{`, `}` | `IllegalByte` |
 | a part longer than `kMaxAddressPartLength` | `PartTooLong` |
 
-Every well-formed address also parses as a literal pattern that matches
-only itself.
+Every well-formed address also parses as a literal pattern that matches only itself.
 
-[`corpus/matching.txt`](corpus/matching.txt) is the executable record of
-these rules: one case per line, replayed by the test suite, in a plain-text
-format other implementations can reuse.
+[`corpus/matching.txt`](corpus/matching.txt) is the executable record of these rules: one case per line, replayed by the test suite, in a plain-text format other implementations can reuse.
 
 ## Guarantees
 
-`match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and
-`AddressSpace::find`:
+`match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find`:
 
-- allocate nothing, which the test suite asserts with a counting
-  `operator new`;
+- allocate nothing, which the test suite asserts with a counting `operator new`;
 - never throw, and are declared `noexcept`;
-- run in time bounded by the product of the pattern and address lengths,
-  whatever the pattern contains;
-- are `constexpr` outside the address space, so a fixed pattern is parsed
-  or matched at compile time.
+- run in time bounded by the product of the pattern and address lengths, whatever the pattern contains;
+- are `constexpr` outside the address space, so a fixed pattern is parsed or matched at compile time.
 
-`AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing and never
-throw, apart from whatever the visitor or handler they call does; they are
-not declared `noexcept`. A dispatch takes at most the time bound above for
-each registered method. `AddressSpace::add` and `remove` allocate.
+`AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing and never throw, apart from whatever the visitor or handler they call does; they are not declared `noexcept`. A dispatch takes at most the time bound above for each registered method. `AddressSpace::add` and `remove` allocate.
 
-A libFuzzer target checks the matcher, the pattern value and
-`Address::parse` against each other under AddressSanitizer and
-UndefinedBehaviorSanitizer on every change.
+A libFuzzer target checks the matcher, the pattern value and `Address::parse` against each other under AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
 ## Performance
 
@@ -289,8 +233,7 @@ UndefinedBehaviorSanitizer on every change.
 - Operating system: macOS 26.5.2
 - Compiler: AppleClang 21.0.0.21000101, `-O3 -DNDEBUG`
 - oscpm: v0.3.6, measured 2026-09-24
-- Method: median wall-clock time of 10 repetitions; dispatch is into a space
-  of 1,856 methods
+- Method: median wall-clock time of 10 repetitions; dispatch is into a space of 1,856 methods
 
 **Repeated dispatch of a pattern**
 
@@ -324,14 +267,10 @@ UndefinedBehaviorSanitizer on every change.
 | The slowest pattern of 1024 bytes (`list-alternatives`) | 5,000 |
 | A 64 KB wildcard pattern, rejected | 2.96 |
 
-- A repeated message costs one hash lookup plus one visitor call per matched
-  method. A literal address costs the same the first time.
-- The first dispatch of any other pattern tests every registered method, so
-  its cost grows with the size of the space.
-- A wildcard pattern longer than `kMaxPatternLength` is rejected without
-  being matched, which bounds the cost of a hostile pattern.
-- The times are from one machine; the ratios between rows carry across
-  machines better than the absolute figures.
+- A repeated message costs one hash lookup plus one visitor call per matched method. A literal address costs the same the first time.
+- The first dispatch of any other pattern tests every registered method, so its cost grows with the size of the space.
+- A wildcard pattern longer than `kMaxPatternLength` is rejected without being matched, which bounds the cost of a hostile pattern.
+- The times are from one machine; the ratios between rows carry across machines better than the absolute figures.
 
 ### Running the benchmarks
 
@@ -341,18 +280,15 @@ cmake --build --preset bench
 build/bench/bench/oscpm_bench
 ```
 
-`python3 bench/compare.py report` builds the benchmarks and prints the setup
-and tables above.
+`python3 bench/compare.py report` builds the benchmarks and prints the setup and tables above.
 
 ## Integration
 
-CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS
-and MSVC on Windows.
+CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS and MSVC on Windows.
 
 With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
 
-- **FetchContent**, pinned to one of the
-  [release tags](https://github.com/jamiebullock/oscpm/tags):
+- **FetchContent**, pinned to one of the [release tags](https://github.com/jamiebullock/oscpm/tags):
 
   ```cmake
   include(FetchContent)
@@ -363,28 +299,20 @@ With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
   target_link_libraries(app PRIVATE oscpm::oscpm)
   ```
 
-- **`find_package`** after `cmake --install`, which installs the headers and
-  a package config with a version file:
+- **`find_package`** after `cmake --install`, which installs the headers and a package config with a version file:
 
   ```cmake
   find_package(oscpm REQUIRED)
   target_link_libraries(app PRIVATE oscpm::oscpm)
   ```
 
-  While the major version is 0, a version passed to `find_package` is
-  satisfied only by an install of the same minor version; from 1.0, by one
-  of the same major version.
+  While the major version is 0, a version passed to `find_package` is satisfied only by an install of the same minor version; from 1.0, by one of the same major version.
 
-- **`add_subdirectory`** on a checkout or a vendored copy. A source archive
-  has no git history to read the version from, so pass
-  `-DOSCPM_VERSION=<version>` when configuring it.
+- **`add_subdirectory`** on a checkout or a vendored copy. A source archive has no git history to read the version from, so pass `-DOSCPM_VERSION=<version>` when configuring it.
 
 Without CMake, put `include/` on the include path.
 
-`oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value,
-`oscpm/address_space.h` the dispatcher and `oscpm/error.h` the faults they
-report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is
-public API.
+`oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value, `oscpm/address_space.h` the dispatcher and `oscpm/error.h` the faults they report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is public API.
 
 ## Building
 
@@ -396,12 +324,7 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-`debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and
-`bench` is `release` with the benchmarks. `mutation` is `release` with the
-tests compiled under clang-18 with the
-[Mull](https://github.com/mull-project/mull) plugin, and its build runs them
-once per mutant; it needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists
-what is fetched at configure time and why.
+`debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and `bench` is `release` with the benchmarks. `mutation` is `release` with the tests compiled under clang-18 with the [Mull](https://github.com/mull-project/mull) plugin, and its build runs them once per mutant; it needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists what is fetched at configure time and why.
 
 | Option | Default | Effect |
 | --- | --- | --- |
@@ -415,8 +338,7 @@ what is fetched at configure time and why.
 
 ## Versioning
 
-oscpm follows [Semantic Versioning](https://semver.org/). Each release is a
-`vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags).
+oscpm follows [Semantic Versioning](https://semver.org/). Each release is a `vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags).
 
 ## Licence
 
