@@ -46,7 +46,7 @@ In the simple case a match can be checked by comparing two `std::string_view`:
 #include <oscpm/pattern.h>
 
 oscpm::match("/synth/*/freq", "/synth/1/freq"); // true
-oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true
+oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true (OSC 1.1 syntax)
 oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
 ```
@@ -57,8 +57,6 @@ A pattern that will be matched many times can be validated once and kept as a `P
 - `Pattern::matches()` skips validation on every call, and for a literal pattern it is a single byte comparison
 
 ```cpp
-#include <cstdio>
-
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
 static_assert(parsed);
 static_assert(parsed.pattern().matches("/synth/12/amp"));
@@ -70,13 +68,9 @@ if (const auto result = oscpm::Pattern::parse(text))
 }
 else
 {
-    std::printf("%s\n", oscpm::toString(result.error())); // UnterminatedClass for "/synth/[1-3"
+    oscpm::toString(result.error()); // UnterminatedClass for "/synth/[1-3"
 }
 ```
-
-A `Pattern` is a view of the text it was parsed from, which must outlive it
-unchanged. `Pattern::parse` returns a `Pattern::ParseResult` holding either the pattern
-or the `Error` that stopped it parsing.
 
 ## Addresses
 
