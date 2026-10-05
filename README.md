@@ -51,6 +51,7 @@ oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
 ```
 
+## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as an `Error`so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
@@ -73,8 +74,7 @@ else
 ```
 
 ## Addresses
-
-An `Address` is a validated OSC address, parsed the same way:
+Similar to `Pattern`, `Address` is a validated OSC address:
 
 ```cpp
 #include <oscpm/address.h>
@@ -82,10 +82,9 @@ An `Address` is a validated OSC address, parsed the same way:
 constexpr auto parsed = oscpm::Address::parse("/synth/1/freq");
 static_assert(parsed);
 
-if (const auto result = oscpm::Address::parse(text))
+if (const auto result = oscpm::Address::parse(presetEntry))
 {
-    const oscpm::Address& address = result.address();
-    address.text(); // the bytes it was parsed from
+    methods.add(result.address(), handler);
 }
 else
 {
