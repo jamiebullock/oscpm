@@ -37,15 +37,10 @@ methods.add(oscpm::Address::parse("/synth/freq").address(), setFrequency);
 
 // for each OSCPP::Server::Message received
 methods.invoke(message.address(), message);
-// a message to "/synth/freq" or to "/synth/*" invokes setFrequency
 ```
 
-`invoke` calls every handler the message's pattern matches and passes it the
-message.
-[`examples/dispatch.cpp`](examples/dispatch.cpp) is a complete program: it
-builds a bundle with oscpp, reads it back and dispatches each message.
-
 ## Matching
+In the simple case a match can be checked by comparing two `std::string_view`:
 
 ```cpp
 #include <oscpm/pattern.h>
@@ -53,10 +48,13 @@ builds a bundle with oscpp, reads it back and dispatches each message.
 oscpm::match("/synth/*/freq", "/synth/1/freq"); // true
 oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true
 oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
+oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
 ```
 
-`match(pattern, address)` takes two `std::string_view`s. A pattern that is
-matched many times is parsed once into a `Pattern` value:
+A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
+- A malformed pattern is reported as an `Error`so the caller can distinguish an invalid pattern from a non-match
+- For `constexpr` patterns, validity can be checked at compile time
+- `Pattern::matches()` skips validation on every call, and for a literal pattern it is a single byte comparison
 
 ```cpp
 #include <cstdio>
