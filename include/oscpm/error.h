@@ -31,7 +31,8 @@ enum class Error
     PartTooLong ///< address: a part longer than `kMaxAddressPartLength`
 };
 
-/// The enumerator's name, for diagnostics.
+/// The enumerator's name as a null-terminated literal with static storage,
+/// for diagnostics.
 constexpr const char* toString(Error error) noexcept
 {
     switch (error)
