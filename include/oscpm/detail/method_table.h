@@ -220,7 +220,7 @@ private:
         }
 
         const bool memoisable = self.m_memo.accepts(text) && methods.size() <= MemoTable::kMaxMethods;
-        typename MemoTable::Results found { };
+        typename MemoTable::Results found;
         std::size_t numFound = 0;
         PreparedParts prepared;
         const std::size_t numPrepared = kMethodMovesCannotThrow ? prepareParts(text, prepared) : npos;
