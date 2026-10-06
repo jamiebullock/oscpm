@@ -856,6 +856,49 @@ TEST_CASE("invoke hands every handler that takes an argument by value its own co
     CHECK(received == std::vector<std::string> { expected, expected });
 }
 
+TEST_CASE("invoke calls a member function value on the object passed first, without allocating")
+{
+    struct Synth
+    {
+        float frequency = 0.0f;
+        float amplitude = 0.0f;
+        void setFrequency(float value)
+        {
+            frequency = value;
+        }
+        void setAmplitude(float value)
+        {
+            amplitude = value;
+        }
+        void report(std::vector<float>& values) const
+        {
+            values.push_back(frequency);
+        }
+    };
+    AddressSpace<void (Synth::*)(float)> setters;
+    REQUIRE(setters.add(parsedAddress("/synth/freq"), &Synth::setFrequency));
+    REQUIRE(setters.add(parsedAddress("/synth/amp"), &Synth::setAmplitude));
+    AddressSpace<void (Synth::*)(std::vector<float>&) const> reporters;
+    REQUIRE(reporters.add(parsedAddress("/synth/report"), &Synth::report));
+    Synth synth;
+    std::vector<float> reported;
+    reported.reserve(1);
+
+    const std::size_t before = oscpm_test::allocationCount();
+    const oscpm::DispatchResult byReference = setters.invoke("/synth/freq", synth, 440.0f);
+    const oscpm::DispatchResult byPointer = setters.invoke("/synth/amp", &synth, 0.5f);
+    const oscpm::DispatchResult viaConst = std::as_const(reporters).invoke("/synth/*", std::as_const(synth), reported);
+    const std::size_t after = oscpm_test::allocationCount();
+
+    CHECK(after == before);
+    CHECK(byReference.matched == 1);
+    CHECK(byPointer.matched == 1);
+    CHECK(viaConst.matched == 1);
+    CHECK(synth.frequency == 440.0f);
+    CHECK(synth.amplitude == 0.5f);
+    CHECK(reported == std::vector<float> { 440.0f });
+}
+
 TEST_CASE("dispatch, find and forEach allocate nothing")
 {
     AddressSpace<int> space;
