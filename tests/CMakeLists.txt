@@ -93,6 +93,31 @@ add_test(NAME "a visitor that removes a method trips an assertion in a build wit
 set_tests_properties("a visitor that removes a method trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must not add or remove methods|assertions are compiled out")
 
+set(OSCPM_VISITOR_CASES
+    "dispatch on a space|dispatch needs a visitor callable as visitor.std::string_view address, T& value"
+    "dispatch on a const space|dispatch needs a visitor callable as visitor.std::string_view address, const T& value"
+    "forEach on a space|forEach needs a visitor callable as visitor.std::string_view address, T& value"
+    "forEach on a const space|forEach needs a visitor callable as visitor.std::string_view address, const T& value"
+)
+set(caseNumber 0)
+foreach(visitorCase IN LISTS OSCPM_VISITOR_CASES)
+    math(EXPR caseNumber "${caseNumber} + 1")
+    string(REPLACE "|" ";" visitorCase "${visitorCase}")
+    list(GET visitorCase 0 caseName)
+    list(GET visitorCase 1 expectedMessage)
+    set(target oscpm_visitor_signature_${caseNumber})
+    add_executable(${target} EXCLUDE_FROM_ALL visitor_signature.cpp)
+    target_link_libraries(${target} PRIVATE oscpm::oscpm)
+    target_compile_definitions(${target} PRIVATE OSCPM_VISITOR_CASE=${caseNumber})
+    set_target_properties(${target} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+    set(testName "${caseName} fails to compile with a visitor of the wrong signature")
+    add_test(NAME "${testName}"
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${target} --config $<CONFIG>)
+    set_tests_properties("${testName}" PROPERTIES
+        PASS_REGULAR_EXPRESSION "${expectedMessage}"
+        RESOURCE_LOCK oscpm_build_tree)
+endforeach()
+
 add_executable(oscpm_address_rule address_rule.cpp)
 target_link_libraries(oscpm_address_rule PRIVATE oscpm::oscpm)
 target_compile_options(oscpm_address_rule PRIVATE
