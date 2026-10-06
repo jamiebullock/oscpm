@@ -297,6 +297,14 @@ throw, apart from whatever the visitor or handler they call does; they are
 not declared `noexcept`. A dispatch takes at most the time bound above for
 each registered method. `AddressSpace::add` and `remove` allocate.
 
+A wildcard dispatch uses about 2.2 KiB of stack, plus 4 bytes for each of
+`InlineResults` when `Memo` is true: about 6.2 KiB with the defaults and
+2.3 KiB for `AddressSpace<T, true, 6, 64>`. Matching an address part of 64
+bytes or more adds up to 1 KiB, and each dispatch a visitor makes adds its
+own amount again. A dispatch served from the memo uses under 200 bytes. The
+figures are from AppleClang 21 and GCC 14 at `-O3`; other compilers and
+flags differ.
+
 A libFuzzer target checks the matcher, the pattern value and
 `Address::parse` against each other under AddressSanitizer and
 UndefinedBehaviorSanitizer on every change.

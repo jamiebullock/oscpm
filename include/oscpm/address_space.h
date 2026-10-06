@@ -154,7 +154,7 @@ public:
     }
 
 private:
-    using Table = detail::MethodTable<T, detail::DispatchMemo<CacheBits, InlineResults, kMaxMemoPatternLength>>;
+    using Table = detail::MethodTable<T, detail::DispatchMemo<CacheBits, Memo ? InlineResults : 0, kMaxMemoPatternLength>>;
 
     class OpenVisits
     {

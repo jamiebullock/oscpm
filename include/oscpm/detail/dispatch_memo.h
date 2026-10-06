@@ -85,7 +85,7 @@ public:
             return;
         }
         remember(bucket, text, numResults);
-        bucket.results = results;
+        std::copy_n(results.begin(), numResults, bucket.results.begin());
     }
 
     void rememberNoMatch(std::string_view text, std::size_t hash) noexcept
