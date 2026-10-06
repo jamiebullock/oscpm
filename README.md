@@ -8,7 +8,9 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 
 oscpm matches OSC address patterns against addresses and dispatches them to methods through an address space. It supports the [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching syntax, and the proposed `//` operator from [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
 
-It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp), which reads and writes OSC packets and leaves matching and dispatch to the caller. oscpm does not depend on oscpp, or on anything outside the standard library.
+It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp), which reads and writes OSC packets, leaving matching and dispatch to the caller.  Like oscpp, it suits realtime contexts, with matching and dispatch (matches(), dispatch() and invoke()) allocation free with documented [memory and time guarantees](#guarantees). 
+
+oscpm does not depend on oscpp, or on anything outside the standard library.
 
 ## Example
 
@@ -29,7 +31,7 @@ oscpm::AddressSpace<Handler> methods;
 methods.add(oscpm::Address::parse("/synth/freq").address(), setFrequency);
 
 // for each OSCPP::Server::Message received
-methods.invoke(message.address(), message);
+methods.invoke(message.address(), message); // A message with address "/synth/*" invokes setFrequency()
 ```
 
 ## Matching
@@ -221,11 +223,12 @@ Every well-formed address also parses as a literal pattern that matches only its
 - allocate nothing, which the test suite asserts with a counting `operator new`;
 - never throw, and are declared `noexcept`;
 - run in time bounded by the product of the pattern and address lengths, whatever the pattern contains;
+- use an amount of stack that is fixed when they are compiled, whatever the pattern and address;
 - are `constexpr` outside the address space, so a fixed pattern is parsed or matched at compile time.
 
 `AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing and never throw, apart from whatever the visitor or handler they call does; they are not declared `noexcept`. A dispatch takes at most the time bound above for each registered method. `AddressSpace::add` and `remove` allocate.
 
-A wildcard dispatch uses about 2.2 KiB of stack, plus 4 bytes for each of `InlineResults` when `Memo` is true: about 6.2 KiB with the defaults and 2.3 KiB for `AddressSpace<T, true, 6, 64>`. Matching an address part of 64 bytes or more adds up to 1 KiB, and each dispatch a visitor makes adds its own amount again. A dispatch served from the memo uses under 200 bytes. The figures are from AppleClang 21 and GCC 14 at `-O3`; other compilers and flags differ.
+The stack a dispatch uses is likewise fixed when it is compiled, and does not depend on the pattern, the address or the number of registered methods: matching and dispatch never recurse, and size every stack buffer at compile time. With AppleClang 21 and GCC 14 at `-O3`, a wildcard dispatch typically uses under 2.5 KiB, plus 4 bytes for each of `InlineResults` when `Memo` is true (under 6.5 KiB with the defaults), and up to 1 KiB more for an address part of 64 bytes or longer. A dispatch served from the memo uses under 200 bytes.
 
 A libFuzzer target checks the matcher, the pattern value and `Address::parse` against each other under AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
