@@ -15,6 +15,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -110,8 +111,10 @@ public:
         return m_table.template dispatch<DispatchResult>(pattern, visitor);
     }
 
-    /// Parses `pattern` and calls `value(args...)` on every method it matches,
-    /// in bytewise address order, under the same visitor rule as `dispatch`.
+    /// Parses `pattern` and calls `std::invoke(value, args...)` on every method
+    /// it matches, in bytewise address order, under the same visitor rule as
+    /// `dispatch`. A value that is a pointer to a member takes its object as
+    /// the first of `args`.
     /// A malformed pattern calls nothing and is returned as the result's
     /// `error`. Every call receives the same `args` objects; `invoke` itself
     /// does not move from them.
@@ -120,16 +123,16 @@ public:
     {
         static_assert(std::is_invocable_v<T&, Args&...>, "invoke needs a T that is callable with these arguments; use dispatch for other values");
         return dispatch(pattern, [&](std::string_view, T& value)
-            { static_cast<void>(value(args...)); });
+            { static_cast<void>(std::invoke(value, args...)); });
     }
 
-    /// The `const` overload; calls `value(args...)` on a `const T`.
+    /// The `const` overload; calls `std::invoke(value, args...)` on a `const T`.
     template <typename... Args>
     DispatchResult invoke(std::string_view pattern, Args&&... args) const
     {
         static_assert(std::is_invocable_v<const T&, Args&...>, "invoke needs a T that is callable with these arguments; use dispatch for other values");
         return dispatch(pattern, [&](std::string_view, const T& value)
-            { static_cast<void>(value(args...)); });
+            { static_cast<void>(std::invoke(value, args...)); });
     }
 
     /// Calls `visitor(std::string_view address, T& value)` for every method,
