@@ -96,6 +96,7 @@ public:
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
     {
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, T&>, "dispatch needs a visitor callable as visitor(std::string_view address, T& value)");
         [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
         return m_table.template dispatch<DispatchResult>(pattern, visitor);
     }
@@ -104,6 +105,7 @@ public:
     template <typename Visitor>
     DispatchResult dispatch(std::string_view pattern, Visitor&& visitor) const
     {
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, const T&>, "dispatch needs a visitor callable as visitor(std::string_view address, const T& value)");
         [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
         return m_table.template dispatch<DispatchResult>(pattern, visitor);
     }
@@ -135,6 +137,7 @@ public:
     template <typename Visitor>
     void forEach(Visitor&& visitor)
     {
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, T&>, "forEach needs a visitor callable as visitor(std::string_view address, T& value)");
         [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
         m_table.forEach(visitor);
     }
@@ -143,6 +146,7 @@ public:
     template <typename Visitor>
     void forEach(Visitor&& visitor) const
     {
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, const T&>, "forEach needs a visitor callable as visitor(std::string_view address, const T& value)");
         [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
         m_table.forEach(visitor);
     }
