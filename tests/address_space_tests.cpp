@@ -58,10 +58,10 @@ Address parsedAddress(std::string_view text)
 }
 
 template <typename Space>
-Addresses dispatchAddresses(const Space& space, std::string_view pattern, oscpm::DispatchResult& result)
+Addresses visitAddresses(const Space& space, std::string_view pattern, oscpm::MatchResult& result)
 {
     Addresses found;
-    result = space.dispatch(pattern, [&](std::string_view address, const auto&)
+    result = space.visit(pattern, [&](std::string_view address, const auto&)
         { found.emplace_back(address); });
     return found;
 }
@@ -69,8 +69,8 @@ Addresses dispatchAddresses(const Space& space, std::string_view pattern, oscpm:
 template <typename Space>
 Addresses matchingAddresses(const Space& space, std::string_view pattern)
 {
-    oscpm::DispatchResult result { 0, std::nullopt };
-    Addresses found = dispatchAddresses(space, pattern, result);
+    oscpm::MatchResult result { 0, std::nullopt };
+    Addresses found = visitAddresses(space, pattern, result);
     REQUIRE_FALSE(result.error.has_value());
     REQUIRE(result.matched == found.size());
     return found;
@@ -80,7 +80,7 @@ template <typename Space>
 Addresses allAddresses(const Space& space)
 {
     Addresses found;
-    space.forEach([&](std::string_view address, const auto&)
+    space.visit([&](std::string_view address, const auto&)
         { found.emplace_back(address); });
     return found;
 }
@@ -161,14 +161,14 @@ TEST_CASE("remove unregisters an address that is registered")
     CHECK(allAddresses(space) == Addresses { "/b" });
 }
 
-TEST_CASE("forEach visits methods in bytewise address order whatever the insertion order")
+TEST_CASE("visit without a pattern reaches every address in bytewise address order whatever the insertion order")
 {
     AddressSpace<int> space;
     populate(space, { "/b", "/a/b", "/a", "/B", "/a/a", "/~", "/a-" });
     CHECK(allAddresses(space) == Addresses { "/B", "/a", "/a-", "/a/a", "/a/b", "/b", "/~" });
 }
 
-TEST_CASE("a literal pattern finds exactly the method with its text")
+TEST_CASE("a literal pattern finds exactly the address equal to its text")
 {
     AddressSpace<int> space;
     populate(space, { "/synth/1/freq", "/synth/1/freqs", "/synth/1", "/synth/10/freq" });
@@ -179,7 +179,7 @@ TEST_CASE("a literal pattern finds exactly the method with its text")
     CHECK(matchingAddresses(space, "/") == Addresses { });
 }
 
-TEST_CASE("a wildcard pattern finds every matching method in address order")
+TEST_CASE("a wildcard pattern finds every matching address in address order")
 {
     AddressSpace<int> space;
     populate(space, { "/synth/2/amp", "/synth/1/freq", "/synth/1/amp", "/mixer/1/amp", "/synth/12/amp" });
@@ -190,16 +190,16 @@ TEST_CASE("a wildcard pattern finds every matching method in address order")
     CHECK(matchingAddresses(space, "//") == allAddresses(space));
 }
 
-TEST_CASE("dispatch returns the number of methods visited and lets the visitor change the value")
+TEST_CASE("visit returns the number of values visited and lets the visitor change the value")
 {
     AddressSpace<int> space;
     populate(space, { "/a/1", "/a/2", "/b/1" });
-    const oscpm::DispatchResult result = space.dispatch("/a/*", [](std::string_view, int& value)
+    const oscpm::MatchResult result = space.visit("/a/*", [](std::string_view, int& value)
         { value += 10; });
     CHECK(result.matched == 2);
     CHECK_FALSE(result.error.has_value());
     std::map<std::string, int> values;
-    space.forEach([&](std::string_view address, const int& value)
+    space.visit([&](std::string_view address, const int& value)
         { values[std::string(address)] = value; });
     CHECK(values == std::map<std::string, int> { { "/a/1", 10 }, { "/a/2", 10 }, { "/b/1", 0 } });
 }
@@ -214,10 +214,10 @@ TEST_CASE("find returns the value registered under an address and null when ther
     REQUIRE(found != nullptr);
     CHECK(*found == 440);
     *found = 550;
-    int dispatched = 0;
-    space.dispatch("/synth/1/freq", [&](std::string_view, int& value)
-        { dispatched = value; });
-    CHECK(dispatched == 550);
+    int visited = 0;
+    space.visit("/synth/1/freq", [&](std::string_view, int& value)
+        { visited = value; });
+    CHECK(visited == 550);
 
     for (const char* absent : { "/synth/3/freq", "/synth/1", "/synth/1/freq/", "/synth/*/freq", "synth/1/freq", "/", "" })
     {
@@ -270,13 +270,13 @@ TEST_CASE("a visitor may call find on the space that called it")
     REQUIRE(space.add(parsedAddress("/a/1"), 1));
     REQUIRE(space.add(parsedAddress("/a/2"), 2));
     REQUIRE(space.add(parsedAddress("/total"), 0));
-    const oscpm::DispatchResult result = space.dispatch("/a/*", [&](std::string_view, int& value)
+    const oscpm::MatchResult result = space.visit("/a/*", [&](std::string_view, int& value)
         { *space.find("/total") += value; });
     CHECK(result.matched == 2);
     CHECK(*space.find("/total") == 3);
 }
 
-TEST_CASE("dispatch visits the methods a pattern matches and none for a pattern that matches nothing")
+TEST_CASE("visit reaches the addresses a pattern matches and none for a pattern that matches nothing")
 {
     AddressSpace<int> space;
     populate(space, { "/synth/1/freq", "/synth/1/amp", "/synth/2/freq", "/mixer/gain" });
@@ -293,14 +293,14 @@ TEST_CASE("dispatch visits the methods a pattern matches and none for a pattern 
     for (const auto& expectation : cases)
     {
         INFO("pattern " << expectation.pattern);
-        oscpm::DispatchResult result { 0, std::nullopt };
-        CHECK(dispatchAddresses(space, expectation.pattern, result) == expectation.expected);
+        oscpm::MatchResult result { 0, std::nullopt };
+        CHECK(visitAddresses(space, expectation.pattern, result) == expectation.expected);
         CHECK(result.matched == expectation.expected.size());
         CHECK_FALSE(result.error.has_value());
     }
 }
 
-TEST_CASE("dispatch reports a malformed pattern and visits nothing")
+TEST_CASE("visit reports a malformed pattern and visits nothing")
 {
     AddressSpace<int> space;
     populate(space, { "/synth/1/freq" });
@@ -318,12 +318,12 @@ TEST_CASE("dispatch reports a malformed pattern and visits nothing")
     {
         INFO("pattern " << malformed.pattern);
         std::size_t visits = 0;
-        const oscpm::DispatchResult mutableResult = space.dispatch(malformed.pattern, [&](std::string_view, int&)
+        const oscpm::MatchResult mutableResult = space.visit(malformed.pattern, [&](std::string_view, int&)
             { ++visits; });
-        const oscpm::DispatchResult constResult = constSpace.dispatch(malformed.pattern, [&](std::string_view, const int&)
+        const oscpm::MatchResult constResult = constSpace.visit(malformed.pattern, [&](std::string_view, const int&)
             { ++visits; });
         CHECK(visits == 0);
-        for (const oscpm::DispatchResult& result : { mutableResult, constResult })
+        for (const oscpm::MatchResult& result : { mutableResult, constResult })
         {
             CHECK(result.matched == 0);
             REQUIRE(result.error.has_value());
@@ -375,12 +375,12 @@ TEST_CASE("a value type whose move may throw is matched exactly as an int is")
     }
 }
 
-TEST_CASE("dispatch reports a pattern longer than the supported length and visits nothing")
+TEST_CASE("visit reports a pattern longer than the supported length and visits nothing")
 {
     AddressSpace<int> space;
     populate(space, { "/a" });
     std::size_t visits = 0;
-    const oscpm::DispatchResult result = space.dispatch("/*" + std::string(oscpm::kMaxPatternLength, 'a'), [&](std::string_view, int&)
+    const oscpm::MatchResult result = space.visit("/*" + std::string(oscpm::kMaxPatternLength, 'a'), [&](std::string_view, int&)
         { ++visits; });
     CHECK(visits == 0);
     CHECK(result.matched == 0);
@@ -388,20 +388,20 @@ TEST_CASE("dispatch reports a pattern longer than the supported length and visit
     CHECK(std::string(oscpm::toString(*result.error)) == "PatternTooLong");
 }
 
-TEST_CASE("dispatch through a const space passes a const value")
+TEST_CASE("visit through a const space passes a const value")
 {
     AddressSpace<int> space;
     populate(space, { "/a/1", "/a/2" });
     const AddressSpace<int>& constSpace = space;
     int sum = 0;
-    const oscpm::DispatchResult result = constSpace.dispatch("/a/*", [&](std::string_view, const int& value)
+    const oscpm::MatchResult result = constSpace.visit("/a/*", [&](std::string_view, const int& value)
         { sum += value + 1; });
     CHECK(result.matched == 2);
     CHECK_FALSE(result.error.has_value());
     CHECK(sum == 2);
 }
 
-TEST_CASE("a repeated dispatch gives the same result and a change to the space is seen at once")
+TEST_CASE("a repeated visit gives the same result and a change to the space is seen at once")
 {
     AddressSpace<int> space;
     populate(space, { "/a/1", "/a/2" });
@@ -428,7 +428,7 @@ TEST_CASE("a single-bucket memo serves alternating patterns correctly")
     }
 }
 
-TEST_CASE("a visitor may dispatch into the same space while a memoised result is delivered")
+TEST_CASE("a visitor may visit the same space while a memoised result is delivered")
 {
     AddressSpace<int, true, 0, 4> space;
     populate(space, { "/a/1", "/a/2", "/a/3", "/b/1", "/b/2" });
@@ -436,12 +436,12 @@ TEST_CASE("a visitor may dispatch into the same space while a memoised result is
     {
         Addresses outer;
         Addresses inner;
-        oscpm::DispatchResult innerResult { };
-        const oscpm::DispatchResult outerResult = space.dispatch("/a/*", [&](std::string_view address, int&)
+        oscpm::MatchResult innerResult { };
+        const oscpm::MatchResult outerResult = space.visit("/a/*", [&](std::string_view address, int&)
             {
                 if (outer.empty())
                 {
-                    inner = dispatchAddresses(space, pattern, innerResult);
+                    inner = visitAddresses(space, pattern, innerResult);
                 }
                 outer.emplace_back(address); });
         CHECK(outerResult.matched == 3);
@@ -474,7 +474,7 @@ TEST_CASE("a result larger than the inline limit and a pattern longer than the m
     }
 }
 
-TEST_CASE("a default space serves a result of 1024 methods from its memo unchanged")
+TEST_CASE("a default space serves a result of 1024 matches from its memo unchanged")
 {
     AddressSpace<int> space;
     Addresses voices;
@@ -503,25 +503,25 @@ TEST_CASE("an address space without a memo behaves the same")
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
 }
 
-TEST_CASE("dispatch sees every add and remove after a pattern has been dispatched")
+TEST_CASE("visit sees every add and remove after a pattern has been visited")
 {
     AddressSpace<int> space;
     populate(space, { "/a" });
-    oscpm::DispatchResult result { 0, std::nullopt };
+    oscpm::MatchResult result { 0, std::nullopt };
     for (int round = 0; round < 2; ++round)
     {
-        CHECK(dispatchAddresses(space, "/b", result) == Addresses { });
-        CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/a" });
+        CHECK(visitAddresses(space, "/b", result) == Addresses { });
+        CHECK(visitAddresses(space, "/*", result) == Addresses { "/a" });
     }
     REQUIRE(space.add(parsedAddress("/b"), 0));
-    CHECK(dispatchAddresses(space, "/b", result) == Addresses { "/b" });
-    CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/a", "/b" });
+    CHECK(visitAddresses(space, "/b", result) == Addresses { "/b" });
+    CHECK(visitAddresses(space, "/*", result) == Addresses { "/a", "/b" });
     REQUIRE(space.remove(parsedAddress("/a")));
-    CHECK(dispatchAddresses(space, "/a", result) == Addresses { });
-    CHECK(dispatchAddresses(space, "/*", result) == Addresses { "/b" });
+    CHECK(visitAddresses(space, "/a", result) == Addresses { });
+    CHECK(visitAddresses(space, "/*", result) == Addresses { "/b" });
 }
 
-TEST_CASE("every registered address dispatches to itself alone through interleaved adds and removes")
+TEST_CASE("every registered address matches itself alone through interleaved adds and removes")
 {
     AddressSpace<int> space;
     std::set<std::string> registered;
@@ -545,12 +545,12 @@ TEST_CASE("every registered address dispatches to itself alone through interleav
         }
         for (const std::string& expected : registered)
         {
-            oscpm::DispatchResult result { };
-            REQUIRE(dispatchAddresses(space, expected, result) == Addresses { expected });
+            oscpm::MatchResult result { };
+            REQUIRE(visitAddresses(space, expected, result) == Addresses { expected });
             REQUIRE(space.find(expected) != nullptr);
         }
-        oscpm::DispatchResult absent { };
-        CHECK(dispatchAddresses(space, "/m/600", absent).empty());
+        oscpm::MatchResult absent { };
+        CHECK(visitAddresses(space, "/m/600", absent).empty());
         CHECK(space.find("/m/600") == nullptr);
     }
 }
@@ -589,7 +589,7 @@ TEST_CASE("the address index finds every address it holds and none it has erased
     CHECK_FALSE(sorted.empty());
 }
 
-TEST_CASE("a value type whose move may throw is dispatched exactly as an int is")
+TEST_CASE("a value type whose move may throw is visited exactly as an int is")
 {
     AddressSpace<int> ints;
     AddressSpace<MayThrowOnMove> mayThrow;
@@ -598,39 +598,39 @@ TEST_CASE("a value type whose move may throw is dispatched exactly as an int is"
     populate(mayThrow, addresses);
     REQUIRE(ints.remove(parsedAddress("/synth/1/freq")));
     REQUIRE(mayThrow.remove(parsedAddress("/synth/1/freq")));
-    oscpm::DispatchResult intsResult { 0, std::nullopt };
-    oscpm::DispatchResult mayThrowResult { 0, std::nullopt };
+    oscpm::MatchResult intsResult { 0, std::nullopt };
+    oscpm::MatchResult mayThrowResult { 0, std::nullopt };
     for (int round = 0; round < 2; ++round)
     {
         for (const char* pattern : { "/synth/2/amp", "/synth/1/freq", "/synth/*/freq", "//gain", "/synth/[" })
         {
             INFO("pattern " << pattern);
-            CHECK(dispatchAddresses(mayThrow, pattern, mayThrowResult) == dispatchAddresses(ints, pattern, intsResult));
+            CHECK(visitAddresses(mayThrow, pattern, mayThrowResult) == visitAddresses(ints, pattern, intsResult));
             CHECK(mayThrowResult.matched == intsResult.matched);
             CHECK(mayThrowResult.error.has_value() == intsResult.error.has_value());
         }
     }
 }
 
-TEST_CASE("a copied address space and a moved-from one dispatch correctly")
+TEST_CASE("a copied address space and a moved-from one visit correctly")
 {
     AddressSpace<int> source;
     populate(source, { "/a/1", "/a/2" });
-    oscpm::DispatchResult result { 0, std::nullopt };
-    CHECK(dispatchAddresses(source, "/a/1", result) == Addresses { "/a/1" });
-    CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { "/a/1", "/a/2" });
+    oscpm::MatchResult result { 0, std::nullopt };
+    CHECK(visitAddresses(source, "/a/1", result) == Addresses { "/a/1" });
+    CHECK(visitAddresses(source, "/a/*", result) == Addresses { "/a/1", "/a/2" });
 
     const AddressSpace<int> copy(source);
     REQUIRE(source.remove(parsedAddress("/a/1")));
-    CHECK(dispatchAddresses(copy, "/a/1", result) == Addresses { "/a/1" });
-    CHECK(dispatchAddresses(copy, "/a/*", result) == Addresses { "/a/1", "/a/2" });
-    CHECK(dispatchAddresses(source, "/a/1", result) == Addresses { });
-    CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { "/a/2" });
+    CHECK(visitAddresses(copy, "/a/1", result) == Addresses { "/a/1" });
+    CHECK(visitAddresses(copy, "/a/*", result) == Addresses { "/a/1", "/a/2" });
+    CHECK(visitAddresses(source, "/a/1", result) == Addresses { });
+    CHECK(visitAddresses(source, "/a/*", result) == Addresses { "/a/2" });
 
     const AddressSpace<int> moved(std::move(source));
-    CHECK(dispatchAddresses(moved, "/a/2", result) == Addresses { "/a/2" });
-    CHECK(dispatchAddresses(source, "/a/2", result) == Addresses { });
-    CHECK(dispatchAddresses(source, "/a/*", result) == Addresses { });
+    CHECK(visitAddresses(moved, "/a/2", result) == Addresses { "/a/2" });
+    CHECK(visitAddresses(source, "/a/2", result) == Addresses { });
+    CHECK(visitAddresses(source, "/a/*", result) == Addresses { });
 }
 
 TEST_CASE("a space copied or moved during a visit starts outside any visit")
@@ -639,7 +639,7 @@ TEST_CASE("a space copied or moved during a visit starts outside any visit")
     populate(space, { "/a/1", "/a/2" });
     Addresses copied;
     Addresses moved;
-    space.dispatch("/a/1", [&](std::string_view, int&)
+    space.visit("/a/1", [&](std::string_view, int&)
         {
             AddressSpace<int> copy(space);
             REQUIRE(copy.add(parsedAddress("/b"), 0));
@@ -712,7 +712,7 @@ TEST_CASE("a memo assigned to itself while it is being read is left as it was")
     CHECK(served == Addresses { "/b" });
 }
 
-TEST_CASE("a moved address space keeps its methods and the moved-from one stays usable")
+TEST_CASE("a moved address space keeps its values and the moved-from one stays usable")
 {
     AddressSpace<int> source;
     populate(source, { "/a/1", "/a/2" });
@@ -734,20 +734,20 @@ TEST_CASE("a moved address space keeps its methods and the moved-from one stays 
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
 }
 
-TEST_CASE("a move-only value type is stored and reached through dispatch")
+TEST_CASE("a move-only value type is stored and reached through visit")
 {
     AddressSpace<std::unique_ptr<int>> space;
     REQUIRE(space.add(parsedAddress("/a"), std::make_unique<int>(1)));
     REQUIRE(space.add(parsedAddress("/b"), std::make_unique<int>(2)));
-    space.dispatch("/*", [](std::string_view, std::unique_ptr<int>& value)
+    space.visit("/*", [](std::string_view, std::unique_ptr<int>& value)
         { *value *= 10; });
     int sum = 0;
-    space.forEach([&](std::string_view, const std::unique_ptr<int>& value)
+    space.visit([&](std::string_view, const std::unique_ptr<int>& value)
         { sum += *value; });
     CHECK(sum == 30);
 }
 
-TEST_CASE("a space of handlers dispatches to every matching handler without allocating")
+TEST_CASE("a visitor reaches every matching handler without allocating")
 {
     using Handler = std::function<void(int)>;
     static_assert(std::is_nothrow_move_constructible_v<Handler> && std::is_nothrow_move_assignable_v<Handler>);
@@ -765,10 +765,10 @@ TEST_CASE("a space of handlers dispatches to every matching handler without allo
     { handler(220); };
 
     const std::size_t before = oscpm_test::allocationCount();
-    const oscpm::DispatchResult wildcard = handlers.dispatch("/synth/*/freq", pass);
-    const oscpm::DispatchResult literal = handlers.dispatch("/synth/2/amp", pass);
-    const oscpm::DispatchResult absent = handlers.dispatch("/synth/3/freq", pass);
-    const oscpm::DispatchResult viaConst = std::as_const(handlers).dispatch("/synth/2/*", passConst);
+    const oscpm::MatchResult wildcard = handlers.visit("/synth/*/freq", pass);
+    const oscpm::MatchResult literal = handlers.visit("/synth/2/amp", pass);
+    const oscpm::MatchResult absent = handlers.visit("/synth/3/freq", pass);
+    const oscpm::MatchResult viaConst = std::as_const(handlers).visit("/synth/2/*", passConst);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);
@@ -782,7 +782,7 @@ TEST_CASE("a space of handlers dispatches to every matching handler without allo
     CHECK(calls == expected);
 }
 
-TEST_CASE("invoke calls every matching handler with the same arguments without allocating")
+TEST_CASE("dispatch calls every matching handler with the same arguments without allocating")
 {
     using Handler = std::function<void(int, const std::string&)>;
     struct Call
@@ -807,11 +807,11 @@ TEST_CASE("invoke calls every matching handler with the same arguments without a
     const std::string name = "note";
 
     const std::size_t before = oscpm_test::allocationCount();
-    const oscpm::DispatchResult wildcard = handlers.invoke("/synth/*/freq", 440, name);
-    const oscpm::DispatchResult literal = handlers.invoke("/synth/2/amp", 1, name);
-    const oscpm::DispatchResult absent = handlers.invoke("/synth/3/freq", 0, name);
-    const oscpm::DispatchResult malformed = handlers.invoke("/synth/[1/freq", 0, name);
-    const oscpm::DispatchResult viaConst = std::as_const(handlers).invoke("/synth/2/*", 220, name);
+    const oscpm::MatchResult wildcard = handlers.dispatch("/synth/*/freq", 440, name);
+    const oscpm::MatchResult literal = handlers.dispatch("/synth/2/amp", 1, name);
+    const oscpm::MatchResult absent = handlers.dispatch("/synth/3/freq", 0, name);
+    const oscpm::MatchResult malformed = handlers.dispatch("/synth/[1/freq", 0, name);
+    const oscpm::MatchResult viaConst = std::as_const(handlers).dispatch("/synth/2/*", 220, name);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);
@@ -829,7 +829,7 @@ TEST_CASE("invoke calls every matching handler with the same arguments without a
 
     calls.clear();
     std::string movable = "note";
-    handlers.invoke("/synth/*/freq", 880, std::move(movable));
+    handlers.dispatch("/synth/*/freq", 880, std::move(movable));
     REQUIRE(calls.size() == 2);
     CHECK(calls[0].name == &movable);
     CHECK(calls[1].name == &movable);
@@ -837,7 +837,7 @@ TEST_CASE("invoke calls every matching handler with the same arguments without a
     CHECK(calls[1].nameIntact);
 }
 
-TEST_CASE("invoke hands every handler that takes an argument by value its own copy, even of an rvalue")
+TEST_CASE("dispatch hands every handler that takes an argument by value its own copy, even of an rvalue")
 {
     using Handler = std::function<void(std::string)>;
     AddressSpace<Handler> handlers;
@@ -850,13 +850,13 @@ TEST_CASE("invoke hands every handler that takes an argument by value its own co
 
     std::string name = "a name too long for the small string buffer";
     const std::string expected = name;
-    const oscpm::DispatchResult result = handlers.invoke("/synth/*/freq", std::move(name));
+    const oscpm::MatchResult result = handlers.dispatch("/synth/*/freq", std::move(name));
 
     CHECK(result.matched == 2);
     CHECK(received == std::vector<std::string> { expected, expected });
 }
 
-TEST_CASE("invoke calls a member function value on the object passed first, without allocating")
+TEST_CASE("dispatch calls a member function value on the object passed first, without allocating")
 {
     struct Synth
     {
@@ -885,9 +885,9 @@ TEST_CASE("invoke calls a member function value on the object passed first, with
     reported.reserve(1);
 
     const std::size_t before = oscpm_test::allocationCount();
-    const oscpm::DispatchResult byReference = setters.invoke("/synth/freq", synth, 440.0f);
-    const oscpm::DispatchResult byPointer = setters.invoke("/synth/amp", &synth, 0.5f);
-    const oscpm::DispatchResult viaConst = std::as_const(reporters).invoke("/synth/*", std::as_const(synth), reported);
+    const oscpm::MatchResult byReference = setters.dispatch("/synth/freq", synth, 440.0f);
+    const oscpm::MatchResult byPointer = setters.dispatch("/synth/amp", &synth, 0.5f);
+    const oscpm::MatchResult viaConst = std::as_const(reporters).dispatch("/synth/*", std::as_const(synth), reported);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);
@@ -899,7 +899,7 @@ TEST_CASE("invoke calls a member function value on the object passed first, with
     CHECK(reported == std::vector<float> { 440.0f });
 }
 
-TEST_CASE("dispatch, find and forEach allocate nothing")
+TEST_CASE("visit and find allocate nothing")
 {
     AddressSpace<int> space;
     Addresses addresses;
@@ -914,14 +914,14 @@ TEST_CASE("dispatch, find and forEach allocate nothing")
     { ++visited; };
 
     const std::size_t before = oscpm_test::allocationCount();
-    const oscpm::DispatchResult literalResult = space.dispatch("/synth/42/freq", count);
-    const oscpm::DispatchResult wildcardResult = space.dispatch("/synth/?/freq", count);
-    const oscpm::DispatchResult wildcardAgainResult = space.dispatch("/synth/?/freq", count);
-    const oscpm::DispatchResult unmemoisedResult = space.dispatch(unmemoised, count);
-    space.forEach(count);
-    const oscpm::DispatchResult malformedResult = space.dispatch("/synth/[4/freq", count);
-    const oscpm::DispatchResult absentResult = space.dispatch("/synth/42/gain", count);
-    const oscpm::DispatchResult absentAgainResult = space.dispatch("/synth/42/gain", count);
+    const oscpm::MatchResult literalResult = space.visit("/synth/42/freq", count);
+    const oscpm::MatchResult wildcardResult = space.visit("/synth/?/freq", count);
+    const oscpm::MatchResult wildcardAgainResult = space.visit("/synth/?/freq", count);
+    const oscpm::MatchResult unmemoisedResult = space.visit(unmemoised, count);
+    space.visit(count);
+    const oscpm::MatchResult malformedResult = space.visit("/synth/[4/freq", count);
+    const oscpm::MatchResult absentResult = space.visit("/synth/42/gain", count);
+    const oscpm::MatchResult absentAgainResult = space.visit("/synth/42/gain", count);
     const int* const found = space.find("/synth/42/freq");
     const int* const notFound = space.find("/synth/42/gain");
     const std::size_t after = oscpm_test::allocationCount();
@@ -968,23 +968,23 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
     {
         INFO("pattern " << pattern);
         const Addresses expected = expectedMatches(registered, pattern);
-        oscpm::DispatchResult result { 0, std::nullopt };
-        CHECK(dispatchAddresses(space, pattern, result) == expected);
+        oscpm::MatchResult result { 0, std::nullopt };
+        CHECK(visitAddresses(space, pattern, result) == expected);
         CHECK(result.matched == expected.size());
         CHECK_FALSE(result.error.has_value());
     }
     for (const oscpm_test::CorpusCase& corpusCase : malformed)
     {
         INFO("corpus line " << corpusCase.line << ": " << corpusCase.text);
-        oscpm::DispatchResult result { 0, std::nullopt };
-        CHECK(dispatchAddresses(space, corpusCase.pattern, result).empty());
+        oscpm::MatchResult result { 0, std::nullopt };
+        CHECK(visitAddresses(space, corpusCase.pattern, result).empty());
         CHECK(result.matched == 0);
         REQUIRE(result.error.has_value());
         CHECK(std::string(oscpm::toString(*result.error)) == corpusCase.errorName);
     }
 }
 
-TEST_CASE("random adds, removes and dispatches agree with the standalone matcher")
+TEST_CASE("random adds, removes and visits agree with the standalone matcher")
 {
     AddressSpace<int, true, 2, 4> space;
     std::set<std::string> model;

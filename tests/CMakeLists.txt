@@ -89,15 +89,15 @@ target_compile_options(oscpm_visitor_rule PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
 )
-add_test(NAME "a visitor that removes a method trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule)
-set_tests_properties("a visitor that removes a method trips an assertion in a build without NDEBUG" PROPERTIES
-    PASS_REGULAR_EXPRESSION "must not add or remove methods|assertions are compiled out")
+add_test(NAME "a visitor that removes an address trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule)
+set_tests_properties("a visitor that removes an address trips an assertion in a build without NDEBUG" PROPERTIES
+    PASS_REGULAR_EXPRESSION "must not add to or remove from|assertions are compiled out")
 
 set(OSCPM_VISITOR_CASES
-    "dispatch on a space|dispatch needs a visitor callable as visitor.std::string_view address, T& value"
-    "dispatch on a const space|dispatch needs a visitor callable as visitor.std::string_view address, const T& value"
-    "forEach on a space|forEach needs a visitor callable as visitor.std::string_view address, T& value"
-    "forEach on a const space|forEach needs a visitor callable as visitor.std::string_view address, const T& value"
+    "visit with a pattern on a space|visit needs a visitor callable as visitor.std::string_view address, T& value"
+    "visit with a pattern on a const space|visit needs a visitor callable as visitor.std::string_view address, const T& value"
+    "visit without a pattern on a space|visit needs a visitor callable as visitor.std::string_view address, T& value"
+    "visit without a pattern on a const space|visit needs a visitor callable as visitor.std::string_view address, const T& value"
 )
 set(caseNumber 0)
 foreach(visitorCase IN LISTS OSCPM_VISITOR_CASES)

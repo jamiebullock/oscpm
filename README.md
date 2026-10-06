@@ -6,8 +6,9 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 [![Latest tag](https://img.shields.io/github/v/tag/jamiebullock/oscpm?sort=semver&label=tag)](https://github.com/jamiebullock/oscpm/tags)
 [![Licence](https://img.shields.io/github/license/jamiebullock/oscpm?label=licence)](LICENSE)
 
-oscpm matches OSC address patterns against addresses and dispatches them to
-methods through an address space. It supports the
+oscpm matches OSC address patterns against addresses, and through an address
+space visits or dispatches to the values registered under the matching
+addresses. It supports the
 [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching
 syntax, and the proposed `//` operator from
 [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
@@ -36,14 +37,15 @@ oscpm::AddressSpace<Handler> methods;
 methods.add(oscpm::Address::parse("/synth/freq").address(), setFrequency);
 
 // for each OSCPP::Server::Message received
-methods.invoke(message.address(), message);
-// a message to "/synth/freq" or to "/synth/*" invokes setFrequency
+methods.dispatch(message.address(), message);
+// a message to "/synth/freq" or to "/synth/*" calls setFrequency
 ```
 
-`invoke` calls every handler the message's pattern matches and passes it the
-message.
+`dispatch` calls every handler the message's pattern matches and passes it
+the message. Each handler is an OSC method in the specification's sense, and
+this is the dispatching the specification describes.
 [`examples/dispatch.cpp`](examples/dispatch.cpp) is a complete program: it
-builds a bundle with oscpp, reads it back and dispatches each message.
+builds a bundle with oscpp, reads it back and applies each message.
 
 ## Matching
 
@@ -109,16 +111,18 @@ validation holds for the bytes that were parsed, and `AddressSpace::add`
 registers whatever the view reads at the time. A build without `NDEBUG`
 asserts in `add` and `remove` when those bytes no longer parse as an
 address. It is what an address space
-registers methods under, so an application that keeps
+registers values under, so an application that keeps
 addresses of its own, in a document or a preset, parses each one where it
 enters and stores text it knows to be well formed.
 
 ## Address space
 
-`AddressSpace<T>` is a set of methods, each a well-formed address with a
-value of type `T`, that an incoming pattern is dispatched to. `T` is
-whatever the application needs to invoke a method: a handler, as in the
-opening example, a parameter, as here, an index or a struct.
+`AddressSpace<T>` associates values of any type `T` with well-formed
+addresses. `visit` matches a pattern against those addresses and passes each
+matching address and its value to a visitor the caller supplies. `T` is
+whatever the application needs: a handler, as in the opening example, a
+parameter, as here, an index or a struct. When `T` is callable, each value
+is an OSC method and `dispatch` calls every method a pattern matches.
 
 ```cpp
 #include <oscpm/address_space.h>
@@ -128,48 +132,50 @@ struct Parameter
     float value = 0.0f;
 };
 
-oscpm::AddressSpace<Parameter> parameters;
-parameters.add(oscpm::Address::parse("/synth/1/freq").address(), Parameter { 440.0f });
-parameters.add(oscpm::Address::parse("/synth/2/freq").address(), Parameter { 220.0f });
+oscpm::AddressSpace<Parameter> addressSpace;
+addressSpace.add(oscpm::Address::parse("/synth/1/freq").address(), Parameter { 440.0f });
+addressSpace.add(oscpm::Address::parse("/synth/2/freq").address(), Parameter { 220.0f });
 
-const oscpm::DispatchResult result = parameters.dispatch("/synth/*/freq", [](std::string_view, Parameter& parameter)
+const oscpm::MatchResult result = addressSpace.visit("/synth/*/freq", [](std::string_view, Parameter& parameter)
     { parameter.value = 550.0f; });
-result.matched; // 2, the number of methods visited
+result.matched; // 2, the number of values visited
 result.error; // empty; the parse fault when the pattern was malformed and nothing was visited
 
-const Parameter* parameter = parameters.find("/synth/1/freq"); // value is 550
-parameters.find("/synth/3/freq"); // nullptr
+const Parameter* parameter = addressSpace.find("/synth/1/freq"); // value is 550
+addressSpace.find("/synth/3/freq"); // nullptr
 ```
 
 - `add(address, value)` registers `value` under an `Address` and returns
   false when the address is already registered; `remove(address)` returns
   false when it is not.
-- `dispatch(pattern, visitor)` parses the pattern and calls
-  `visitor(address, value)` for every method it matches, in bytewise address
-  order.
-- `invoke(pattern, args...)` is `dispatch` with a visitor that calls
-  `value(args...)`, for a space whose values are handlers, as in the opening
-  example. Every handler is called with the same `args` objects, which
-  `invoke` does not move from.
+- `visit(pattern, visitor)` parses the pattern and calls
+  `visitor(address, value)` for every registered address it matches, in
+  bytewise address order.
+- `dispatch(pattern, args...)` parses the pattern and calls
+  `std::invoke(value, args...)` on the value of every registered address it
+  matches, for a space whose values are handlers, as in the opening example.
+  Every handler is called with the same `args` objects, which `dispatch` does
+  not move from. A value that is a pointer to a member function takes its
+  object as the first of `args`.
 - `find(address)` returns a pointer to the value registered under one
   address, or null when there is none. The pointer is valid until the next
   `add` or `remove`.
-- `forEach(visitor)` visits every method; `size()` counts them.
-- A visitor, or a handler called by `invoke`, may call `dispatch`, `invoke`
-  and `find` on the space that called it, and copy it, but must not add or
-  remove methods, move from it or assign to it. To change the space in
+- `visit(visitor)` visits every registered address; `size()` counts them.
+- A visitor, or a handler called by `dispatch`, may call `visit`, `dispatch`
+  and `find` on the space that called it, and copy it, but must not add to
+  it, remove from it, move from it or assign to it. To change the space in
   response to a message, collect the changes and apply them once the call
   has returned. A build without `NDEBUG` asserts when one adds or removes.
 - An address space is not safe to use from several threads at once.
 
-`AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the result of a
-dispatch until the next `add` or `remove`:
+`AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the matches of a
+pattern until the next `add` or `remove`:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `Memo` | `true` | whether results are kept |
 | `CacheBits` | `8` | `1 << CacheBits` patterns are kept |
-| `InlineResults` | `1024` | the most methods a kept result lists |
+| `InlineResults` | `1024` | the most matches a kept result lists |
 
 A pattern longer than `kMaxMemoPatternLength` or a result larger than
 `InlineResults` is delivered in full but not kept. The default memo takes
@@ -258,7 +264,7 @@ a leading `!` negates.
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
 Every other pattern parses. A rejected pattern matches nothing: `match`
-returns false, and `AddressSpace::dispatch` and `invoke` reach no method.
+returns false, and `AddressSpace::visit` and `dispatch` reach no value.
 
 ### Malformed addresses
 
@@ -292,16 +298,18 @@ format other implementations can reuse.
 - are `constexpr` outside the address space, so a fixed pattern is parsed
   or matched at compile time.
 
-`AddressSpace::dispatch`, `invoke` and `forEach` allocate nothing and never
-throw, apart from whatever the visitor or handler they call does; they are
-not declared `noexcept`. A dispatch takes at most the time bound above for
-each registered method. `AddressSpace::add` and `remove` allocate.
+`AddressSpace::visit` and `dispatch` allocate nothing and never throw, apart
+from whatever the visitor or handler they call does; they are not declared
+`noexcept`. Matching a pattern against the space takes at most the time
+bound above for each registered address. `AddressSpace::add` and `remove`
+allocate.
 
-A wildcard dispatch uses about 2.2 KiB of stack, plus 4 bytes for each of
+Visiting a wildcard pattern uses about 2.2 KiB of stack, plus 4 bytes for each of
 `InlineResults` when `Memo` is true: about 6.2 KiB with the defaults and
 2.3 KiB for `AddressSpace<T, true, 6, 64>`. Matching an address part of 64
-bytes or more adds up to 1 KiB, and each dispatch a visitor makes adds its
-own amount again. A dispatch served from the memo uses under 200 bytes. The
+bytes or more adds up to 1 KiB, and each call a visitor makes into the space
+adds its own amount again. A visit served from the memo uses under 200
+bytes. The
 figures are from AppleClang 21 and GCC 14 at `-O3`; other compilers and
 flags differ.
 
@@ -316,18 +324,18 @@ UndefinedBehaviorSanitizer on every change.
 - Compiler: AppleClang 21.0.0.21000101, `-O3 -DNDEBUG`
 - oscpm: v0.3.6, measured 2026-09-24
 - Method: median wall-clock time of 10 repetitions; dispatch is into a space
-  of 1,856 methods
+  of 1,856 addresses
 
-**Repeated dispatch of a pattern**
+**Repeated visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
 | Literal address | 5.51 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 methods | 50.1 |
-| `//freq`, matching 512 methods | 154 |
+| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 50.1 |
+| `//freq`, matching 512 addresses | 154 |
 | One message of a repeating stream of 64 | 10.4 |
 
-**First dispatch of a pattern**
+**First visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
@@ -351,8 +359,8 @@ UndefinedBehaviorSanitizer on every change.
 | A 64 KB wildcard pattern, rejected | 2.96 |
 
 - A repeated message costs one hash lookup plus one visitor call per matched
-  method. A literal address costs the same the first time.
-- The first dispatch of any other pattern tests every registered method, so
+  address. A literal address costs the same the first time.
+- The first visit of any other pattern tests every registered address, so
   its cost grows with the size of the space.
 - A wildcard pattern longer than `kMaxPatternLength` is rejected without
   being matched, which bounds the cost of a hostile pattern.
@@ -408,7 +416,7 @@ With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
 Without CMake, put `include/` on the include path.
 
 `oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value,
-`oscpm/address_space.h` the dispatcher and `oscpm/error.h` the faults they
+`oscpm/address_space.h` the address space and `oscpm/error.h` the faults they
 report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is
 public API.
 

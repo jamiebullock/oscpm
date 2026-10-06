@@ -15,13 +15,13 @@ int main()
     [[maybe_unused]] const auto withoutAddress = [](int&) { };
     [[maybe_unused]] const auto mutating = [](std::string_view, int&) { };
 #if OSCPM_VISITOR_CASE == 1
-    space.dispatch("/a", withoutAddress);
+    space.visit("/a", withoutAddress);
 #elif OSCPM_VISITOR_CASE == 2
-    std::as_const(space).dispatch("/a", mutating);
+    std::as_const(space).visit("/a", mutating);
 #elif OSCPM_VISITOR_CASE == 3
-    space.forEach(withoutAddress);
+    space.visit(withoutAddress);
 #elif OSCPM_VISITOR_CASE == 4
-    std::as_const(space).forEach(mutating);
+    std::as_const(space).visit(mutating);
 #endif
     return 0;
 }

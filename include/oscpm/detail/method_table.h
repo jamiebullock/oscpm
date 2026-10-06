@@ -92,19 +92,19 @@ public:
     }
 
     template <typename Result, typename Visitor>
-    Result dispatch(std::string_view text, Visitor& visitor)
+    Result visit(std::string_view text, Visitor& visitor)
     {
         return dispatchIn<Result>(*this, text, visitor);
     }
 
     template <typename Result, typename Visitor>
-    Result dispatch(std::string_view text, Visitor& visitor) const
+    Result visit(std::string_view text, Visitor& visitor) const
     {
         return dispatchIn<Result>(*this, text, visitor);
     }
 
     template <typename Visitor>
-    void forEach(Visitor& visitor)
+    void visit(Visitor& visitor)
     {
         for (Method& method : m_methods)
         {
@@ -113,7 +113,7 @@ public:
     }
 
     template <typename Visitor>
-    void forEach(Visitor& visitor) const
+    void visit(Visitor& visitor) const
     {
         for (const Method& method : m_methods)
         {
