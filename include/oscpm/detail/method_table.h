@@ -220,7 +220,7 @@ private:
         }
 
         const bool memoisable = self.m_memo.accepts(text) && methods.size() <= MemoTable::kMaxMethods;
-        typename MemoTable::Results found { };
+        typename MemoTable::Results found;
         std::size_t numFound = 0;
         PreparedParts prepared;
         const std::size_t numPrepared = kMethodMovesCannotThrow ? prepareParts(text, prepared) : npos;
@@ -232,9 +232,12 @@ private:
                 : matchParts(PreparedCursor(prepared, numPrepared), StoredAddressCursor(method.address, self.m_partEnds[index]));
             if (matched)
             {
-                if (numFound < MemoTable::kInlineResults)
+                if constexpr (MemoTable::kInlineResults != 0)
                 {
-                    found[numFound] = static_cast<std::uint32_t>(index);
+                    if (numFound < MemoTable::kInlineResults)
+                    {
+                        found[numFound] = static_cast<std::uint32_t>(index);
+                    }
                 }
                 ++numFound;
                 visitor(std::string_view(method.address), method.value);
