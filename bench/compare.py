@@ -38,13 +38,13 @@ kNanosecondsPerUnit = {"ns": 1.0, "us": 1e3, "ms": 1e6, "s": 1e9}
 kWorstAdversarial = "worst adversarial"
 kWorstAdversarialFilter = "Dispatch/adversarial/.*-1024/large"
 kHeadline = [
-    ("Repeated dispatch of a pattern", "Pattern", "ns", [
+    ("Repeated visit of a pattern", "Pattern", "ns", [
         ("Dispatch/repeat/literal/large", "Literal address"),
-        ("Dispatch/repeat/example/large", "`/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 methods"),
-        ("Dispatch/repeat/descendant-freq/large", "`//freq`, matching 512 methods"),
+        ("Dispatch/repeat/example/large", "`/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses"),
+        ("Dispatch/repeat/descendant-freq/large", "`//freq`, matching 512 addresses"),
         ("Dispatch/stream/large", "One message of a repeating stream of 64"),
     ]),
-    ("First dispatch of a pattern", "Pattern", "ns", [
+    ("First visit of a pattern", "Pattern", "ns", [
         ("Dispatch/cold/literal/large", "Literal address"),
         ("Dispatch/cold/example/large", "`/synth[3-6]/voice/*/osc/{saw,square}/freq`"),
         ("Dispatch/cold/descendant-freq/large", "`//freq`"),
@@ -350,7 +350,7 @@ def report(arguments, workDir):
         f"- Compiler: {compiler}, `{cachedFlags(workDir / 'head')}`",
         f"- oscpm: {libraryVersion()}, measured {datetime.date.today().isoformat()}",
         f"- Method: median wall-clock time of {arguments.repetitions} repetitions; dispatch is into a space of "
-        f"1,856 methods",
+        f"1,856 addresses",
     ]
     for title, subject, unit, rows in kHeadline:
         lines += ["", f"**{title}**", "", f"| {subject} | Median ({unit}) |", "|---|---:|"]

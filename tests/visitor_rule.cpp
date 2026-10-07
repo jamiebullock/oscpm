@@ -43,9 +43,9 @@ int main()
     const oscpm::Address address = oscpm::Address::parse("/a").address();
     oscpm::AddressSpace<int> space;
     space.add(address, 1);
-    space.dispatch("/a", [&](std::string_view, int&)
+    space.visit("/a", [&](std::string_view, int&)
         { space.remove(address); });
-    std::puts("the visitor removed a method and nothing asserted");
+    std::puts("the visitor removed an address and nothing asserted");
     return 1;
 #endif
 }
