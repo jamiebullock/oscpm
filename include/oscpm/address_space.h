@@ -15,6 +15,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -23,28 +24,28 @@
 namespace oscpm
 {
 
-/// The longest pattern whose dispatch result is kept; a longer one is matched
-/// afresh every time.
+/// The longest pattern whose matches are kept; a longer one is matched afresh
+/// every time.
 constexpr std::size_t kMaxMemoPatternLength = 256;
 
-/// The outcome of `AddressSpace::dispatch` and `AddressSpace::invoke`.
-struct DispatchResult
+/// The outcome of `AddressSpace::visit` and `AddressSpace::dispatch`.
+struct MatchResult
 {
-    std::size_t matched; ///< the number of methods visited or called
-    std::optional<Error> error; ///< the parse fault when the pattern was malformed and no method was reached
+    std::size_t matched; ///< the number of values visited or called
+    std::optional<Error> error; ///< the parse fault when the pattern was malformed and no value was reached
 };
 
-/// A set of methods, each a well-formed address with a value of type `T`,
-/// that a pattern is dispatched to. No method allocates unless its
-/// documentation says so; copying the space allocates. Not safe for
-/// concurrent use.
-/// @tparam Memo whether a dispatch's result is kept until the next `add` or
-/// `remove`
+/// Values of type `T` registered under well-formed addresses, which a pattern
+/// selects for `visit` and `dispatch`. When `T` is callable, each value is an
+/// OSC method and `dispatch` dispatches to the methods a pattern matches. No
+/// member function allocates unless its documentation says so; copying the
+/// space allocates. Not safe for concurrent use.
+/// @tparam Memo whether the matches of a pattern are kept until the next `add`
+/// or `remove`
 /// @tparam CacheBits the memo has `1 << CacheBits` entries, each holding one
 /// pattern of up to `kMaxMemoPatternLength` bytes
-/// @tparam InlineResults the most methods a kept result lists; a dispatch
-/// that matches more, or whose pattern is too long, is delivered in full but
-/// not kept
+/// @tparam InlineResults the most matches a kept result lists; a pattern that
+/// matches more, or is too long, is delivered in full but not kept
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
 {
@@ -60,7 +61,7 @@ public:
     /// parse as an address.
     bool add(const Address& address, T value)
     {
-        assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
+        assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
         assert(!detail::validateAddress(address.text()) && "the bytes an Address views must stay unchanged after it is parsed");
         return m_table.insert(address.text(), std::move(value));
     }
@@ -69,7 +70,7 @@ public:
     /// not registered, and asserts as `add` does.
     bool remove(const Address& address)
     {
-        assert(m_openVisits.none() && "a visitor must not add or remove methods on the space that called it");
+        assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
         assert(!detail::validateAddress(address.text()) && "the bytes an Address views must stay unchanged after it is parsed");
         return m_table.erase(address.text());
     }
@@ -88,66 +89,74 @@ public:
     }
 
     /// Parses `pattern` and calls `visitor(std::string_view address, T& value)`
-    /// for every method it matches, in bytewise address order. A malformed
-    /// pattern visits nothing and is returned as the result's `error`. The
-    /// visitor may dispatch on this space, call `find` and copy the space, but
-    /// must not add or remove methods, move from it or assign to it; a build
-    /// without `NDEBUG` asserts when it adds or removes.
+    /// for every registered address it matches, in bytewise address order. A
+    /// malformed pattern visits nothing and is returned as the result's
+    /// `error`. The visitor may call `visit`, `dispatch` and `find` on this
+    /// space and copy it, but must not add to it, remove from it, move from it
+    /// or assign to it; a build without `NDEBUG` asserts when it adds or
+    /// removes.
     template <typename Visitor>
-    DispatchResult dispatch(std::string_view pattern, Visitor&& visitor)
+    MatchResult visit(std::string_view pattern, Visitor&& visitor)
     {
-        [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
-        return m_table.template dispatch<DispatchResult>(pattern, visitor);
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, T&>, "visit needs a visitor callable as visitor(std::string_view address, T& value)");
+        [[maybe_unused]] const typename OpenVisits::Scope scope(m_openVisits);
+        return m_table.template visit<MatchResult>(pattern, visitor);
     }
 
     /// The `const` overload; the visitor receives `const T&`.
     template <typename Visitor>
-    DispatchResult dispatch(std::string_view pattern, Visitor&& visitor) const
+    MatchResult visit(std::string_view pattern, Visitor&& visitor) const
     {
-        [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
-        return m_table.template dispatch<DispatchResult>(pattern, visitor);
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, const T&>, "visit needs a visitor callable as visitor(std::string_view address, const T& value)");
+        [[maybe_unused]] const typename OpenVisits::Scope scope(m_openVisits);
+        return m_table.template visit<MatchResult>(pattern, visitor);
     }
 
-    /// Parses `pattern` and calls `value(args...)` on every method it matches,
-    /// in bytewise address order, under the same visitor rule as `dispatch`.
-    /// A malformed pattern calls nothing and is returned as the result's
-    /// `error`. Every call receives the same `args` objects; `invoke` itself
-    /// does not move from them.
-    template <typename... Args>
-    DispatchResult invoke(std::string_view pattern, Args&&... args)
-    {
-        static_assert(std::is_invocable_v<T&, Args&...>, "invoke needs a T that is callable with these arguments; use dispatch for other values");
-        return dispatch(pattern, [&](std::string_view, T& value)
-            { static_cast<void>(value(args...)); });
-    }
-
-    /// The `const` overload; calls `value(args...)` on a `const T`.
-    template <typename... Args>
-    DispatchResult invoke(std::string_view pattern, Args&&... args) const
-    {
-        static_assert(std::is_invocable_v<const T&, Args&...>, "invoke needs a T that is callable with these arguments; use dispatch for other values");
-        return dispatch(pattern, [&](std::string_view, const T& value)
-            { static_cast<void>(value(args...)); });
-    }
-
-    /// Calls `visitor(std::string_view address, T& value)` for every method,
-    /// in bytewise address order, under the same visitor rule as `dispatch`.
+    /// Calls `visitor(std::string_view address, T& value)` for every
+    /// registered address, in bytewise address order, under the same visitor
+    /// rule as the pattern overload.
     template <typename Visitor>
-    void forEach(Visitor&& visitor)
+    void visit(Visitor&& visitor)
     {
-        [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
-        m_table.forEach(visitor);
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, T&>, "visit needs a visitor callable as visitor(std::string_view address, T& value)");
+        [[maybe_unused]] const typename OpenVisits::Scope scope(m_openVisits);
+        m_table.visit(visitor);
     }
 
     /// The `const` overload; the visitor receives `const T&`.
     template <typename Visitor>
-    void forEach(Visitor&& visitor) const
+    void visit(Visitor&& visitor) const
     {
-        [[maybe_unused]] const typename OpenVisits::Scope visit(m_openVisits);
-        m_table.forEach(visitor);
+        static_assert(std::is_invocable_v<Visitor&, std::string_view, const T&>, "visit needs a visitor callable as visitor(std::string_view address, const T& value)");
+        [[maybe_unused]] const typename OpenVisits::Scope scope(m_openVisits);
+        m_table.visit(visitor);
     }
 
-    /// The number of registered methods.
+    /// Parses `pattern` and calls `std::invoke(value, args...)` on the value
+    /// of every registered address it matches, in bytewise address order,
+    /// under the same visitor rule as `visit`. A value that is a pointer to a
+    /// member takes its object as the first of `args`. A malformed pattern
+    /// calls nothing and is returned as the result's `error`. Every call
+    /// receives the same `args` objects; `dispatch` itself does not move from
+    /// them.
+    template <typename... Args>
+    MatchResult dispatch(std::string_view pattern, Args&&... args)
+    {
+        static_assert(std::is_invocable_v<T&, Args&...>, "dispatch needs a T that is callable with these arguments; use visit for other values");
+        return visit(pattern, [&](std::string_view, T& value)
+            { static_cast<void>(std::invoke(value, args...)); });
+    }
+
+    /// The `const` overload; calls `std::invoke(value, args...)` on a `const T`.
+    template <typename... Args>
+    MatchResult dispatch(std::string_view pattern, Args&&... args) const
+    {
+        static_assert(std::is_invocable_v<const T&, Args&...>, "dispatch needs a T that is callable with these arguments; use visit for other values");
+        return visit(pattern, [&](std::string_view, const T& value)
+            { static_cast<void>(std::invoke(value, args...)); });
+    }
+
+    /// The number of registered addresses.
     std::size_t size() const noexcept
     {
         return m_table.size();

@@ -50,15 +50,15 @@ std::size_t buildBundle(void* buffer, std::size_t size)
     return packet.size();
 }
 
-void dispatch(const OSCPP::Server::Message& message, oscpm::AddressSpace<Parameter>& parameters, const oscpm::Pattern& frequencyWatch)
+void handle(const OSCPP::Server::Message& message, oscpm::AddressSpace<Parameter>& parameters, const oscpm::Pattern& frequencyWatch)
 {
     const std::string_view address = message.address();
     OSCPP::Server::ArgStream arguments(message.args());
     const float value = arguments.float32();
-    const oscpm::DispatchResult result = parameters.dispatch(address, [&](std::string_view method, Parameter& parameter)
+    const oscpm::MatchResult result = parameters.visit(address, [&](std::string_view registered, Parameter& parameter)
         {
             parameter.value = value;
-            std::printf("%-26s sets %.*s to %g\n", message.address(), static_cast<int>(method.size()), method.data(), static_cast<double>(value)); });
+            std::printf("%-26s sets %.*s to %g\n", message.address(), static_cast<int>(registered.size()), registered.data(), static_cast<double>(value)); });
     if (result.error)
     {
         std::printf("%-26s rejected: %s\n", message.address(), oscpm::toString(*result.error));
@@ -66,7 +66,7 @@ void dispatch(const OSCPP::Server::Message& message, oscpm::AddressSpace<Paramet
     }
     if (result.matched == 0)
     {
-        std::printf("%-26s matches no method\n", message.address());
+        std::printf("%-26s matches no address\n", message.address());
     }
     if (frequencyWatch.matches(address))
     {
@@ -74,19 +74,19 @@ void dispatch(const OSCPP::Server::Message& message, oscpm::AddressSpace<Paramet
     }
 }
 
-void dispatchPacket(const OSCPP::Server::Packet& packet, oscpm::AddressSpace<Parameter>& parameters, const oscpm::Pattern& frequencyWatch)
+void handlePacket(const OSCPP::Server::Packet& packet, oscpm::AddressSpace<Parameter>& parameters, const oscpm::Pattern& frequencyWatch)
 {
     if (packet.isBundle())
     {
         OSCPP::Server::PacketStream packets(OSCPP::Server::Bundle(packet).packets());
         while (!packets.atEnd())
         {
-            dispatchPacket(packets.next(), parameters, frequencyWatch);
+            handlePacket(packets.next(), parameters, frequencyWatch);
         }
     }
     else
     {
-        dispatch(OSCPP::Server::Message(packet), parameters, frequencyWatch);
+        handle(OSCPP::Server::Message(packet), parameters, frequencyWatch);
     }
 }
 
@@ -114,10 +114,10 @@ int main()
 
     std::array<char, kPacketBytes> buffer { };
     const std::size_t packetSize = buildBundle(buffer.data(), buffer.size());
-    dispatchPacket(OSCPP::Server::Packet(buffer.data(), packetSize), parameters, frequencyWatch.pattern());
+    handlePacket(OSCPP::Server::Packet(buffer.data(), packetSize), parameters, frequencyWatch.pattern());
 
     std::printf("\n");
-    parameters.forEach([](std::string_view address, const Parameter& parameter)
+    parameters.visit([](std::string_view address, const Parameter& parameter)
         { std::printf("%-26.*s = %g\n", static_cast<int>(address.size()), address.data(), static_cast<double>(parameter.value)); });
     return 0;
 }

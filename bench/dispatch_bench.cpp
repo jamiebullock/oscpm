@@ -66,14 +66,14 @@ namespace
     }
 
     template <typename AddressSpace>
-    oscpm::DispatchResult dispatchOnce(AddressSpace& addressSpace, std::string_view pattern)
+    oscpm::MatchResult visitOnce(AddressSpace& addressSpace, std::string_view pattern)
     {
         benchmark::DoNotOptimize(pattern);
-        return addressSpace.dispatch(pattern, [](std::string_view, auto& value)
+        return addressSpace.visit(pattern, [](std::string_view, auto& value)
             { visit(value); });
     }
 
-    bool expectMatches(benchmark::State& state, const oscpm::DispatchResult& result, std::size_t numExpected)
+    bool expectMatches(benchmark::State& state, const oscpm::MatchResult& result, std::size_t numExpected)
     {
         if (!result.error && result.matched == numExpected)
         {
@@ -84,9 +84,29 @@ namespace
     }
 
     template <typename AddressSpace>
-    void dispatchRepeatedly(benchmark::State& state, const Space* space, std::string pattern, std::size_t numExpected)
+    void visitRepeatedly(benchmark::State& state, const Space* space, std::string pattern, std::size_t numExpected)
     {
         AddressSpace addressSpace;
+        fill(addressSpace, *space);
+        if (!expectMatches(state, visitOnce(addressSpace, pattern), numExpected))
+        {
+            return;
+        }
+        for (auto _ : state)
+        {
+            benchmark::DoNotOptimize(visitOnce(addressSpace, pattern));
+        }
+    }
+
+    oscpm::MatchResult dispatchOnce(HandlerSpace& addressSpace, std::string_view pattern)
+    {
+        benchmark::DoNotOptimize(pattern);
+        return addressSpace.dispatch(pattern, kArgument);
+    }
+
+    void dispatchRepeatedly(benchmark::State& state, const Space* space, std::string pattern, std::size_t numExpected)
+    {
+        HandlerSpace addressSpace;
         fill(addressSpace, *space);
         if (!expectMatches(state, dispatchOnce(addressSpace, pattern), numExpected))
         {
@@ -98,35 +118,15 @@ namespace
         }
     }
 
-    oscpm::DispatchResult invokeOnce(HandlerSpace& addressSpace, std::string_view pattern)
-    {
-        benchmark::DoNotOptimize(pattern);
-        return addressSpace.invoke(pattern, kArgument);
-    }
-
-    void invokeRepeatedly(benchmark::State& state, const Space* space, std::string pattern, std::size_t numExpected)
-    {
-        HandlerSpace addressSpace;
-        fill(addressSpace, *space);
-        if (!expectMatches(state, invokeOnce(addressSpace, pattern), numExpected))
-        {
-            return;
-        }
-        for (auto _ : state)
-        {
-            benchmark::DoNotOptimize(invokeOnce(addressSpace, pattern));
-        }
-    }
-
     void dispatchStream(benchmark::State& state, const Space* space)
     {
         MemoisedSpace addressSpace;
         fill(addressSpace, *space);
         const std::vector<std::string> messages = messageStream(*space);
-        oscpm::DispatchResult total { 0, std::nullopt };
+        oscpm::MatchResult total { 0, std::nullopt };
         for (const std::string& message : messages)
         {
-            const oscpm::DispatchResult result = dispatchOnce(addressSpace, message);
+            const oscpm::MatchResult result = visitOnce(addressSpace, message);
             total.matched += result.matched;
             total.error = total.error ? total.error : result.error;
         }
@@ -138,7 +138,7 @@ namespace
         {
             for (const std::string& message : messages)
             {
-                benchmark::DoNotOptimize(dispatchOnce(addressSpace, message));
+                benchmark::DoNotOptimize(visitOnce(addressSpace, message));
             }
         }
         state.counters["messages"] = static_cast<double>(messages.size());
@@ -148,7 +148,7 @@ namespace
     {
         MemoisedSpace addressSpace;
         fill(addressSpace, *space);
-        const oscpm::DispatchResult result = dispatchOnce(addressSpace, pattern);
+        const oscpm::MatchResult result = visitOnce(addressSpace, pattern);
         if (!result.error || *result.error != oscpm::Error::PatternTooLong)
         {
             failBenchmark(state, "pattern not rejected as too long");
@@ -156,7 +156,7 @@ namespace
         }
         for (auto _ : state)
         {
-            benchmark::DoNotOptimize(dispatchOnce(addressSpace, pattern));
+            benchmark::DoNotOptimize(visitOnce(addressSpace, pattern));
         }
     }
 
@@ -185,10 +185,10 @@ namespace
         for (const MusicalPattern& pattern : musicalPatterns())
         {
             const std::size_t numExpected = pattern.numMatches[space.index];
-            benchmark::RegisterBenchmark(nameFor("repeat", pattern.id, space), dispatchRepeatedly<MemoisedSpace>, &space, std::string(pattern.text), numExpected);
-            benchmark::RegisterBenchmark(nameFor("cold", pattern.id, space), dispatchRepeatedly<UnmemoisedSpace>, &space, std::string(pattern.text), numExpected);
-            benchmark::RegisterBenchmark(nameFor("handler", pattern.id, space), dispatchRepeatedly<HandlerSpace>, &space, std::string(pattern.text), numExpected);
-            benchmark::RegisterBenchmark(nameFor("invoke", pattern.id, space), invokeRepeatedly, &space, std::string(pattern.text), numExpected);
+            benchmark::RegisterBenchmark(nameFor("repeat", pattern.id, space), visitRepeatedly<MemoisedSpace>, &space, std::string(pattern.text), numExpected);
+            benchmark::RegisterBenchmark(nameFor("cold", pattern.id, space), visitRepeatedly<UnmemoisedSpace>, &space, std::string(pattern.text), numExpected);
+            benchmark::RegisterBenchmark(nameFor("handler", pattern.id, space), visitRepeatedly<HandlerSpace>, &space, std::string(pattern.text), numExpected);
+            benchmark::RegisterBenchmark(nameFor("invoke", pattern.id, space), dispatchRepeatedly, &space, std::string(pattern.text), numExpected);
         }
         benchmark::RegisterBenchmark(std::string("Dispatch/stream/") + space.name, dispatchStream, &space);
         for (const std::size_t length : { kModestAdversarialLength, oscpm::kMaxPatternLength })
@@ -196,7 +196,7 @@ namespace
             for (const AdversarialShape& shape : adversarialShapes())
             {
                 const std::string id = std::string(shape.id) + "-" + std::to_string(length);
-                benchmark::RegisterBenchmark(nameFor("adversarial", id, space), dispatchRepeatedly<UnmemoisedSpace>, &space, adversarialPattern(shape, length), std::size_t { 0 });
+                benchmark::RegisterBenchmark(nameFor("adversarial", id, space), visitRepeatedly<UnmemoisedSpace>, &space, adversarialPattern(shape, length), std::size_t { 0 });
             }
         }
         const std::string oversized = adversarialPattern(adversarialShapes().front(), kDatagramPatternLength);

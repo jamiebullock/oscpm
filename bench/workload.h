@@ -72,7 +72,7 @@ constexpr std::size_t kDatagramPatternLength = 65495;
 /// literal addresses drawn evenly from the space.
 std::vector<std::string> messageStream(const Space& space);
 
-/// The number of methods one pass over `messageStream(space)` visits.
+/// The number of values one pass over `messageStream(space)` visits.
 std::size_t numStreamMatches(const Space& space);
 
 }
