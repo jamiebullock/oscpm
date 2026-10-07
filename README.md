@@ -8,7 +8,7 @@ Header-only C++17 OpenSoundControl (OSC) address pattern matching.
 
 oscpm matches OSC address patterns against addresses, and through an address space visits or dispatches to the values registered under the matching addresses. It supports the [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching syntax, and the proposed `//` operator from [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
 
-It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp), which reads and writes OSC packets, leaving matching and dispatch to the caller.  Like oscpp, it suits realtime contexts, with matching and dispatch (matches(), dispatch() and invoke()) allocation free with documented [memory and time guarantees](#guarantees). 
+It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp), which reads and writes OSC packets, leaving matching and dispatch to the caller.  Like oscpp, it suits realtime contexts, with matching and dispatch (`matches()`, `visit()` and `dispatch()`) allocation free with documented [memory and time guarantees](#guarantees). 
 
 oscpm does not depend on oscpp, or on anything outside the standard library.
 
@@ -46,11 +46,13 @@ oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
 ```
 
+> `oscpm::match()` returns `false` for both a pattern parse failure and a non-match. If the distinction matters then [Pattern::parse()](#patterns) should be used instead.
+
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as an `Error`so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
-- `Pattern::matches()` skips validation on every call, and for a literal pattern it is a single byte comparison
+- Matching with `Pattern::matches()` is faster than `oscpm::match()` because validation happens once in `Pattern::parse()`, and patterns without wildcards reduce to a plain string comparison
 
 ```cpp
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
@@ -70,23 +72,24 @@ else
 
 ## Addresses
 Similar to `Pattern`, `Address` is a validated OSC address:
-- `AddressSpace::add()` and `remove()` take an `Address`, so a method is only ever registered under a well-formed address
 - A malformed address is reported as an `Error`, one of the faults under [Malformed addresses](#malformed-addresses)
 - For `constexpr` addresses, validity can be checked at compile time
 
 ```cpp
 #include <oscpm/address.h>
+#include <oscpp/client.hpp>
 
 constexpr auto parsed = oscpm::Address::parse("/synth/1/freq");
 static_assert(parsed);
 
-if (const auto result = oscpm::Address::parse(presetEntry))
+// Validate e.g. a user-typed address
+if (const auto result = oscpm::Address::parse(userAddress))
 {
-    methods.add(result.address(), handler);
+    packet.openMessage(userAddress.c_str(), 1).float32(value).closeMessage();
 }
 else
 {
-    oscpm::toString(result.error()); // TrailingSlash for "/synth/1/"
+    showError(oscpm::toString(result.error())); // IllegalByte for "/mixer/ch 1/gain"
 }
 ```
 
@@ -115,7 +118,7 @@ const Parameter* parameter = addressSpace.find("/synth/1/freq"); // value is 550
 addressSpace.find("/synth/3/freq"); // nullptr
 ```
 
-- `add(address, value)` registers `value` under an `Address` and returns false when the address is already registered; `remove(address)` returns false when it is not.
+- `add(address, value)` registers `value` under an `Address`, so a value is only ever registered under a well-formed address, and returns false when the address is already registered; `remove(address)` returns false when it is not.
 - `visit(pattern, visitor)` parses the pattern and calls `visitor(address, value)` for every registered address it matches, in bytewise address order.
 - `dispatch(pattern, args...)` parses the pattern and calls `std::invoke(value, args...)` on the value of every registered address it matches, for a space whose values are handlers, as in the opening example. Every handler is called with the same `args` objects, which `dispatch` does not move from. A value that is a pointer to a member function takes its object as the first of `args`.
 - `find(address)` returns a pointer to the value registered under one address, or null when there is none. The pointer is valid until the next `add` or `remove`.
