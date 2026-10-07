@@ -40,6 +40,8 @@ struct MatchResult
 /// OSC method and `dispatch` dispatches to the methods a pattern matches. No
 /// member function allocates unless its documentation says so; copying the
 /// space allocates. Not safe for concurrent use.
+/// @tparam T an object type that is move-constructible and move-assignable;
+/// copying the space also needs it to be copyable
 /// @tparam Memo whether the matches of a pattern are kept until the next `add`
 /// or `remove`
 /// @tparam CacheBits the memo has `1 << CacheBits` entries, each holding one
@@ -49,6 +51,8 @@ struct MatchResult
 template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
 class AddressSpace
 {
+    static_assert(std::is_object_v<T> && std::is_move_constructible_v<T> && std::is_move_assignable_v<T>, "AddressSpace needs a T that is an object type, move-constructible and move-assignable");
+
 public:
     AddressSpace()
         : m_table(Memo)

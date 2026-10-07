@@ -93,6 +93,18 @@ add_test(NAME "a visitor that removes an address trips an assertion in a build w
 set_tests_properties("a visitor that removes an address trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must not add to or remove from|assertions are compiled out")
 
+function(oscpm_add_compile_failure target source definition testName expectedMessage)
+    add_executable(${target} EXCLUDE_FROM_ALL ${source})
+    target_link_libraries(${target} PRIVATE oscpm::oscpm)
+    target_compile_definitions(${target} PRIVATE ${definition})
+    set_target_properties(${target} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+    add_test(NAME "${testName}"
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${target} --config $<CONFIG>)
+    set_tests_properties("${testName}" PROPERTIES
+        PASS_REGULAR_EXPRESSION "${expectedMessage}"
+        RESOURCE_LOCK oscpm_build_tree)
+endfunction()
+
 set(OSCPM_VISITOR_CASES
     "visit with a pattern on a space|visit needs a visitor callable as visitor.std::string_view address, T& value"
     "visit with a pattern on a const space|visit needs a visitor callable as visitor.std::string_view address, const T& value"
@@ -105,17 +117,21 @@ foreach(visitorCase IN LISTS OSCPM_VISITOR_CASES)
     string(REPLACE "|" ";" visitorCase "${visitorCase}")
     list(GET visitorCase 0 caseName)
     list(GET visitorCase 1 expectedMessage)
-    set(target oscpm_visitor_signature_${caseNumber})
-    add_executable(${target} EXCLUDE_FROM_ALL visitor_signature.cpp)
-    target_link_libraries(${target} PRIVATE oscpm::oscpm)
-    target_compile_definitions(${target} PRIVATE OSCPM_VISITOR_CASE=${caseNumber})
-    set_target_properties(${target} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
-    set(testName "${caseName} fails to compile with a visitor of the wrong signature")
-    add_test(NAME "${testName}"
-        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${target} --config $<CONFIG>)
-    set_tests_properties("${testName}" PROPERTIES
-        PASS_REGULAR_EXPRESSION "${expectedMessage}"
-        RESOURCE_LOCK oscpm_build_tree)
+    oscpm_add_compile_failure(oscpm_visitor_signature_${caseNumber} visitor_signature.cpp OSCPM_VISITOR_CASE=${caseNumber}
+        "${caseName} fails to compile with a visitor of the wrong signature" "${expectedMessage}")
+endforeach()
+
+set(OSCPM_VALUE_TYPE_CASES
+    "a value type with a const member"
+    "a lambda's closure type"
+    "a type that cannot be moved"
+    "a reference type"
+)
+set(caseNumber 0)
+foreach(caseName IN LISTS OSCPM_VALUE_TYPE_CASES)
+    math(EXPR caseNumber "${caseNumber} + 1")
+    oscpm_add_compile_failure(oscpm_value_type_${caseNumber} value_type.cpp OSCPM_VALUE_TYPE_CASE=${caseNumber}
+        "an address space of ${caseName} fails to compile" "AddressSpace needs a T that is an object type, move-constructible and move-assignable")
 endforeach()
 
 add_executable(oscpm_address_rule address_rule.cpp)
