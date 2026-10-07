@@ -109,8 +109,7 @@ constexpr Pattern::ParseResult Pattern::parse(std::string_view text) noexcept
     return fault.has_value() ? ParseResult(*fault) : ParseResult(Pattern(text));
 }
 
-/// `Pattern::parse` followed by `Pattern::matches`; a malformed pattern
-/// matches nothing.
+/// @return true if @p address matches @p pattern
 constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
     const Pattern::ParseResult parsed = Pattern::parse(pattern);
