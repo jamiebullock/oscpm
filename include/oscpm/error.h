@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 
 namespace oscpm
 {
@@ -20,7 +19,7 @@ constexpr std::size_t kMaxAddressPartLength = 4095;
 constexpr std::size_t kMaxPatternLength = 1024;
 
 /// A fault that stops a pattern parsing.
-enum class PatternError : std::uint8_t
+enum class PatternError
 {
     MissingLeadingSlash, ///< no leading '/'
     UnterminatedClass, ///< a '[' with no ']' before the next '/'
@@ -29,7 +28,7 @@ enum class PatternError : std::uint8_t
 };
 
 /// A fault that stops an address parsing.
-enum class AddressError : std::uint8_t
+enum class AddressError
 {
     MissingLeadingSlash, ///< no leading '/'
     TrailingSlash, ///< a final '/', including the bare "/"
