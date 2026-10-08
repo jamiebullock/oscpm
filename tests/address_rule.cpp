@@ -41,7 +41,7 @@ int main()
 #endif
     std::signal(SIGABRT, exitAfterAssertion);
     std::string text = "/a";
-    const oscpm::Address address = oscpm::Address::parse(text).address();
+    const oscpm::Address address = *oscpm::Address::parse(text);
     text.back() = '/';
     oscpm::AddressSpace<int> space;
     space.add(address, 1);

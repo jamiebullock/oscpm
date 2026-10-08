@@ -40,7 +40,7 @@ int main()
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #endif
     std::signal(SIGABRT, exitAfterAssertion);
-    const oscpm::Address address = oscpm::Address::parse("/a").address();
+    const oscpm::Address address = *oscpm::Address::parse("/a");
     oscpm::AddressSpace<int> space;
     space.add(address, 1);
     space.visit("/a", [&](std::string_view, int&)
