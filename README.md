@@ -92,48 +92,62 @@ else
 }
 ```
 
-## Address space
+## Address Space
 
-`AddressSpace<T>` associates values of any type `T` with well-formed addresses. `visit` matches a pattern against those addresses and passes each matching address and its value to a visitor the caller supplies. `T` is whatever the application needs: a handler, as in the opening example, a parameter, as here, an index or a struct. When `T` is callable, each value is an OSC method and `dispatch` calls every method a pattern matches.
+`AddressSpace<T>` associates values of a caller-chosen type `T` with addresses. Invoking an OSC method can call a function the caller supplies, or set a parameter owned by the address space itself.
+
+In the common form, the caller registers a callback for each address. A received OSC message is dispatched to every method whose address matches its address pattern, and each is invoked with the message's arguments. The mixer example below shows this:
 
 ```cpp
-#include <oscpm/address_space.h>
-
-struct Parameter
+// Message received from the OSC client e.g. { "/mixer/*/gain", 0.5f }
+struct GainMessage
 {
-    float value = 0.0f;
+  std::string_view addressPattern;
+  float gain;
 };
 
-oscpm::AddressSpace<Parameter> addressSpace;
-addressSpace.add(*oscpm::Address::parse("/synth/1/freq"), Parameter { 440.0f });
-addressSpace.add(*oscpm::Address::parse("/synth/2/freq"), Parameter { 220.0f });
+// In a real application this would have access to incoming messages and populate message
+bool receive(GainMessage& message);
 
-const oscpm::MatchResult result = addressSpace.visit("/synth/*/freq", [](std::string_view, Parameter& parameter)
-    { parameter.value = 550.0f; });
-result.matched; // 2, the number of values visited
-result.error; // empty; the parse fault when the pattern was malformed and nothing was visited
+int main()
+{
+  std::array<float, 8> gains {};
+  oscpm::AddressSpace<std::function<void(float)>> handlers; // This AddressSpace stores callbacks that take the message's float argument
 
-const Parameter* parameter = addressSpace.find("/synth/1/freq"); // value is 550
-addressSpace.find("/synth/3/freq"); // nullptr
+  // Register a callback for each mixer channel's gain address
+  for (std::size_t channel = 0; channel < gains.size(); ++channel)
+  {
+      const std::string address = "/mixer/" + std::to_string(channel + 1) + "/gain";
+      handlers.add(*oscpm::Address::parse(address), [&gains, channel](float gain)
+          { gains[channel] = gain; });
+  }
+
+  // The main receive loop
+  GainMessage message;
+  while (receive(message))
+  {
+      // Dispatch the OSC message to every method whose address matches its address pattern, invoking the corresponding handler on each one
+      const oscpm::MatchResult result = handlers.dispatch(message.addressPattern, message.gain);
+      if (result.error)
+      {
+          std::fprintf(stderr, "malformed pattern %.*s: %s\n", static_cast<int>(message.addressPattern.size()), message.addressPattern.data(), oscpm::toString(*result.error));
+      }
+      else if (result.matched == 0)
+      {
+          std::fprintf(stderr, "no channel at %.*s\n", static_cast<int>(message.addressPattern.size()), message.addressPattern.data());
+      }
+  }
+
+  // Print the new values set by the handlers
+  for (std::size_t channel = 0; channel < gains.size(); ++channel)
+  {
+      std::printf("%zu %g\n", channel + 1, static_cast<double>(gains[channel]));
+  }
+  return 0;
+}
+
 ```
 
-- `add(address, value)` registers `value` under an `Address`, so a value is only ever registered under a well-formed address, and returns false when the address is already registered; `remove(address)` returns false when it is not.
-- `visit(pattern, visitor)` parses the pattern and calls `visitor(address, value)` for every registered address it matches, in bytewise address order.
-- `dispatch(pattern, args...)` parses the pattern and calls `std::invoke(value, args...)` on the value of every registered address it matches, for a space whose values are handlers, as in the opening example. Every handler is called with the same `args` objects, which `dispatch` does not move from. A value that is a pointer to a member function takes its object as the first of `args`.
-- `find(address)` returns a pointer to the value registered under one address, or null when there is none. The pointer is valid until the next `add` or `remove`.
-- `visit(visitor)` visits every registered address; `size()` counts them.
-- A visitor, or a handler called by `dispatch`, may call `visit`, `dispatch` and `find` on the space that called it, and copy it, but must not add to it, remove from it, move from it or assign to it. To change the space in response to a message, collect the changes and apply them once the call has returned. A build without `NDEBUG` asserts when one adds or removes.
-- An address space is not safe to use from several threads at once.
-
-`AddressSpace<T, Memo, CacheBits, InlineResults>` keeps the matches of a pattern until the next `add` or `remove`:
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `Memo` | `true` | whether results are kept |
-| `CacheBits` | `8` | `1 << CacheBits` patterns are kept |
-| `InlineResults` | `1024` | the most matches a kept result lists |
-
-A pattern longer than `kMaxMemoPatternLength` or a result larger than `InlineResults` is delivered in full but not kept. The default memo takes about 1.1 MiB, allocated when the space is constructed; `AddressSpace<T, true, 6, 64>` takes about 34 KiB and `AddressSpace<T, false>` none.
 
 ## Matching rules
 
