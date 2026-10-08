@@ -24,7 +24,7 @@ void checkCase(const CorpusCase& corpusCase)
 {
     INFO("corpus line " << corpusCase.line << ": " << corpusCase.text);
 
-    const oscpm::Pattern::ParseResult parsed = oscpm::Pattern::parse(corpusCase.pattern);
+    const oscpm::Expected<oscpm::Pattern, oscpm::PatternError> parsed = oscpm::Pattern::parse(corpusCase.pattern);
     const bool matched = oscpm::match(corpusCase.pattern, corpusCase.address);
 
     if (corpusCase.expectation == Expectation::MalformedPattern)
@@ -36,9 +36,9 @@ void checkCase(const CorpusCase& corpusCase)
     }
 
     REQUIRE(parsed);
-    CHECK(parsed.pattern().text() == corpusCase.pattern);
-    const bool matchedByValue = parsed.pattern().matches(corpusCase.address);
-    const oscpm::Address::ParseResult address = oscpm::Address::parse(corpusCase.address);
+    CHECK(parsed->text() == corpusCase.pattern);
+    const bool matchedByValue = parsed->matches(corpusCase.address);
+    const oscpm::Expected<oscpm::Address, oscpm::AddressError> address = oscpm::Address::parse(corpusCase.address);
 
     if (corpusCase.expectation == Expectation::MalformedAddress)
     {
@@ -50,9 +50,9 @@ void checkCase(const CorpusCase& corpusCase)
     }
 
     REQUIRE(address);
-    CHECK(address.address().text() == corpusCase.address);
+    CHECK(address->text() == corpusCase.address);
     oscpm::AddressSpace<int, false> space;
-    CHECK(space.add(address.address(), 0));
+    CHECK(space.add(*address, 0));
     CHECK(space.size() == 1);
     CHECK(matched == (corpusCase.expectation == Expectation::Match));
     CHECK(matchedByValue == (corpusCase.expectation == Expectation::Match));

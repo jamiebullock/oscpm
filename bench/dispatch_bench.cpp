@@ -43,7 +43,7 @@ namespace
     {
         for (const std::string& text : space.addresses)
         {
-            const oscpm::Address address = oscpm::Address::parse(text).address();
+            const oscpm::Address address = *oscpm::Address::parse(text);
             if constexpr (std::is_same_v<AddressSpace, HandlerSpace>)
             {
                 addressSpace.add(address, Handler(receive));
@@ -149,7 +149,7 @@ namespace
         MemoisedSpace addressSpace;
         fill(addressSpace, *space);
         const oscpm::MatchResult result = visitOnce(addressSpace, pattern);
-        if (!result.error || *result.error != oscpm::Error::PatternTooLong)
+        if (!result.error || *result.error != oscpm::PatternError::PatternTooLong)
         {
             failBenchmark(state, "pattern not rejected as too long");
             return;

@@ -10,6 +10,7 @@
 #include <oscpm/detail/syntax.h>
 #include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
+#include <oscpm/expected.h>
 
 #include <cstddef>
 #include <optional>
@@ -24,10 +25,8 @@ namespace oscpm
 class Pattern
 {
 public:
-    class ParseResult;
-
     /// Parses `text`, yielding the pattern or the first fault.
-    static constexpr ParseResult parse(std::string_view text) noexcept;
+    static constexpr Expected<Pattern, PatternError> parse(std::string_view text) noexcept;
 
     /// Whether this pattern matches `address`, which is compared byte for
     /// byte and never validated.
@@ -50,8 +49,6 @@ public:
     }
 
 private:
-    constexpr Pattern() noexcept = default;
-
     constexpr explicit Pattern(std::string_view text) noexcept
         : m_text(text)
         , m_isLiteral(detail::isLiteralText(text))
@@ -59,61 +56,24 @@ private:
     }
 
     std::string_view m_text;
-    bool m_isLiteral = false;
+    bool m_isLiteral;
 };
 
-/// A `Pattern` or the `Error` that stopped it parsing.
-class Pattern::ParseResult
+constexpr Expected<Pattern, PatternError> Pattern::parse(std::string_view text) noexcept
 {
-public:
-    /// Whether parsing succeeded and `pattern()` holds the result.
-    constexpr explicit operator bool() const noexcept
+    const std::optional<PatternError> fault = detail::validatePattern(text);
+    if (fault.has_value())
     {
-        return m_parsed;
+        return *fault;
     }
-
-    /// The pattern; meaningful only when the result is true.
-    constexpr const Pattern& pattern() const noexcept
-    {
-        return m_pattern;
-    }
-
-    /// The fault; meaningful only when the result is false.
-    constexpr Error error() const noexcept
-    {
-        return m_error;
-    }
-
-private:
-    friend class Pattern;
-
-    constexpr explicit ParseResult(Pattern pattern) noexcept
-        : m_pattern(pattern)
-        , m_parsed(true)
-    {
-    }
-
-    constexpr explicit ParseResult(Error error) noexcept
-        : m_error(error)
-    {
-    }
-
-    Pattern m_pattern;
-    Error m_error = Error::MissingLeadingSlash;
-    bool m_parsed = false;
-};
-
-constexpr Pattern::ParseResult Pattern::parse(std::string_view text) noexcept
-{
-    const std::optional<Error> fault = detail::validatePattern(text);
-    return fault.has_value() ? ParseResult(*fault) : ParseResult(Pattern(text));
+    return Pattern(text);
 }
 
 /// @return true if @p address matches @p pattern
 constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
-    const Pattern::ParseResult parsed = Pattern::parse(pattern);
-    return parsed && parsed.pattern().matches(address);
+    const Expected<Pattern, PatternError> parsed = Pattern::parse(pattern);
+    return parsed && parsed->matches(address);
 }
 
 }

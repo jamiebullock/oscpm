@@ -28,7 +28,7 @@ void setFrequency(const OSCPP::Server::Message& message)
 }
 
 oscpm::AddressSpace<Handler> methods;
-methods.add(oscpm::Address::parse("/synth/freq").address(), setFrequency);
+methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
 
 // for each OSCPP::Server::Message received
 methods.dispatch(message.address(), message); // A message with address "/synth/*" calls setFrequency()
@@ -50,19 +50,18 @@ oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
 
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
-- A malformed pattern is reported as an `Error`so the caller can distinguish an invalid pattern from a non-match
+- A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
 - Matching with `Pattern::matches()` is faster than `oscpm::match()` because validation happens once in `Pattern::parse()`, and patterns without wildcards reduce to a plain string comparison
 
 ```cpp
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
 static_assert(parsed);
-static_assert(parsed.pattern().matches("/synth/12/amp"));
+static_assert(parsed->matches("/synth/12/amp"));
 
 if (const auto result = oscpm::Pattern::parse(text))
 {
-    const oscpm::Pattern& pattern = result.pattern();
-    pattern.matches(message.address()); // any std::string_view
+    result->matches(message.address()); // any std::string_view
 }
 else
 {
@@ -72,7 +71,7 @@ else
 
 ## Addresses
 Similar to `Pattern`, `Address` is a validated OSC address:
-- A malformed address is reported as an `Error`, one of the faults under [Malformed addresses](#malformed-addresses)
+- A malformed address is reported as an `AddressError`, one of the faults under [Malformed addresses](#malformed-addresses)
 - For `constexpr` addresses, validity can be checked at compile time
 
 ```cpp
@@ -106,8 +105,8 @@ struct Parameter
 };
 
 oscpm::AddressSpace<Parameter> addressSpace;
-addressSpace.add(oscpm::Address::parse("/synth/1/freq").address(), Parameter { 440.0f });
-addressSpace.add(oscpm::Address::parse("/synth/2/freq").address(), Parameter { 220.0f });
+addressSpace.add(*oscpm::Address::parse("/synth/1/freq"), Parameter { 440.0f });
+addressSpace.add(*oscpm::Address::parse("/synth/2/freq"), Parameter { 220.0f });
 
 const oscpm::MatchResult result = addressSpace.visit("/synth/*/freq", [](std::string_view, Parameter& parameter)
     { parameter.value = 550.0f; });
@@ -194,7 +193,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 
 `Pattern::parse` rejects a pattern only for one of these faults:
 
-| Fault | `Error` |
+| Fault | `PatternError` |
 | --- | --- |
 | no leading `/` | `MissingLeadingSlash` |
 | a `[` with no `]` before the next `/` | `UnterminatedClass` |
@@ -207,7 +206,7 @@ Every other pattern parses. A rejected pattern matches nothing: `match` returns 
 
 `Address::parse` rejects an address only for one of these faults:
 
-| Fault | `Error` |
+| Fault | `AddressError` |
 | --- | --- |
 | no leading `/` | `MissingLeadingSlash` |
 | a final `/`, including the bare `/` | `TrailingSlash` |

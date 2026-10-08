@@ -18,40 +18,58 @@ constexpr std::size_t kMaxAddressPartLength = 4095;
 /// brace list or "//". A literal pattern has no limit.
 constexpr std::size_t kMaxPatternLength = 1024;
 
-/// A fault in a pattern, an address or an `AddressSpace` operation.
-enum class Error
+/// A fault that stops a pattern parsing.
+enum class PatternError
 {
-    MissingLeadingSlash, ///< pattern or address: no leading '/'
-    UnterminatedClass, ///< pattern: a '[' with no ']' before the next '/'
-    UnterminatedBraces, ///< pattern: a '{' with no '}' before the next '/'
-    PatternTooLong, ///< pattern: a wildcard pattern longer than `kMaxPatternLength`
-    TrailingSlash, ///< address: a final '/', including the bare "/"
-    EmptyPart, ///< address: two adjacent slashes
-    IllegalByte, ///< address: a byte outside printable ASCII or one of " #*,?[]{}"
-    PartTooLong ///< address: a part longer than `kMaxAddressPartLength`
+    MissingLeadingSlash, ///< no leading '/'
+    UnterminatedClass, ///< a '[' with no ']' before the next '/'
+    UnterminatedBraces, ///< a '{' with no '}' before the next '/'
+    PatternTooLong ///< a wildcard pattern longer than `kMaxPatternLength`
+};
+
+/// A fault that stops an address parsing.
+enum class AddressError
+{
+    MissingLeadingSlash, ///< no leading '/'
+    TrailingSlash, ///< a final '/', including the bare "/"
+    EmptyPart, ///< two adjacent slashes
+    IllegalByte, ///< a byte outside printable ASCII or one of " #*,?[]{}"
+    PartTooLong ///< a part longer than `kMaxAddressPartLength`
 };
 
 /// The enumerator's name as a null-terminated literal with static storage,
 /// for diagnostics.
-constexpr const char* toString(Error error) noexcept
+constexpr const char* toString(PatternError error) noexcept
 {
     switch (error)
     {
-    case Error::MissingLeadingSlash:
+    case PatternError::MissingLeadingSlash:
         return "MissingLeadingSlash";
-    case Error::UnterminatedClass:
+    case PatternError::UnterminatedClass:
         return "UnterminatedClass";
-    case Error::UnterminatedBraces:
+    case PatternError::UnterminatedBraces:
         return "UnterminatedBraces";
-    case Error::PatternTooLong:
+    case PatternError::PatternTooLong:
         return "PatternTooLong";
-    case Error::TrailingSlash:
+    }
+    return "";
+}
+
+/// The enumerator's name as a null-terminated literal with static storage,
+/// for diagnostics.
+constexpr const char* toString(AddressError error) noexcept
+{
+    switch (error)
+    {
+    case AddressError::MissingLeadingSlash:
+        return "MissingLeadingSlash";
+    case AddressError::TrailingSlash:
         return "TrailingSlash";
-    case Error::EmptyPart:
+    case AddressError::EmptyPart:
         return "EmptyPart";
-    case Error::IllegalByte:
+    case AddressError::IllegalByte:
         return "IllegalByte";
-    case Error::PartTooLong:
+    case AddressError::PartTooLong:
         return "PartTooLong";
     }
     return "";
