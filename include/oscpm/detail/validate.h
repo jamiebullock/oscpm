@@ -16,11 +16,11 @@
 namespace oscpm::detail
 {
 
-constexpr std::optional<Error> validatePattern(std::string_view pattern) noexcept
+constexpr std::optional<PatternError> validatePattern(std::string_view pattern) noexcept
 {
     if (!hasLeadingSlash(pattern))
     {
-        return Error::MissingLeadingSlash;
+        return PatternError::MissingLeadingSlash;
     }
     const std::size_t checked = pattern.size() < kMaxPatternLength ? pattern.size() : kMaxPatternLength;
     std::size_t i = 0;
@@ -31,7 +31,7 @@ constexpr std::optional<Error> validatePattern(std::string_view pattern) noexcep
             const std::size_t close = closeWithinPart(pattern, i, k::setClose);
             if (close == npos)
             {
-                return Error::UnterminatedClass;
+                return PatternError::UnterminatedClass;
             }
             i = close + 1;
         }
@@ -40,7 +40,7 @@ constexpr std::optional<Error> validatePattern(std::string_view pattern) noexcep
             const std::size_t close = closeWithinPart(pattern, i, k::listClose);
             if (close == npos)
             {
-                return Error::UnterminatedBraces;
+                return PatternError::UnterminatedBraces;
             }
             i = close + 1;
         }
@@ -51,16 +51,16 @@ constexpr std::optional<Error> validatePattern(std::string_view pattern) noexcep
     }
     if (pattern.size() > kMaxPatternLength && hasWildcard(pattern))
     {
-        return Error::PatternTooLong;
+        return PatternError::PatternTooLong;
     }
     return std::nullopt;
 }
 
-constexpr std::optional<Error> validateAddress(std::string_view address) noexcept
+constexpr std::optional<AddressError> validateAddress(std::string_view address) noexcept
 {
     if (!hasLeadingSlash(address))
     {
-        return Error::MissingLeadingSlash;
+        return AddressError::MissingLeadingSlash;
     }
     std::size_t partLength = 0;
     for (std::size_t i = 1; i <= address.size(); ++i)
@@ -70,17 +70,17 @@ constexpr std::optional<Error> validateAddress(std::string_view address) noexcep
         {
             if (partLength == 0)
             {
-                return atEnd ? Error::TrailingSlash : Error::EmptyPart;
+                return atEnd ? AddressError::TrailingSlash : AddressError::EmptyPart;
             }
             partLength = 0;
         }
         else if (!isPrintableAscii(address[i]) || isReservedInAddress(address[i]))
         {
-            return Error::IllegalByte;
+            return AddressError::IllegalByte;
         }
         else if (++partLength > kMaxAddressPartLength)
         {
-            return Error::PartTooLong;
+            return AddressError::PartTooLong;
         }
     }
     return std::nullopt;

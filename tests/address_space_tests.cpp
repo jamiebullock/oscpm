@@ -30,31 +30,31 @@
 
 using oscpm::Address;
 using oscpm::AddressSpace;
-using oscpm::Error;
 using oscpm::Pattern;
+using oscpm::PatternError;
 
 namespace
 {
 
 using Addresses = std::vector<std::string>;
 
-bool faults(const std::optional<Error>& result, Error kind)
+bool faults(const std::optional<PatternError>& result, PatternError kind)
 {
     return result == kind;
 }
 
 Pattern parsed(std::string_view text)
 {
-    const Pattern::ParseResult result = Pattern::parse(text);
+    const oscpm::Expected<Pattern, oscpm::PatternError> result = Pattern::parse(text);
     REQUIRE(result);
-    return result.pattern();
+    return *result;
 }
 
 Address parsedAddress(std::string_view text)
 {
-    const Address::ParseResult result = Address::parse(text);
+    const oscpm::Expected<Address, oscpm::AddressError> result = Address::parse(text);
     REQUIRE(result);
-    return result.address();
+    return *result;
 }
 
 template <typename Space>
@@ -308,11 +308,11 @@ TEST_CASE("visit reports a malformed pattern and visits nothing")
     const struct
     {
         const char* pattern;
-        Error kind;
+        PatternError kind;
     } cases[] = {
-        { "synth/1/freq", Error::MissingLeadingSlash },
-        { "/synth/[1/freq", Error::UnterminatedClass },
-        { "/synth/{1/freq", Error::UnterminatedBraces },
+        { "synth/1/freq", PatternError::MissingLeadingSlash },
+        { "/synth/[1/freq", PatternError::UnterminatedClass },
+        { "/synth/{1/freq", PatternError::UnterminatedBraces },
     };
     for (const auto& malformed : cases)
     {
@@ -819,7 +819,7 @@ TEST_CASE("dispatch calls every matching handler with the same arguments without
     CHECK(literal.matched == 1);
     CHECK(absent.matched == 0);
     CHECK(malformed.matched == 0);
-    CHECK(faults(malformed.error, Error::UnterminatedClass));
+    CHECK(faults(malformed.error, PatternError::UnterminatedClass));
     CHECK(viaConst.matched == 2);
     const std::vector<Call> expected {
         { "/synth/1/freq", 440, &name, true }, { "/synth/2/freq", 440, &name, true }, { "/synth/2/amp", 1, &name, true },
@@ -948,8 +948,8 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
     std::vector<oscpm_test::CorpusCase> malformed;
     for (const oscpm_test::CorpusCase& corpusCase : oscpm_test::loadCorpus(OSCPM_CORPUS_PATH))
     {
-        const Address::ParseResult candidate = Address::parse(corpusCase.address);
-        if (candidate && registered.count(corpusCase.address) == 0 && space.add(candidate.address(), 0))
+        const oscpm::Expected<Address, oscpm::AddressError> candidate = Address::parse(corpusCase.address);
+        if (candidate && registered.count(corpusCase.address) == 0 && space.add(*candidate, 0))
         {
             registered.insert(corpusCase.address);
         }

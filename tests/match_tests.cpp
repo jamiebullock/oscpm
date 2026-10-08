@@ -13,14 +13,14 @@
 #include <ostream>
 #include <string>
 
-using oscpm::Error;
 using oscpm::match;
 using oscpm::Pattern;
+using oscpm::PatternError;
 
 namespace
 {
 
-constexpr bool faults(const Pattern::ParseResult& result, Error kind)
+constexpr bool faults(const oscpm::Expected<Pattern, oscpm::PatternError>& result, PatternError kind)
 {
     return !result && result.error() == kind;
 }
@@ -89,13 +89,13 @@ TEST_CASE("a wildcard pattern longer than the supported length is reported and m
     const std::string address = "/" + std::string(oscpm::kMaxPatternLength, 'a');
     CHECK(Pattern::parse(longest));
     CHECK(match(longest, address));
-    CHECK(faults(Pattern::parse(tooLong), Error::PatternTooLong));
+    CHECK(faults(Pattern::parse(tooLong), PatternError::PatternTooLong));
     CHECK_FALSE(match(tooLong, address));
     const std::string many = "/" + std::string(oscpm::kMaxPatternLength, 'a');
     for (const std::string& wildcard : { many + "?", many + "*", many + "[a]", many + "{a}", many + "//a", "//" + many })
     {
         INFO("pattern " << wildcard.substr(wildcard.size() - 4));
-        CHECK(faults(Pattern::parse(wildcard), Error::PatternTooLong));
+        CHECK(faults(Pattern::parse(wildcard), PatternError::PatternTooLong));
     }
 }
 
@@ -109,10 +109,10 @@ TEST_CASE("a literal pattern longer than the wildcard limit parses and matches")
 
 TEST_CASE("a fault before the length limit is reported ahead of the length")
 {
-    CHECK(faults(Pattern::parse("/[" + std::string(2000, 'a')), Error::UnterminatedClass));
-    CHECK(faults(Pattern::parse("/" + std::string(1000, 'a') + "{" + std::string(2000, 'a')), Error::UnterminatedBraces));
-    CHECK(faults(Pattern::parse("/" + std::string(1000, 'a') + "[" + std::string(100, 'b') + "]"), Error::PatternTooLong));
-    CHECK(faults(Pattern::parse("/" + std::string(1100, 'a') + "["), Error::PatternTooLong));
+    CHECK(faults(Pattern::parse("/[" + std::string(2000, 'a')), PatternError::UnterminatedClass));
+    CHECK(faults(Pattern::parse("/" + std::string(1000, 'a') + "{" + std::string(2000, 'a')), PatternError::UnterminatedBraces));
+    CHECK(faults(Pattern::parse("/" + std::string(1000, 'a') + "[" + std::string(100, 'b') + "]"), PatternError::PatternTooLong));
+    CHECK(faults(Pattern::parse("/" + std::string(1100, 'a') + "["), PatternError::PatternTooLong));
 }
 
 TEST_CASE("every construct matches a part either side of 64 bytes")

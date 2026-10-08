@@ -97,16 +97,16 @@ int main()
     oscpm::AddressSpace<Parameter> parameters;
     for (const char* text : { "/synth/1/freq", "/synth/1/amp", "/synth/2/freq", "/synth/2/amp", "/mixer/master/gain" })
     {
-        const oscpm::Address::ParseResult address = oscpm::Address::parse(text);
+        const oscpm::Expected<oscpm::Address, oscpm::AddressError> address = oscpm::Address::parse(text);
         if (!address)
         {
             std::printf("%s is not an address: %s\n", text, oscpm::toString(address.error()));
             return 1;
         }
-        parameters.add(address.address(), Parameter { });
+        parameters.add(*address, Parameter { });
     }
 
-    const oscpm::Pattern::ParseResult frequencyWatch = oscpm::Pattern::parse("//freq");
+    const oscpm::Expected<oscpm::Pattern, oscpm::PatternError> frequencyWatch = oscpm::Pattern::parse("//freq");
     if (!frequencyWatch)
     {
         return 1;
@@ -114,7 +114,7 @@ int main()
 
     std::array<char, kPacketBytes> buffer { };
     const std::size_t packetSize = buildBundle(buffer.data(), buffer.size());
-    handlePacket(OSCPP::Server::Packet(buffer.data(), packetSize), parameters, frequencyWatch.pattern());
+    handlePacket(OSCPP::Server::Packet(buffer.data(), packetSize), parameters, *frequencyWatch);
 
     std::printf("\n");
     parameters.visit([](std::string_view address, const Parameter& parameter)

@@ -34,7 +34,7 @@ void setFrequency(const OSCPP::Server::Message& message)
 }
 
 oscpm::AddressSpace<Handler> methods;
-methods.add(oscpm::Address::parse("/synth/freq").address(), setFrequency);
+methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
 
 // for each OSCPP::Server::Message received
 methods.dispatch(message.address(), message);
@@ -65,12 +65,11 @@ matched many times is parsed once into a `Pattern` value:
 
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
 static_assert(parsed);
-static_assert(parsed.pattern().matches("/synth/12/amp"));
+static_assert(parsed->matches("/synth/12/amp"));
 
 if (const auto result = oscpm::Pattern::parse(text))
 {
-    const oscpm::Pattern& pattern = result.pattern();
-    pattern.matches(message.address()); // any std::string_view
+    result->matches(message.address()); // any std::string_view
 }
 else
 {
@@ -79,8 +78,12 @@ else
 ```
 
 A `Pattern` is a view of the text it was parsed from, which must outlive it
-unchanged. `Pattern::parse` returns a `Pattern::ParseResult` holding either the pattern
-or the `Error` that stopped it parsing.
+unchanged. `Pattern::parse` returns an
+`oscpm::Expected<Pattern, PatternError>` holding either the pattern or the
+`PatternError` that stopped it parsing. `Expected` has
+the member names of C++23's `std::expected`: test it, then read the value
+with `*` or `->`, or the fault with `error()`. Reading the side it does not
+hold asserts in a build without `NDEBUG` and otherwise calls `std::abort`.
 
 ## Addresses
 
@@ -94,8 +97,7 @@ static_assert(parsed);
 
 if (const auto result = oscpm::Address::parse(text))
 {
-    const oscpm::Address& address = result.address();
-    address.text(); // the bytes it was parsed from
+    result->text(); // the bytes it was parsed from
 }
 else
 {
@@ -103,8 +105,8 @@ else
 }
 ```
 
-`Address::parse` returns an `Address::ParseResult` holding either the
-address or the `Error` that stopped it parsing, and rejects an address only
+`Address::parse` returns an `oscpm::Expected<Address, AddressError>`
+holding either the address or the `AddressError` that stopped it parsing, and rejects an address only
 for one of the faults under [Malformed addresses](#malformed-addresses). An
 `Address` is a view of its text, which must outlive it unchanged: the
 validation holds for the bytes that were parsed, and `AddressSpace::add`
@@ -133,8 +135,8 @@ struct Parameter
 };
 
 oscpm::AddressSpace<Parameter> addressSpace;
-addressSpace.add(oscpm::Address::parse("/synth/1/freq").address(), Parameter { 440.0f });
-addressSpace.add(oscpm::Address::parse("/synth/2/freq").address(), Parameter { 220.0f });
+addressSpace.add(*oscpm::Address::parse("/synth/1/freq"), Parameter { 440.0f });
+addressSpace.add(*oscpm::Address::parse("/synth/2/freq"), Parameter { 220.0f });
 
 const oscpm::MatchResult result = addressSpace.visit("/synth/*/freq", [](std::string_view, Parameter& parameter)
     { parameter.value = 550.0f; });
@@ -256,10 +258,10 @@ a leading `!` negates.
 
 `Pattern::parse` rejects a pattern only for one of these faults:
 
-| Fault | `Error` |
+| Fault | `PatternError` |
 | --- | --- |
 | no leading `/` | `MissingLeadingSlash` |
-| a `[` with no `]` before the next `/` | `UnterminatedClass` |
+| a `[ with no `]` before the next `/` | `UnterminatedClass` |
 | a `{` with no `}` before the next `/` | `UnterminatedBraces` |
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
@@ -270,7 +272,7 @@ returns false, and `AddressSpace::visit` and `dispatch` reach no value.
 
 `Address::parse` rejects an address only for one of these faults:
 
-| Fault | `Error` |
+| Fault | `AddressError` |
 | --- | --- |
 | no leading `/` | `MissingLeadingSlash` |
 | a final `/`, including the bare `/` | `TrailingSlash` |

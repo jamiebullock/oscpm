@@ -9,4 +9,5 @@
 #include <oscpm/address.h>
 #include <oscpm/address_space.h>
 #include <oscpm/error.h>
+#include <oscpm/expected.h>
 #include <oscpm/pattern.h>

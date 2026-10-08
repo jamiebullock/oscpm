@@ -11,6 +11,7 @@
 #include <oscpm/detail/prepared.h>
 #include <oscpm/detail/syntax.h>
 #include <oscpm/error.h>
+#include <oscpm/expected.h>
 #include <oscpm/pattern.h>
 
 #include <algorithm>
@@ -171,12 +172,12 @@ private:
         {
             return Result { numVisited, std::nullopt };
         }
-        const Pattern::ParseResult parsed = Pattern::parse(text);
+        const Expected<Pattern, PatternError> parsed = Pattern::parse(text);
         if (!parsed)
         {
             return Result { 0, parsed.error() };
         }
-        return Result { dispatchParsed(self, parsed.pattern(), visitor), std::nullopt };
+        return Result { dispatchParsed(self, *parsed, visitor), std::nullopt };
     }
 
     template <typename Self, typename Visitor>

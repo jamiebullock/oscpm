@@ -15,7 +15,8 @@
 #   malformed-pattern <Error>
 #   malformed-address <Error> <match|nomatch>
 #
-# <Error> is the enumerator name from oscpm::Error.
+# <Error> is the enumerator name from oscpm::PatternError for a pattern and
+# oscpm::AddressError for an address.
 #
 # A malformed-pattern case asserts that Pattern::parse fails with that kind
 # and that match() returns false. Only four kinds arise from a pattern:

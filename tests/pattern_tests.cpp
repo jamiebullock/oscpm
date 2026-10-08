@@ -17,26 +17,26 @@
 #include <string_view>
 #include <type_traits>
 
-using oscpm::Error;
 using oscpm::Pattern;
+using oscpm::PatternError;
 
 namespace
 {
 
-constexpr Pattern::ParseResult kWildcard = Pattern::parse("/synth/*/{freq,amp}");
-constexpr Pattern::ParseResult kDescendant = Pattern::parse("//gain");
-constexpr Pattern::ParseResult kUnterminated = Pattern::parse("/synth/[1-3");
+constexpr oscpm::Expected<Pattern, oscpm::PatternError> kWildcard = Pattern::parse("/synth/*/{freq,amp}");
+constexpr oscpm::Expected<Pattern, oscpm::PatternError> kDescendant = Pattern::parse("//gain");
+constexpr oscpm::Expected<Pattern, oscpm::PatternError> kUnterminated = Pattern::parse("/synth/[1-3");
 
 static_assert(kWildcard);
-static_assert(kWildcard.pattern().matches("/synth/12/amp"));
-static_assert(!kWildcard.pattern().matches("/synth/12/gain"));
-static_assert(kDescendant.pattern().matches("/mixer/bus/3/gain"));
+static_assert(kWildcard->matches("/synth/12/amp"));
+static_assert(!kWildcard->matches("/synth/12/gain"));
+static_assert(kDescendant->matches("/mixer/bus/3/gain"));
 static_assert(!kUnterminated);
-static_assert(kUnterminated.error() == Error::UnterminatedClass);
+static_assert(kUnterminated.error() == PatternError::UnterminatedClass);
 static_assert(std::is_trivially_copyable_v<Pattern>);
-static_assert(std::is_trivially_copyable_v<Pattern::ParseResult>);
+static_assert(std::is_trivially_copyable_v<oscpm::Expected<Pattern, oscpm::PatternError>>);
 
-constexpr bool faults(const Pattern::ParseResult& result, Error kind)
+constexpr bool faults(const oscpm::Expected<Pattern, oscpm::PatternError>& result, PatternError kind)
 {
     return !result && result.error() == kind;
 }
@@ -57,30 +57,30 @@ TEST_CASE("parse yields a pattern for a well-formed pattern")
 
 TEST_CASE("parse reports the first fault")
 {
-    static_assert(faults(Pattern::parse(""), Error::MissingLeadingSlash));
-    static_assert(faults(Pattern::parse("a/b"), Error::MissingLeadingSlash));
-    static_assert(faults(Pattern::parse("/a[b"), Error::UnterminatedClass));
-    static_assert(faults(Pattern::parse("/x/[a/b]"), Error::UnterminatedClass));
-    static_assert(faults(Pattern::parse("/{a,b}{c"), Error::UnterminatedBraces));
-    static_assert(faults(Pattern::parse("/[a{"), Error::UnterminatedClass));
+    static_assert(faults(Pattern::parse(""), PatternError::MissingLeadingSlash));
+    static_assert(faults(Pattern::parse("a/b"), PatternError::MissingLeadingSlash));
+    static_assert(faults(Pattern::parse("/a[b"), PatternError::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/x/[a/b]"), PatternError::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/{a,b}{c"), PatternError::UnterminatedBraces));
+    static_assert(faults(Pattern::parse("/[a{"), PatternError::UnterminatedClass));
 }
 
 TEST_CASE("a pattern keeps a view of the text it was parsed from")
 {
     constexpr std::string_view text = "/synth/*/freq";
-    constexpr Pattern::ParseResult parsed = Pattern::parse(text);
-    static_assert(parsed.pattern().text() == text);
-    static_assert(parsed.pattern().text().data() == text.data());
+    constexpr oscpm::Expected<Pattern, oscpm::PatternError> parsed = Pattern::parse(text);
+    static_assert(parsed->text() == text);
+    static_assert(parsed->text().data() == text.data());
 }
 
 TEST_CASE("matches agrees with match")
 {
-    static_assert(Pattern::parse("/synth/*/freq").pattern().matches("/synth/1/freq"));
-    static_assert(!Pattern::parse("/synth/*/freq").pattern().matches("/synth/1/amp"));
-    static_assert(Pattern::parse("/a//").pattern().matches("/a/b/c"));
-    static_assert(Pattern::parse("/a*b*c/[!x]?/{ab,a}b").pattern().matches("/aXbYc/y1/abb"));
-    static_assert(!Pattern::parse("/a").pattern().matches("a"));
-    static_assert(!Pattern::parse("/a").pattern().matches(""));
+    static_assert(Pattern::parse("/synth/*/freq")->matches("/synth/1/freq"));
+    static_assert(!Pattern::parse("/synth/*/freq")->matches("/synth/1/amp"));
+    static_assert(Pattern::parse("/a//")->matches("/a/b/c"));
+    static_assert(Pattern::parse("/a*b*c/[!x]?/{ab,a}b")->matches("/aXbYc/y1/abb"));
+    static_assert(!Pattern::parse("/a")->matches("a"));
+    static_assert(!Pattern::parse("/a")->matches(""));
 }
 
 TEST_CASE("match is parse followed by matches")
@@ -93,7 +93,7 @@ TEST_CASE("match is parse followed by matches")
 TEST_CASE("a pattern copied out of its parse result still matches")
 {
     const std::string owned = "/mixer/ch[1-4]/{amp,freq}";
-    Pattern copied = Pattern::parse(owned).pattern();
+    Pattern copied = *Pattern::parse(owned);
     CHECK(copied.matches("/mixer/ch2/freq"));
     CHECK_FALSE(copied.matches("/mixer/ch5/freq"));
     CHECK(copied.text() == owned);
@@ -105,33 +105,33 @@ TEST_CASE("a pattern copied out of its parse result still matches")
 
 TEST_CASE("a pattern is literal when it contains no wildcard, class, brace list or slash run")
 {
-    static_assert(Pattern::parse("/synth/1/freq").pattern().isLiteral());
-    static_assert(Pattern::parse("/").pattern().isLiteral());
-    static_assert(Pattern::parse("/a/").pattern().isLiteral());
-    static_assert(Pattern::parse("/a]").pattern().isLiteral());
-    static_assert(Pattern::parse("/a}").pattern().isLiteral());
-    static_assert(Pattern::parse("/a,b").pattern().isLiteral());
-    static_assert(Pattern::parse("/#bundle").pattern().isLiteral());
-    static_assert(Pattern::parse("/a-b").pattern().isLiteral());
-    static_assert(!Pattern::parse("/synth/*").pattern().isLiteral());
-    static_assert(!Pattern::parse("/synth/?").pattern().isLiteral());
-    static_assert(!Pattern::parse("/synth/[1]").pattern().isLiteral());
-    static_assert(!Pattern::parse("/synth/{a}").pattern().isLiteral());
-    static_assert(!Pattern::parse("//gain").pattern().isLiteral());
-    static_assert(!Pattern::parse("/a//b").pattern().isLiteral());
-    static_assert(!Pattern::parse("/a//").pattern().isLiteral());
-    static_assert(!Pattern::parse("//").pattern().isLiteral());
+    static_assert(Pattern::parse("/synth/1/freq")->isLiteral());
+    static_assert(Pattern::parse("/")->isLiteral());
+    static_assert(Pattern::parse("/a/")->isLiteral());
+    static_assert(Pattern::parse("/a]")->isLiteral());
+    static_assert(Pattern::parse("/a}")->isLiteral());
+    static_assert(Pattern::parse("/a,b")->isLiteral());
+    static_assert(Pattern::parse("/#bundle")->isLiteral());
+    static_assert(Pattern::parse("/a-b")->isLiteral());
+    static_assert(!Pattern::parse("/synth/*")->isLiteral());
+    static_assert(!Pattern::parse("/synth/?")->isLiteral());
+    static_assert(!Pattern::parse("/synth/[1]")->isLiteral());
+    static_assert(!Pattern::parse("/synth/{a}")->isLiteral());
+    static_assert(!Pattern::parse("//gain")->isLiteral());
+    static_assert(!Pattern::parse("/a//b")->isLiteral());
+    static_assert(!Pattern::parse("/a//")->isLiteral());
+    static_assert(!Pattern::parse("//")->isLiteral());
 }
 
 TEST_CASE("a pattern with a part beyond the maximum length is not literal and never matches")
 {
     const std::string longest(oscpm::kMaxAddressPartLength, 'a');
     const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
-    CHECK(Pattern::parse("/" + longest).pattern().isLiteral());
-    CHECK(Pattern::parse("/" + longest).pattern().matches("/" + longest));
-    CHECK_FALSE(Pattern::parse("/" + tooLong).pattern().isLiteral());
-    CHECK_FALSE(Pattern::parse("/" + tooLong).pattern().matches("/" + tooLong));
-    CHECK_FALSE(Pattern::parse("/a/" + tooLong).pattern().isLiteral());
+    CHECK(Pattern::parse("/" + longest)->isLiteral());
+    CHECK(Pattern::parse("/" + longest)->matches("/" + longest));
+    CHECK_FALSE(Pattern::parse("/" + tooLong)->isLiteral());
+    CHECK_FALSE(Pattern::parse("/" + tooLong)->matches("/" + tooLong));
+    CHECK_FALSE(Pattern::parse("/a/" + tooLong)->isLiteral());
 }
 
 TEST_CASE("every byte the matcher treats as an opener makes a pattern non-literal and no other does")
@@ -146,8 +146,8 @@ TEST_CASE("every byte the matcher treats as an opener makes a pattern non-litera
         INFO("byte " << value);
         const char other = byte == 'z' ? 'y' : 'z';
         const std::string self = std::string("/") + byte + "x";
-        const Pattern::ParseResult parsed = Pattern::parse(self);
-        const bool literalByFlag = parsed && parsed.pattern().isLiteral();
+        const oscpm::Expected<Pattern, oscpm::PatternError> parsed = Pattern::parse(self);
+        const bool literalByFlag = parsed && parsed->isLiteral();
         const bool literalByBehaviour = parsed
             && oscpm::match(self, self)
             && !oscpm::match(self, "/x")
@@ -163,24 +163,24 @@ TEST_CASE("the literal shortcut agrees with the general matcher")
     const char* const addresses[] = { "", "a", "/", "/a", "/a/", "/a/b", "/a]", "/a}", "/a,b", "/#bundle", "/a b", "/synth/1/freq", "/synth/1/fre", "/synth/1/freq/" };
     for (const char* pattern : patterns)
     {
-        const Pattern::ParseResult parsed = Pattern::parse(pattern);
+        const oscpm::Expected<Pattern, oscpm::PatternError> parsed = Pattern::parse(pattern);
         REQUIRE(parsed);
-        REQUIRE(parsed.pattern().isLiteral());
+        REQUIRE(parsed->isLiteral());
         for (const char* address : addresses)
         {
             INFO("pattern " << pattern << " address " << address);
-            CHECK(parsed.pattern().matches(address) == oscpm::detail::matchParsed(pattern, address));
+            CHECK(parsed->matches(address) == oscpm::detail::matchParsed(pattern, address));
         }
     }
 }
 
 TEST_CASE("a literal pattern matches only its own text")
 {
-    static_assert(Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/freq"));
-    static_assert(!Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/fre"));
-    static_assert(!Pattern::parse("/synth/1/freq").pattern().matches("/synth/1/freq/"));
-    static_assert(Pattern::parse("/a]").pattern().matches("/a]"));
-    static_assert(!Pattern::parse("/a]").pattern().matches("/a"));
+    static_assert(Pattern::parse("/synth/1/freq")->matches("/synth/1/freq"));
+    static_assert(!Pattern::parse("/synth/1/freq")->matches("/synth/1/fre"));
+    static_assert(!Pattern::parse("/synth/1/freq")->matches("/synth/1/freq/"));
+    static_assert(Pattern::parse("/a]")->matches("/a]"));
+    static_assert(!Pattern::parse("/a]")->matches("/a"));
 }
 
 TEST_CASE("parsing and matching allocate nothing")
@@ -190,10 +190,10 @@ TEST_CASE("parsing and matching allocate nothing")
     const std::string malformed = "/synth/[1-3";
 
     const std::size_t before = oscpm_test::allocationCount();
-    const Pattern::ParseResult parsed = Pattern::parse(text);
-    const bool matched = parsed.pattern().matches(address);
+    const oscpm::Expected<Pattern, oscpm::PatternError> parsed = Pattern::parse(text);
+    const bool matched = parsed->matches(address);
     const bool convenience = oscpm::match(text, address);
-    const Pattern::ParseResult failed = Pattern::parse(malformed);
+    const oscpm::Expected<Pattern, oscpm::PatternError> failed = Pattern::parse(malformed);
     const std::size_t after = oscpm_test::allocationCount();
 
     CHECK(after == before);

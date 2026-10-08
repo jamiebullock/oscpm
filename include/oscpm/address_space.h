@@ -32,7 +32,7 @@ constexpr std::size_t kMaxMemoPatternLength = 256;
 struct MatchResult
 {
     std::size_t matched; ///< the number of values visited or called
-    std::optional<Error> error; ///< the parse fault when the pattern was malformed and no value was reached
+    std::optional<PatternError> error; ///< the parse fault when the pattern was malformed and no value was reached
 };
 
 /// Values of type `T` registered under well-formed addresses, which a pattern

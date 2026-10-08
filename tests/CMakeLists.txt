@@ -25,6 +25,7 @@ add_executable(oscpm_tests
     corpus_tests.cpp
     address_tests.cpp
     error_tests.cpp
+    expected_tests.cpp
     match_tests.cpp
     pattern_tests.cpp
 )
@@ -134,6 +135,21 @@ foreach(caseName IN LISTS OSCPM_VALUE_TYPE_CASES)
         "an address space of ${caseName} fails to compile" "AddressSpace needs a T that is an object type, move-constructible and move-assignable")
 endforeach()
 
+set(OSCPM_EXPECTED_TYPE_CASES
+    "an error type that is not an enumeration|Expected needs an E that is a scoped enumeration"
+    "an error type that is an unscoped enumeration|Expected needs an E that is a scoped enumeration"
+    "a value type that converts from the error type|Expected needs a T and an E that do not convert to each other"
+)
+set(caseNumber 0)
+foreach(expectedCase IN LISTS OSCPM_EXPECTED_TYPE_CASES)
+    math(EXPR caseNumber "${caseNumber} + 1")
+    string(REPLACE "|" ";" expectedCase "${expectedCase}")
+    list(GET expectedCase 0 caseName)
+    list(GET expectedCase 1 expectedMessage)
+    oscpm_add_compile_failure(oscpm_expected_type_${caseNumber} expected_type.cpp OSCPM_EXPECTED_TYPE_CASE=${caseNumber}
+        "an expected with ${caseName} fails to compile" "${expectedMessage}")
+endforeach()
+
 add_executable(oscpm_address_rule address_rule.cpp)
 target_link_libraries(oscpm_address_rule PRIVATE oscpm::oscpm)
 target_compile_options(oscpm_address_rule PRIVATE
@@ -143,3 +159,12 @@ target_compile_options(oscpm_address_rule PRIVATE
 add_test(NAME "an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" COMMAND oscpm_address_rule)
 set_tests_properties("an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must stay unchanged after it is parsed|assertions are compiled out")
+
+add_executable(oscpm_expected_rule expected_rule.cpp)
+target_link_libraries(oscpm_expected_rule PRIVATE oscpm::oscpm)
+target_compile_options(oscpm_expected_rule PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
+)
+add_test(NAME "reading the value of an expected holding an error aborts" COMMAND oscpm_expected_rule value)
+add_test(NAME "reading the error of an expected holding a value aborts" COMMAND oscpm_expected_rule error)
