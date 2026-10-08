@@ -148,6 +148,44 @@ int main()
 
 ```
 
+In the alternative form, the address space stores the parameters directly. This suits an application like [Resolume](https://www.resolume.com), where every message stores a value and the code that reads the values is separate from the code that receives messages. 
+
+Using oscpm in the way, the caller registers a _value_ instead of a callback for each address and uses `visit()` in place of `dispatch()`. 
+
+ Values are read back by address with `find`, or all together with the `visit` overload that takes no pattern. The visitor is invoked once for each method whose address matches the received pattern. Since a method is a value in this use case, the visitor's role is to assign the message's argument to it. Values can be read back individually by address with `find()`, or all together with `visit(visitor)`. 
+ 
+ The example below uses a mixer again, this time with the gains held by the address space:
+
+```cpp
+int main()
+{
+  oscpm::AddressSpace<float> gains;
+
+  // Add a gain parameter for each mixer channel
+  for (std::size_t channel = 1; channel <= 8; ++channel)
+  {
+      const std::string address = "/mixer/" + std::to_string(channel) + "/gain";
+      gains.add(*oscpm::Address::parse(address), 0.0f);
+  }
+
+  // The main receive loop
+  GainMessage message;
+  while (receive(message))
+  {
+      // Dispatch the OSC message to every gain whose address matches the received pattern, setting each stored gain to the received value
+      gains.visit(message.addressPattern, [&message](std::string_view, float& gain)
+          { gain = message.gain; });
+  }
+
+  // Elsewhere in the application, read a gain back by its address
+  std::printf("channel 3: %g\n", static_cast<double>(*gains.find("/mixer/3/gain")));
+
+  // Print every gain, in address order
+  gains.visit([](std::string_view address, float gain)
+      { std::printf("%.*s %g\n", static_cast<int>(address.size()), address.data(), static_cast<double>(gain)); });
+  return 0;
+}
+```
 
 ## Matching rules
 
