@@ -261,7 +261,7 @@ a leading `!` negates.
 | Fault | `PatternError` |
 | --- | --- |
 | no leading `/` | `MissingLeadingSlash` |
-| a `[ with no `]` before the next `/` | `UnterminatedClass` |
+| a `[` with no `]` before the next `/` | `UnterminatedClass` |
 | a `{` with no `}` before the next `/` | `UnterminatedBraces` |
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
