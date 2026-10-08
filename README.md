@@ -112,9 +112,9 @@ bool receive(GainMessage& message);
 int main()
 {
   std::array<float, 8> gains {};
-  oscpm::AddressSpace<std::function<void(float)>> handlers; // This AddressSpace stores callbacks that take the message's float argument
+  oscpm::AddressSpace<std::function<void(float)>> handlers;
 
-  // Register a callback for each mixer channel's gain address
+  // Add a handler for each mixer channel's gain address
   for (std::size_t channel = 0; channel < gains.size(); ++channel)
   {
       const std::string address = "/mixer/" + std::to_string(channel + 1) + "/gain";
@@ -126,7 +126,7 @@ int main()
   GainMessage message;
   while (receive(message))
   {
-      // Dispatch the OSC message to every method whose address matches its address pattern, invoking the corresponding handler on each one
+      // Dispatch the OSC message to every method whose address matches the recieved pattern, invoking the corresponding handler on each match
       const oscpm::MatchResult result = handlers.dispatch(message.addressPattern, message.gain);
       if (result.error)
       {
