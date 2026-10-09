@@ -96,6 +96,8 @@ else
 
 `AddressSpace<T>` associates values of a caller-chosen type `T` with OSC addresses. Depending on the type chosen for `T`, an OSC method can correspond to a function the caller supplies or a parameter the address space itself manages.
 
+### Registering Callbacks
+
 In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument. The mixer example below shows this:
 
 ```cpp
@@ -149,6 +151,8 @@ int main()
   return 0;
 }
 ```
+
+### Registering Parameters
 
 In the alternative form, the address space stores the parameters directly. This suits an application where every address holds the same kind of value and only the latest value matters, because the values are sampled when they are needed rather than acted on as each message arrives. A message that must have an effect each time it is received, such as a trigger, needs the callback form.
 
