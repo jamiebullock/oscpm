@@ -126,7 +126,7 @@ int main()
   GainMessage message;
   while (receive(message))
   {
-      // Dispatch the OSC message to every method whose address matches the recieved pattern, invoking the corresponding handler on each match
+      // Dispatch the OSC message to every method whose address matches the received pattern, invoking the corresponding handler on each match
       const oscpm::MatchResult result = handlers.dispatch(message.addressPattern, message.gain);
       if (result.error)
       {
@@ -148,13 +148,13 @@ int main()
 
 ```
 
-In the alternative form, the address space stores the parameters directly. This suits an application like [Resolume](https://www.resolume.com), where every message stores a value and the code that reads the values is separate from the code that receives messages. 
+In the alternative form, the address space stores the parameters directly. This suits an application where every message stores a specific value type and the code that reads  values is separate from the code that receives messages. 
 
-Using oscpm in the way, the caller registers a _value_ instead of a callback for each address and uses `visit()` in place of `dispatch()`. 
+Using oscpm in this way, the caller registers a _value_ instead of a callback for each address and uses `visit()` in place of `dispatch()`. 
 
- Values are read back by address with `find`, or all together with the `visit` overload that takes no pattern. The visitor is invoked once for each method whose address matches the received pattern. Since a method is a value in this use case, the visitor's role is to assign the message's argument to it. Values can be read back individually by address with `find()`, or all together with `visit(visitor)`. 
+The visitor is invoked once for each method whose address matches the received pattern. Since a method corresponds to a value in this use case, the visitor's role is simply to assign the OSC message's argument to the stored value. Values can then be read back individually by address with `find()`, or all together with `visit(visitor)`. 
  
- The example below uses a mixer again, this time with the gains held by the address space:
+ The example below uses a mixer again, this time with the gain values managed by the address space itself:
 
 ```cpp
 int main()
