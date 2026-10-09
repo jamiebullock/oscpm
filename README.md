@@ -71,7 +71,7 @@ else
 
 ## Addresses
 Similar to `Pattern`, `Address` is a validated OSC address:
-- A malformed address is reported as an `AddressError`, one of the faults under [Malformed addresses](#malformed-addresses)
+- A malformed address is reported as an `AddressError`, one of the faults under [Malformed Addresses](#malformed-addresses)
 - For `constexpr` addresses, validity can be checked at compile time
 
 ```cpp
@@ -217,7 +217,7 @@ int main()
 }
 ```
 
-## Matching rules
+## Matching Rules
 
 A pattern and an address are split into parts on `/`. Both must have the same number of parts, except where `//` applies, and every pattern part must match the address part in the same position.
 
@@ -233,7 +233,7 @@ A pattern and an address are split into parts on `/`. Both must have the same nu
 
 Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0.html) leaves a case open, oscpm does the following.
 
-### Parts and slashes
+### Parts and Slashes
 
 - A wildcard, class or brace list never matches `/`: `/a*` does not match `/a/b`.
 - A run of two or more slashes anywhere is one `//`, and the part before it must match whole:
@@ -261,17 +261,17 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 | `[!]` | any one byte |
 | `[a!]` | `a` or `!` |
 
-### Brace lists
+### Brace Lists
 
 - Inside `{` and `}` every byte is literal, `,` always delimits and the first `}` closes: `{a,{b,c}}` is the members `a`, `{b` and `c` followed by a literal `}`.
 - An empty member matches the empty string: `{a,}` matches `a` or nothing.
 
-### Other bytes
+### Other Bytes
 
 - A `]`, `}` or `,` outside its construct, a `#`, a space and any byte outside printable ASCII is a literal that matches only itself. No well-formed address contains one, so a part holding one matches no well-formed address. In a brace list only the member holding it is affected: `{a b,c}` still matches `c`.
 - Matching is by byte and case-sensitive, and the address is not validated.
 
-### Malformed patterns
+### Malformed Patterns
 
 `Pattern::parse` rejects a pattern only for one of these faults:
 
@@ -284,7 +284,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 
 Every other pattern parses. A rejected pattern matches nothing: `match` returns false, and `AddressSpace::visit` and `dispatch` reach no value.
 
-### Malformed addresses
+### Malformed Addresses
 
 `Address::parse` rejects an address only for one of these faults:
 
@@ -361,7 +361,7 @@ A libFuzzer target checks the matcher, the pattern value and `Address::parse` ag
 - A wildcard pattern longer than `kMaxPatternLength` is rejected without being matched, which bounds the cost of a hostile pattern.
 - The times are from one machine; the ratios between rows carry across machines better than the absolute figures.
 
-### Running the benchmarks
+### Running the Benchmarks
 
 ```
 cmake --preset bench
