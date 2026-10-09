@@ -43,7 +43,13 @@ void checkPattern(std::string_view pattern, std::string_view address)
     }
 
     require(parsed->text() == pattern);
-    const bool byValue = parsed->matches(address);
+    const oscpm::Expected<oscpm::Address, oscpm::AddressError> parsedAddress = oscpm::Address::parse(address);
+    if (!parsedAddress)
+    {
+        require(!convenience);
+        return;
+    }
+    const bool byValue = parsed->matches(*parsedAddress);
     require(byValue == convenience);
     require(byValue == oscpm::detail::matchParsed(pattern, address));
 }
@@ -67,7 +73,7 @@ void checkAddress(std::string_view address)
     const oscpm::Expected<oscpm::Pattern, oscpm::PatternError> self = oscpm::Pattern::parse(address);
     require(static_cast<bool>(self));
     require(self->isLiteral());
-    require(self->matches(address));
+    require(self->matches(*parsed));
 }
 
 }

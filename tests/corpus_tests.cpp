@@ -37,20 +37,19 @@ void checkCase(const CorpusCase& corpusCase)
 
     REQUIRE(parsed);
     CHECK(parsed->text() == corpusCase.pattern);
-    const bool matchedByValue = parsed->matches(corpusCase.address);
     const oscpm::Expected<oscpm::Address, oscpm::AddressError> address = oscpm::Address::parse(corpusCase.address);
 
     if (corpusCase.expectation == Expectation::MalformedAddress)
     {
         REQUIRE_FALSE(address);
         CHECK(std::string(oscpm::toString(address.error())) == corpusCase.errorName);
-        CHECK(matched == corpusCase.matchesBytewise);
-        CHECK(matchedByValue == corpusCase.matchesBytewise);
+        CHECK_FALSE(matched);
         return;
     }
 
     REQUIRE(address);
     CHECK(address->text() == corpusCase.address);
+    const bool matchedByValue = parsed->matches(*address);
     oscpm::AddressSpace<int, false> space;
     CHECK(space.add(*address, 0));
     CHECK(space.size() == 1);

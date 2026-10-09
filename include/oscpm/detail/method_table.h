@@ -229,7 +229,7 @@ private:
         {
             auto& method = methods[index];
             const bool matched = numPrepared == npos
-                ? pattern.matches(method.address)
+                ? matchParsed(text, method.address)
                 : matchParts(PreparedCursor(prepared, numPrepared), StoredAddressCursor(method.address, self.m_partEnds[index]));
             if (matched)
             {

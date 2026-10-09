@@ -26,12 +26,10 @@ namespace
     {
         std::istringstream stream(words);
         std::string kind;
-        std::string outcome;
         stream >> kind;
         if (kind == "match" || kind == "nomatch")
         {
             corpusCase.expectation = kind == "match" ? Expectation::Match : Expectation::NoMatch;
-            corpusCase.matchesBytewise = kind == "match";
         }
         else if (kind == "malformed-pattern")
         {
@@ -41,12 +39,7 @@ namespace
         else if (kind == "malformed-address")
         {
             corpusCase.expectation = Expectation::MalformedAddress;
-            stream >> corpusCase.errorName >> outcome;
-            corpusCase.matchesBytewise = outcome == "match";
-            if (outcome != "match" && outcome != "nomatch")
-            {
-                return false;
-            }
+            stream >> corpusCase.errorName;
         }
         else
         {

@@ -68,7 +68,8 @@ void handle(const OSCPP::Server::Message& message, oscpm::AddressSpace<Parameter
     {
         std::printf("%-26s matches no address\n", message.address());
     }
-    if (frequencyWatch.matches(address))
+    const oscpm::Expected<oscpm::Address, oscpm::AddressError> messageAddress = oscpm::Address::parse(address);
+    if (messageAddress && frequencyWatch.matches(*messageAddress))
     {
         std::printf("%-26s is a frequency change\n", message.address());
     }

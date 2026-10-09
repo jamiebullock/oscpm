@@ -21,13 +21,14 @@ namespace
     void matchPrepared(benchmark::State& state, const MatchPair* pair)
     {
         const oscpm::Expected<oscpm::Pattern, oscpm::PatternError> parsed = oscpm::Pattern::parse(pair->pattern);
-        if (!parsed || parsed->matches(pair->address) != pair->matches)
+        const oscpm::Expected<oscpm::Address, oscpm::AddressError> parsedAddress = oscpm::Address::parse(pair->address);
+        if (!parsed || !parsedAddress || parsed->matches(*parsedAddress) != pair->matches)
         {
             failBenchmark(state, "unexpected parse or match result");
             return;
         }
         oscpm::Pattern pattern = *parsed;
-        std::string_view address = pair->address;
+        oscpm::Address address = *parsedAddress;
         for (auto _ : state)
         {
             benchmark::DoNotOptimize(pattern);

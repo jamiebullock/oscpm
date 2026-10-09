@@ -46,22 +46,22 @@ oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
 ```
 
-> `oscpm::match()` returns `false` for both a pattern parse failure and a non-match. If the distinction matters then [Pattern::parse()](#patterns) should be used instead.
+> `oscpm::match()` returns `false` for a malformed pattern, a malformed address and a non-match alike. If the distinction matters then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
 
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
-- Matching with `Pattern::matches()` is faster than `oscpm::match()` because validation happens once in `Pattern::parse()`, and patterns without wildcards reduce to a plain string comparison
+- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once in `Pattern::parse()` and the address once in `Address::parse()`, and patterns without wildcards reduce to a plain string comparison
 
 ```cpp
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
 static_assert(parsed);
-static_assert(parsed->matches("/synth/12/amp"));
+static_assert(parsed->matches(*oscpm::Address::parse("/synth/12/amp")));
 
 if (const auto result = oscpm::Pattern::parse(text))
 {
-    result->matches(message.address()); // any std::string_view
+    result->matches(address); // an oscpm::Address
 }
 else
 {
@@ -73,6 +73,7 @@ else
 Similar to `Pattern`, `Address` is a validated OSC address:
 - A malformed address is reported as an `AddressError`, one of the faults under [Malformed Addresses](#malformed-addresses)
 - For `constexpr` addresses, validity can be checked at compile time
+- `Pattern::matches()` takes an `Address`, so a pattern is only ever matched against a well-formed address
 
 ```cpp
 #include <oscpm/address.h>
@@ -259,7 +260,7 @@ Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0
   | `/a//` | `/a` and every address below it |
   | `//` | every address |
 
-- A single trailing `/` is an empty part that only an address ending in `/` satisfies, so `/a/` does not match `/a`. The bare `/` likewise matches only the address `/`.
+- A single trailing `/` leaves an empty final part, the substring after the last slash. No address has one, because an address ends with a method name, so a pattern ending in `/`, and the bare `/`, match no address.
 
 ### Classes
 
@@ -283,7 +284,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 ### Other Bytes
 
 - A `]`, `}` or `,` outside its construct, a `#`, a space and any byte outside printable ASCII is a literal that matches only itself. No well-formed address contains one, so a part holding one matches no well-formed address. In a brace list only the member holding it is affected: `{a b,c}` still matches `c`.
-- Matching is by byte and case-sensitive, and the address is not validated.
+- Matching is by byte and case-sensitive.
 
 ### Malformed Patterns
 
@@ -310,7 +311,7 @@ Every other pattern parses. A rejected pattern matches nothing: `match` returns 
 | a byte outside printable ASCII, or one of `space`, `#`, `*`, `,`, `?`, `[`, `]`, `{`, `}` | `IllegalByte` |
 | a part longer than `kMaxAddressPartLength` | `PartTooLong` |
 
-Every well-formed address also parses as a literal pattern that matches only itself.
+A rejected address matches nothing: `match` returns false, and `Pattern::matches` takes only a parsed `Address`. Every well-formed address also parses as a literal pattern that matches only itself.
 
 [`corpus/matching.txt`](corpus/matching.txt) is the executable record of these rules: one case per line, replayed by the test suite, in a plain-text format other implementations can reuse.
 
