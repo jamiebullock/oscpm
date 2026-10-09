@@ -156,24 +156,51 @@ Using oscpm in this way, the caller registers a _value_ instead of a callback fo
 
 The visitor is invoked once for each method whose address matches the received pattern. Since a method corresponds to a value in this use case, the visitor's role is simply to assign the OSC message's argument to the stored value. Values can then be read back individually by address with `find()`, or all together with `visit(visitor)`. 
  
-The example below is a lighting rig: every address is a dimmer level, the console sets levels by pattern, and the output stage reads the current level of every dimmer each frame:
+The example below is a lighting rig: every address is a dimmer level, a network thread queues the console's messages, and the output thread applies them and reads the current level of every dimmer each frame. The address space is only ever touched by the output thread:
 
 ```cpp
 // A message received from the lighting console, e.g. { "/light/[01-04]/level", 0.75f } or { "/light/*/level", 0.0f }
 struct LevelMessage
 {
-  std::string_view addressPattern;
+  char addressPattern[64];
   float level;
 };
 
-// In a real application this would read the next incoming message into message
-bool receive(LevelMessage& message);
+// A lock-free single-producer single-consumer queue: the network thread pushes each received message and the output thread pops them
+template <typename T>
+class SpscQueue
+{
+public:
+  bool push(const T& message);
+  bool pop(T& message);
+};
+
+SpscQueue<LevelMessage> received;
+
+// Called from the output thread on each frame
+void outputFrame(oscpm::AddressSpace<float>& levels)
+{
+  // For each message received since the last frame, set every level whose address matches its pattern
+  LevelMessage message;
+  while (received.pop(message))
+  {
+      levels.visit(message.addressPattern, [&message](std::string_view, float& level)
+          { level = message.level; });
+  }
+
+  // Read one level back by its address
+  std::printf("dimmer 3: %g\n", static_cast<double>(*levels.find("/light/03/level")));
+
+  // Or read every level in address order to build the frame
+  levels.visit([](std::string_view address, float level)
+      { std::printf("%.*s %g\n", static_cast<int>(address.size()), address.data(), static_cast<double>(level)); });
+}
 
 int main()
 {
   oscpm::AddressSpace<float> levels;
 
-  // Add a level for each dimmer
+  // Add a level for each dimmer, before either thread starts
   for (std::size_t dimmer = 1; dimmer <= 24; ++dimmer)
   {
       char address[32];
@@ -181,21 +208,7 @@ int main()
       levels.add(*oscpm::Address::parse(address), 0.0f);
   }
 
-  // The main receive loop
-  LevelMessage message;
-  while (receive(message))
-  {
-      // Set every level whose address matches the received pattern
-      levels.visit(message.addressPattern, [&message](std::string_view, float& level)
-          { level = message.level; });
-  }
-
-  // From the output stage, e.g. on a frame timer, read one level back by its address
-  std::printf("dimmer 3: %g\n", static_cast<double>(*levels.find("/light/03/level")));
-
-  // Or read every level in address order to build the next output frame
-  levels.visit([](std::string_view address, float level)
-      { std::printf("%.*s %g\n", static_cast<int>(address.size()), address.data(), static_cast<double>(level)); });
+  // Start the network thread, which pushes each received message, and the output thread, which calls outputFrame(levels) on its frame timer
   return 0;
 }
 ```
