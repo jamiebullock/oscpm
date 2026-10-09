@@ -94,40 +94,43 @@ else
 
 ## Address Space
 
-`AddressSpace<T>` associates values of a caller-chosen type `T` with addresses. Invoking an OSC method can call a function the caller supplies, or set a parameter owned by the address space itself.
+`AddressSpace<T>` associates values of a caller-chosen type `T` with OSC addresses. Depending on the type chosen for `T`, an OSC method can correspond to a function the caller supplies or a parameter the address space itself manages.
 
-In the common form, the caller registers a callback for each address. A received OSC message is dispatched to every method whose address matches its address pattern, and each is invoked with the message's arguments. The mixer example below shows this:
+In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument. The mixer example below shows this:
 
 ```cpp
-// Message received from the OSC client e.g. { "/mixer/*/gain", 0.5f }
-struct GainMessage
+// A message received from the OSC client, e.g. { "/mixer/*/gain", 0.5f } or { "/mixer/3/mute", 1 }
+struct Message
 {
   std::string_view addressPattern;
-  float gain;
+  std::variant<float, std::int32_t, std::string_view> argument;
 };
 
-// In a real application this would have access to incoming messages and populate message
-bool receive(GainMessage& message);
+// In a real application this would read the next incoming message into message
+bool receive(Message& message);
 
 int main()
 {
   std::array<float, 8> gains {};
-  oscpm::AddressSpace<std::function<void(float)>> handlers;
+  std::array<bool, 8> mutes {};
+  oscpm::AddressSpace<std::function<void(const Message&)>> handlers;
 
-  // Add a handler for each mixer channel's gain address
+  // Add a gain and a mute handler for each mixer channel
   for (std::size_t channel = 0; channel < gains.size(); ++channel)
   {
-      const std::string address = "/mixer/" + std::to_string(channel + 1) + "/gain";
-      handlers.add(*oscpm::Address::parse(address), [&gains, channel](float gain)
-          { gains[channel] = gain; });
+      const std::string prefix = "/mixer/" + std::to_string(channel + 1);
+      handlers.add(*oscpm::Address::parse(prefix + "/gain"), [&gains, channel](const Message& message)
+          { gains[channel] = std::get<float>(message.argument); });
+      handlers.add(*oscpm::Address::parse(prefix + "/mute"), [&mutes, channel](const Message& message)
+          { mutes[channel] = std::get<std::int32_t>(message.argument) != 0; });
   }
 
   // The main receive loop
-  GainMessage message;
+  Message message;
   while (receive(message))
   {
       // Dispatch the OSC message to every method whose address matches the received pattern, invoking the corresponding handler on each match
-      const oscpm::MatchResult result = handlers.dispatch(message.addressPattern, message.gain);
+      const oscpm::MatchResult result = handlers.dispatch(message.addressPattern, message);
       if (result.error)
       {
           std::fprintf(stderr, "malformed pattern %.*s: %s\n", static_cast<int>(message.addressPattern.size()), message.addressPattern.data(), oscpm::toString(*result.error));
@@ -141,48 +144,58 @@ int main()
   // Print the new values set by the handlers
   for (std::size_t channel = 0; channel < gains.size(); ++channel)
   {
-      std::printf("%zu %g\n", channel + 1, static_cast<double>(gains[channel]));
+      std::printf("%zu %g%s\n", channel + 1, static_cast<double>(gains[channel]), mutes[channel] ? " muted" : "");
   }
   return 0;
 }
-
 ```
 
-In the alternative form, the address space stores the parameters directly. This suits an application where every message stores a specific value type and the code that reads  values is separate from the code that receives messages. 
+In the alternative form, the address space stores the parameters directly. This suits an application where every address holds the same kind of value and only the latest value matters, because the values are sampled when they are needed rather than acted on as each message arrives. A message that must have an effect each time it is received, such as a trigger, needs the callback form.
 
 Using oscpm in this way, the caller registers a _value_ instead of a callback for each address and uses `visit()` in place of `dispatch()`. 
 
 The visitor is invoked once for each method whose address matches the received pattern. Since a method corresponds to a value in this use case, the visitor's role is simply to assign the OSC message's argument to the stored value. Values can then be read back individually by address with `find()`, or all together with `visit(visitor)`. 
  
- The example below uses a mixer again, this time with the gain values managed by the address space itself:
+The example below is a lighting rig: every address is a dimmer level, the console sets levels by pattern, and the output stage reads the current level of every dimmer each frame:
 
 ```cpp
+// A message received from the lighting console, e.g. { "/light/[01-04]/level", 0.75f } or { "/light/*/level", 0.0f }
+struct LevelMessage
+{
+  std::string_view addressPattern;
+  float level;
+};
+
+// In a real application this would read the next incoming message into message
+bool receive(LevelMessage& message);
+
 int main()
 {
-  oscpm::AddressSpace<float> gains;
+  oscpm::AddressSpace<float> levels;
 
-  // Add a gain parameter for each mixer channel
-  for (std::size_t channel = 1; channel <= 8; ++channel)
+  // Add a level for each dimmer
+  for (std::size_t dimmer = 1; dimmer <= 24; ++dimmer)
   {
-      const std::string address = "/mixer/" + std::to_string(channel) + "/gain";
-      gains.add(*oscpm::Address::parse(address), 0.0f);
+      char address[32];
+      std::snprintf(address, sizeof address, "/light/%02zu/level", dimmer);
+      levels.add(*oscpm::Address::parse(address), 0.0f);
   }
 
   // The main receive loop
-  GainMessage message;
+  LevelMessage message;
   while (receive(message))
   {
-      // Dispatch the OSC message to every gain whose address matches the received pattern, setting each stored gain to the received value
-      gains.visit(message.addressPattern, [&message](std::string_view, float& gain)
-          { gain = message.gain; });
+      // Set every level whose address matches the received pattern
+      levels.visit(message.addressPattern, [&message](std::string_view, float& level)
+          { level = message.level; });
   }
 
-  // Elsewhere in the application, read a gain back by its address
-  std::printf("channel 3: %g\n", static_cast<double>(*gains.find("/mixer/3/gain")));
+  // From the output stage, e.g. on a frame timer, read one level back by its address
+  std::printf("dimmer 3: %g\n", static_cast<double>(*levels.find("/light/03/level")));
 
-  // Print every gain, in address order
-  gains.visit([](std::string_view address, float gain)
-      { std::printf("%.*s %g\n", static_cast<int>(address.size()), address.data(), static_cast<double>(gain)); });
+  // Or read every level in address order to build the next output frame
+  levels.visit([](std::string_view address, float level)
+      { std::printf("%.*s %g\n", static_cast<int>(address.size()), address.data(), static_cast<double>(level)); });
   return 0;
 }
 ```
