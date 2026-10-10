@@ -334,42 +334,42 @@ A libFuzzer target checks the matcher, the pattern value and `Address::parse` ag
 ## Performance
 
 - Processor: Apple M4
-- Operating system: macOS 26.5.2
-- Compiler: AppleClang 21.0.0.21000101, `-O3 -DNDEBUG`
-- oscpm: v0.3.6, measured 2026-09-24
+- Operating system: macOS 27.0.1
+- Compiler: AppleClang 21.0.0.21000334, `-O3 -DNDEBUG`
+- oscpm: v0.9.0, measured 2026-10-10
 - Method: median wall-clock time of 10 repetitions; dispatch is into a space of 1,856 addresses
 
 **Repeated visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
-| Literal address | 5.51 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 50.1 |
-| `//freq`, matching 512 addresses | 154 |
-| One message of a repeating stream of 64 | 10.4 |
+| Literal address | 5.45 |
+| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 48.7 |
+| `//freq`, matching 512 addresses | 149 |
+| One message of a repeating stream of 64 | 10 |
 
 **First visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
-| Literal address | 5.12 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 88,600 |
-| `//freq` | 32,000 |
+| Literal address | 4.46 |
+| `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 86,100 |
+| `//freq` | 31,400 |
 
 **One pattern against one address**
 
 | Operation | Median (ns) |
 |---|---:|
-| `Pattern::matches`, literal | 1.3 |
-| `Pattern::matches`, wildcards | 100 |
-| `oscpm::match` (parse and match), wildcards | 125 |
+| `Pattern::matches`, literal | 1.28 |
+| `Pattern::matches`, wildcards | 90.5 |
+| `oscpm::match` (parse and match), wildcards | 158 |
 
 **Hostile patterns**
 
 | Pattern | Median (us) |
 |---|---:|
-| The slowest pattern of 1024 bytes (`list-alternatives`) | 5,000 |
-| A 64 KB wildcard pattern, rejected | 2.96 |
+| The slowest pattern of 1024 bytes (`list-alternatives`) | 4,680 |
+| A 64 KB wildcard pattern, rejected | 2.8 |
 
 - A repeated message costs one hash lookup plus one visitor call per matched address. A literal address costs the same the first time.
 - The first visit of any other pattern tests every registered address, so its cost grows with the size of the space.
