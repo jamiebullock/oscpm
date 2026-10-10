@@ -111,20 +111,31 @@ struct Message
 // In a real application this would read the next incoming message into message
 bool receive(Message& message);
 
+// An Address views the bytes it was parsed from, so each channel keeps its address strings for as long as the address space holds them
+struct Channel
+{
+  std::string gainAddress;
+  std::string muteAddress;
+  float gain = 0.0f;
+  bool mute = false;
+};
+
 int main()
 {
-  std::array<float, 8> gains {};
-  std::array<bool, 8> mutes {};
+  std::array<Channel, 8> channels;
   oscpm::AddressSpace<std::function<void(const Message&)>> handlers;
 
   // Add a gain and a mute handler for each mixer channel
-  for (std::size_t channel = 0; channel < gains.size(); ++channel)
+  for (std::size_t index = 0; index < channels.size(); ++index)
   {
-      const std::string prefix = "/mixer/" + std::to_string(channel + 1);
-      handlers.add(*oscpm::Address::parse(prefix + "/gain"), [&gains, channel](const Message& message)
-          { gains[channel] = std::get<float>(message.argument); });
-      handlers.add(*oscpm::Address::parse(prefix + "/mute"), [&mutes, channel](const Message& message)
-          { mutes[channel] = std::get<std::int32_t>(message.argument) != 0; });
+      Channel& channel = channels[index];
+      const std::string prefix = "/mixer/" + std::to_string(index + 1);
+      channel.gainAddress = prefix + "/gain";
+      channel.muteAddress = prefix + "/mute";
+      handlers.add(*oscpm::Address::parse(channel.gainAddress), [&channel](const Message& message)
+          { channel.gain = std::get<float>(message.argument); });
+      handlers.add(*oscpm::Address::parse(channel.muteAddress), [&channel](const Message& message)
+          { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
   }
 
   // The main receive loop
@@ -144,9 +155,9 @@ int main()
   }
 
   // Print the new values set by the handlers
-  for (std::size_t channel = 0; channel < gains.size(); ++channel)
+  for (std::size_t index = 0; index < channels.size(); ++index)
   {
-      std::printf("%zu %g%s\n", channel + 1, static_cast<double>(gains[channel]), mutes[channel] ? " muted" : "");
+      std::printf("%zu %g%s\n", index + 1, static_cast<double>(channels[index].gain), channels[index].mute ? " muted" : "");
   }
   return 0;
 }
@@ -163,7 +174,7 @@ The visitor is invoked once for each method whose address matches the received p
 The example below is a lighting rig: every address is a dimmer level, a network thread queues the console's messages, and the output thread applies them and reads the current level of every dimmer each frame. The address space is only ever touched by the output thread:
 
 ```cpp
-// A message received from the lighting console, e.g. { "/light/[01-04]/level", 0.75f } or { "/light/*/level", 0.0f }
+// A message received from the lighting console, e.g. { "/light/0[1-4]/level", 0.75f } or { "/light/*/level", 0.0f }
 struct LevelMessage
 {
   char addressPattern[64];
@@ -202,14 +213,17 @@ void outputFrame(oscpm::AddressSpace<float>& levels)
 
 int main()
 {
+  // An Address views the bytes it was parsed from, so the address strings outlive the address space
+  std::array<std::string, 24> addresses;
   oscpm::AddressSpace<float> levels;
 
   // Add a level for each dimmer, before either thread starts
-  for (std::size_t dimmer = 1; dimmer <= 24; ++dimmer)
+  for (std::size_t dimmer = 0; dimmer < addresses.size(); ++dimmer)
   {
-      char address[32];
-      std::snprintf(address, sizeof address, "/light/%02zu/level", dimmer);
-      levels.add(*oscpm::Address::parse(address), 0.0f);
+      char text[32];
+      std::snprintf(text, sizeof text, "/light/%02zu/level", dimmer + 1);
+      addresses[dimmer] = text;
+      levels.add(*oscpm::Address::parse(addresses[dimmer]), 0.0f);
   }
 
   // Start the network thread, which pushes each received message, and the output thread, which calls outputFrame(levels) on its frame timer
