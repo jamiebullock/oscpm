@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <cassert>
 #include <cstddef>
 #include <cstdlib>
 #include <memory>
@@ -30,25 +29,10 @@ namespace detail
     {
     };
 
-    /// Kept out of the constexpr callers: on some platforms `assert`
-    /// defines a static, which a constexpr function may not contain.
-    [[noreturn]] inline void abortWithoutValue() noexcept
-    {
-        assert(false && "an Expected holding an error has no value");
-        std::abort();
-    }
-
-    [[noreturn]] inline void abortWithoutError() noexcept
-    {
-        assert(false && "an Expected holding a value has no error");
-        std::abort();
-    }
-
 }
 
 /// Either a `T` or the error `E` that prevented one, with the member names of
-/// `std::expected`. Reading the side it does not hold asserts in a build
-/// without `NDEBUG`, and otherwise calls `std::abort`.
+/// `std::expected`. Reading the side it does not hold calls `std::abort`.
 /// @tparam E a scoped enumeration that neither converts to nor from `T`
 template <typename T, typename E>
 class Expected
@@ -127,7 +111,7 @@ private:
     {
         if (!has_value())
         {
-            detail::abortWithoutValue();
+            std::abort();
         }
     }
 
@@ -135,7 +119,7 @@ private:
     {
         if (has_value())
         {
-            detail::abortWithoutError();
+            std::abort();
         }
     }
 
