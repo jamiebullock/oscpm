@@ -43,7 +43,7 @@ inline std::size_t prepareParts(std::string_view pattern, PreparedParts& parts) 
         }
         PreparedPart& part = parts[numParts++];
         part.isOperator = cursor.isOperator();
-        part.text = part.isOperator ? std::string_view() : cursor.part();
+        part.text = part.isOperator ? std::string_view() : std::string_view(cursor.part());
         part.isLiteral = !part.isOperator && !hasOpener(part.text);
     }
     return numParts;

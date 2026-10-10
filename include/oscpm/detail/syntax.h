@@ -6,10 +6,10 @@
 
 #pragma once
 
+#include <oscpm/detail/string_view.h>
 #include <oscpm/error.h>
 
 #include <cstddef>
-#include <string_view>
 
 namespace oscpm::detail
 {
@@ -26,16 +26,16 @@ namespace k
     constexpr char listOpen = '{';
     constexpr char listClose = '}';
     constexpr char listSeparator = ',';
-    constexpr std::string_view reservedInAddress = "#*,?[]{}";
+    constexpr StringView reservedInAddress = "#*,?[]{}";
     constexpr unsigned char firstPrintableAscii = 0x21;
     constexpr unsigned char lastPrintableAscii = 0x7E;
     constexpr std::size_t operatorRunLength = 2;
-    constexpr std::string_view descendantOperator = "//";
+    constexpr StringView descendantOperator = "//";
 }
 
-constexpr std::size_t npos = std::string_view::npos;
+constexpr std::size_t npos = StringView::npos;
 
-constexpr bool startsWith(std::string_view text, std::string_view prefix) noexcept
+constexpr bool startsWith(StringView text, StringView prefix) noexcept
 {
     return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
 }
@@ -45,7 +45,7 @@ constexpr bool isOpener(char byte) noexcept
     return byte == k::anyBytes || byte == k::anyByte || byte == k::setOpen || byte == k::listOpen;
 }
 
-constexpr bool hasOpener(std::string_view text) noexcept
+constexpr bool hasOpener(StringView text) noexcept
 {
     for (const char byte : text)
     {
@@ -57,7 +57,7 @@ constexpr bool hasOpener(std::string_view text) noexcept
     return false;
 }
 
-constexpr std::size_t closeWithinPart(std::string_view pattern, std::size_t open, char closeByte) noexcept
+constexpr std::size_t closeWithinPart(StringView pattern, std::size_t open, char closeByte) noexcept
 {
     const std::size_t close = pattern.find(closeByte, open + 1);
     if (close == npos || pattern.substr(open + 1, close - open - 1).find(k::partSeparator) != npos)
@@ -78,17 +78,17 @@ constexpr bool isReservedInAddress(char byte) noexcept
     return k::reservedInAddress.find(byte) != npos;
 }
 
-constexpr bool hasLeadingSlash(std::string_view text) noexcept
+constexpr bool hasLeadingSlash(StringView text) noexcept
 {
     return !text.empty() && text[0] == k::partSeparator;
 }
 
-constexpr bool hasWildcard(std::string_view pattern) noexcept
+constexpr bool hasWildcard(StringView pattern) noexcept
 {
     return hasOpener(pattern) || pattern.find(k::descendantOperator) != npos;
 }
 
-constexpr bool isLiteralText(std::string_view pattern) noexcept
+constexpr bool isLiteralText(StringView pattern) noexcept
 {
     std::size_t partLength = 0;
     for (std::size_t i = 0; i < pattern.size(); ++i)
