@@ -386,6 +386,8 @@ build/bench/bench/oscpm_bench
 
 `python3 bench/compare.py report` builds the benchmarks and prints the setup and tables above.
 
+On a pull request, CI counts the instructions per iteration of every benchmark under Cachegrind for the change and for `develop`, and fails when a benchmark rises by more than 2% and 4 instructions. A change that accepts such a rise names the benchmark and its new ceiling, in instructions per iteration as the job's summary reports them, in `bench/accepted.json`. The check passes that benchmark while it stays at or below the ceiling and fails it again above, and it reports an entry that covers no rise against `develop`, which is the case once the change has merged, so the entry can be removed.
+
 ## Integration
 
 CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS and MSVC on Windows.

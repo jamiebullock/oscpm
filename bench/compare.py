@@ -7,9 +7,10 @@
 """Runs the oscpm benchmarks and compares two revisions.
 
 instructions  instructions per iteration under Cachegrind, base against head;
-              exits 1 when a benchmark regresses past the threshold, taking
-              the lowest count of each side over several heap positions once
-              the first measurement is past it
+              exits 1 when a benchmark regresses past the threshold and above
+              the ceiling bench/accepted.json gives it, taking the lowest
+              count of each side over several heap positions once the first
+              measurement is past it
 time          wall-clock, base against head, in interleaved rounds
 report        wall-clock medians of the headline benchmarks, as Markdown
 """
@@ -28,6 +29,8 @@ import sys
 from pathlib import Path
 
 kRoot = Path(__file__).resolve().parent.parent
+kAcceptedPath = kRoot / "bench" / "accepted.json"
+kAcceptedName = kAcceptedPath.relative_to(kRoot).as_posix()
 kRegressionRatio = 1.02
 kRegressionFloor = 4
 kProbeNoiseBudget = 100000
@@ -176,9 +179,26 @@ def withLowest(binary, counts, iterations, names, jobs):
     return {**counts, **lowest}
 
 
-def instructionTable(base, head):
+def loadAccepted():
+    try:
+        accepted = json.loads(kAcceptedPath.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        sys.exit(f"{kAcceptedName}: {error}")
+    wellFormed = isinstance(accepted, dict) and all(
+        isinstance(ceiling, int) and not isinstance(ceiling, bool) and ceiling >= 0 for ceiling in accepted.values())
+    if not wellFormed:
+        sys.exit(f"{kAcceptedName} must map each benchmark name to its ceiling in instructions per iteration")
+    return accepted
+
+
+def isAccepted(name, count, accepted):
+    return name in accepted and count <= accepted[name]
+
+
+def instructionTable(base, head, accepted):
     lines = ["| Benchmark | Base | Head | Head / base |", "|---|---:|---:|---:|"]
     regressions = []
+    withinCeiling = []
     for name in sorted(set(base) | set(head)):
         if name not in head:
             lines.append(f"| {name} | {base[name]:,.0f} | removed | |")
@@ -189,10 +209,14 @@ def instructionTable(base, head):
         ratio = head[name] / base[name] if base[name] > 0 else float("inf")
         marker = ""
         if isRegression(base[name], head[name]):
-            regressions.append(name)
-            marker = " **regressed**"
+            if isAccepted(name, head[name], accepted):
+                withinCeiling.append(name)
+                marker = f" accepted up to {accepted[name]:,}"
+            else:
+                regressions.append(name)
+                marker = " **regressed**"
         lines.append(f"| {name} | {base[name]:,.0f} | {head[name]:,.0f} | {ratio:.3f}{marker} |")
-    return lines, regressions
+    return lines, regressions, withinCeiling
 
 
 def writeSummary(path, lines):
@@ -204,6 +228,7 @@ def writeSummary(path, lines):
 
 
 def compareInstructions(arguments, workDir):
+    accepted = loadAccepted()
     headBinary = configureAndBuild(kRoot, workDir / "head", workDir)
     if headBinary is None:
         sys.exit("head does not build")
@@ -231,16 +256,23 @@ def compareInstructions(arguments, workDir):
         lines += [f"| {name} | {head[name]:,.0f} |" for name in sorted(head)]
         writeSummary(arguments.summary, lines)
         return 0
-    table, regressions = instructionTable(base, head)
+    table, regressions, withinCeiling = instructionTable(base, head, accepted)
+    unused = sorted(name for name in accepted if name not in withinCeiling and name not in regressions)
     verdict = (f"{len(regressions)} benchmark(s) rose by more than {kRegressionRatio - 1:.0%} "
                f"and {kRegressionFloor} instructions: {', '.join(regressions)}"
                if regressions else "No benchmark regressed.")
+    if withinCeiling:
+        verdict += (f"\n\n{len(withinCeiling)} benchmark(s) rose past the threshold but not past the ceiling "
+                    f"{kAcceptedName} gives them: {', '.join(withinCeiling)}")
+    if unused:
+        verdict += (f"\n\n{len(unused)} entry(ies) in {kAcceptedName} covered no regression against {arguments.base} "
+                    f"and can be removed: {', '.join(unused)}")
     if remeasured:
         verdict += (f"\n\n{len(remeasured)} benchmark(s) exceeded the threshold as first measured and were measured "
                     f"again at {len(kHeapPaddings)} more heap positions; the table shows the lowest count of each "
                     f"side: {', '.join(remeasured)}")
     writeSummary(arguments.summary, [heading, "", verdict, "", *table])
-    return 1 if regressions and not arguments.allowRegressions else 0
+    return 1 if regressions else 0
 
 
 def timesByName(binary, filterPattern, extraArguments):
@@ -378,8 +410,6 @@ def main():
     parser.add_argument("--summary", default=os.environ.get("GITHUB_STEP_SUMMARY"),
                         help="file the Markdown result is appended to")
     parser.add_argument("--jobs", type=int, default=os.cpu_count())
-    parser.add_argument("--allow-regressions", dest="allowRegressions", action="store_true",
-                        help="report regressions without failing")
     parser.add_argument("--rounds", type=int, default=5)
     parser.add_argument("--repetitions", type=int, default=10)
     parser.add_argument("--min-time", dest="minTime", default="0.2s")
