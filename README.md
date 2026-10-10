@@ -331,6 +331,28 @@ The stack a visit or dispatch uses is likewise fixed when it is compiled, and do
 
 A libFuzzer target checks the matcher, the pattern value and `Address::parse` against each other under AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
+## Supported Platforms
+
+oscpm supports the following platforms, needing only a C++17 compiler and its standard library:
+
+| Platform | Toolchain | Checked |
+| --- | --- | --- |
+| Linux | GCC, Clang | CI |
+| macOS | AppleClang | CI |
+| Windows | MSVC, Visual Studio 2022 | CI |
+| Arduino UNO R4 Minima | `arduino:renesas_uno` core, GCC 7.2.1 with libstdc++ 7 | CI |
+| ESP8266 | `esp8266:esp8266` core | CI |
+| Raspberry Pi Pico | `rp2040:rp2040` core | CI |
+| Raspberry Pi Pico 2 | `rp2040:rp2040` core | `arduino-cli`, 2026-10-10 |
+| ESP32 | `esp32:esp32` core | `arduino-cli`, 2026-10-10 |
+| STM32 Nucleo F401RE | `STMicroelectronics:stm32` core | `arduino-cli`, 2026-10-10 |
+| Teensy LC, Teensy 4.1 | `teensy:avr` core | `arduino-cli`, 2026-10-10 |
+| Arduino Giga R1, Arduino UNO Q | `arduino:zephyr_main` and `arduino:zephyr` cores | `arduino-cli`, 2026-10-10 |
+| Arduino MKR Zero | `arduino:samd` core, with `-std=gnu++17` | `arduino-cli`, 2026-10-10 |
+| Adafruit Feather nRF52840 | `adafruit:nrf52` core, with `-std=gnu++17` and `-lstdc++` | `arduino-cli`, 2026-10-10 |
+
+The rows marked CI are built on every push and pull request to `develop`. Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The 8-bit AVR boards have no C++ standard library, and the `arduino:mbed_nano` core's `abs` macro breaks libstdc++ at C++17, so oscpm does not compile for them.
+
 ## Performance
 
 - Processor: Apple M4
