@@ -10,17 +10,15 @@
 #include <string_view>
 #include <type_traits>
 
-// libstdc++ gained constexpr char_traits, and with it a constexpr
-// string_view, in release 8. OSCPM_STRING_VIEW_FALLBACK selects the
-// fallback on any library, for testing it.
+// Use the custom StringView class as a fallback for string_view when
+// explicitly requested or the compiler doesn't fully support std::string_view
 #if defined(OSCPM_STRING_VIEW_FALLBACK) || (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 8)
 
 namespace oscpm::detail
 {
 
-/// The subset of `std::string_view` the matcher uses, with `find`, `substr`
-/// and the comparisons usable in constant expressions on standard libraries
-/// where the real ones are not.
+/// A stand-in for the subset of `std::string_view` used by the library
+/// adding compatibility on platforms that have an incomplete implementation
 class StringView
 {
 public:
