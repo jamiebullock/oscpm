@@ -13,7 +13,7 @@
 #   match
 #   nomatch
 #   malformed-pattern <Error>
-#   malformed-address <Error> <match|nomatch>
+#   malformed-address <Error>
 #
 # <Error> is the enumerator name from oscpm::PatternError for a pattern and
 # oscpm::AddressError for an address.
