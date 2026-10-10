@@ -1,0 +1,66 @@
+name: Arduino
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arduino-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: ${{ matrix.board.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          # GCC 7.2.1 with libstdc++ 7, at the core's default flags.
+          - name: Arduino UNO R4 Minima
+            fqbn: arduino:renesas_uno:minima
+            core: arduino:renesas_uno@1.6.0
+            url: ""
+          # The core's assert expands to a static definition.
+          - name: ESP8266
+            fqbn: esp8266:esp8266:generic
+            core: esp8266:esp8266@3.1.2
+            url: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          # A current GCC, as the baseline.
+          - name: Raspberry Pi Pico
+            fqbn: rp2040:rp2040:rpipico
+            core: rp2040:rp2040@6.3.0
+            url: https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02 # v2.0.0
+        with:
+          version: 1.5.1
+
+      - name: Cache the core
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.arduino15
+          key: arduino-${{ matrix.board.core }}
+
+      - name: Install the core
+        env:
+          CORE: ${{ matrix.board.core }}
+          URL: ${{ matrix.board.url }}
+        run: |
+          arduino-cli core update-index ${URL:+--additional-urls "$URL"}
+          arduino-cli core install "$CORE" ${URL:+--additional-urls "$URL"}
+
+      - name: Compile the sketch
+        env:
+          FQBN: ${{ matrix.board.fqbn }}
+        run: arduino-cli compile --fqbn "$FQBN" --warnings all --build-property "compiler.cpp.extra_flags=-I$PWD/include" tests/arduino/oscpm_sketch
