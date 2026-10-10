@@ -3,22 +3,17 @@ name: Benchmarks
 on:
   pull_request:
     branches: [develop]
-    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
 
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   instructions:
     name: Instruction counts against develop
-    # Adding or removing any other label leaves the result unchanged.
-    if: >-
-      (github.event.action != 'labeled' && github.event.action != 'unlabeled')
-      || github.event.label.name == 'bench-regression-accepted'
-    # At job level, so a skipped run for another label cancels nothing.
-    concurrency:
-      group: bench-${{ github.ref }}
-      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -34,13 +29,7 @@ jobs:
       - name: Compare instruction counts with the base branch
         env:
           BASE_REF: origin/${{ github.base_ref }}
-          ALLOW_REGRESSIONS: ${{ contains(github.event.pull_request.labels.*.name, 'bench-regression-accepted') }}
-        run: |
-          if [ "$ALLOW_REGRESSIONS" = true ]; then
-            python3 bench/compare.py instructions --base "$BASE_REF" --allow-regressions
-          else
-            python3 bench/compare.py instructions --base "$BASE_REF"
-          fi
+        run: python3 bench/compare.py instructions --base "$BASE_REF"
 
       - name: Keep the counts
         if: always()
