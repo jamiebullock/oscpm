@@ -36,7 +36,7 @@ jobs:
           - name: Linux (GCC, Debug)
             os: ubuntu-latest
             preset: debug
-            configure_args: -DCMAKE_CXX_COMPILER=g++
+            configure_args: -DCMAKE_CXX_COMPILER=g++ -DCMAKE_CXX_FLAGS=-DOSCPM_STRING_VIEW_FALLBACK
           - name: macOS
             os: macos-latest
             preset: release

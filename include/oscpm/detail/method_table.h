@@ -53,7 +53,7 @@ public:
             }
             m_index.reserveForInsert();
         }
-        const auto offset = position - m_methods.begin();
+        [[maybe_unused]] const auto offset = position - m_methods.begin();
         m_methods.insert(position, Method { std::string(address), std::move(value) });
         m_memo.forget();
         if constexpr (kMethodMovesCannotThrow)
@@ -71,7 +71,7 @@ public:
         {
             return false;
         }
-        const auto offset = position - m_methods.begin();
+        [[maybe_unused]] const auto offset = position - m_methods.begin();
         m_methods.erase(position);
         m_memo.forget();
         if constexpr (kMethodMovesCannotThrow)

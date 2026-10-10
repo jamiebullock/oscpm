@@ -8,6 +8,7 @@
 
 #include <oscpm/address.h>
 #include <oscpm/detail/match.h>
+#include <oscpm/detail/string_view.h>
 #include <oscpm/detail/syntax.h>
 #include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
@@ -32,7 +33,7 @@ public:
     /// Whether this pattern matches `address`.
     constexpr bool matches(const Address& address) const noexcept
     {
-        const std::string_view text = address.text();
+        const detail::StringView text = address.text();
         return m_isLiteral ? text == m_text : detail::matchParsed(m_text, text);
     }
 
