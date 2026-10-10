@@ -132,7 +132,7 @@ Addresses expectedMatches(const std::set<std::string>& registered, std::string_v
     const Pattern value = parsed(pattern);
     for (const std::string& address : registered)
     {
-        if (value.matches(address))
+        if (value.matches(*Address::parse(address)))
         {
             expected.push_back(address);
         }

@@ -13,7 +13,7 @@
 #   match
 #   nomatch
 #   malformed-pattern <Error>
-#   malformed-address <Error> <match|nomatch>
+#   malformed-address <Error>
 #
 # <Error> is the enumerator name from oscpm::PatternError for a pattern and
 # oscpm::AddressError for an address.
@@ -29,9 +29,8 @@
 # containing one is a dead member that leaves the others live.
 #
 # A malformed-address case asserts that the pattern parses, that
-# AddressSpace::add reports that kind, and that match() and
-# Pattern::matches(), which compare bytes and never validate the address,
-# return the trailing field. Address faults: MissingLeadingSlash;
+# Address::parse reports that kind, and that match() returns false.
+# Address faults: MissingLeadingSlash;
 # TrailingSlash for a final '/' (the bare "/" is a TrailingSlash);
 # EmptyPart for two adjacent '/'; IllegalByte for a byte outside 0x21..0x7E
 # or one of ' #*,?[]{}'; PartTooLong for a part longer than
@@ -81,50 +80,50 @@
 
 ## Address validation: leading slash, bare root, empty part, trailing slash
 
-"/a"                ""                  malformed-address MissingLeadingSlash nomatch
-"/a"                "a"                 malformed-address MissingLeadingSlash nomatch
-"/a"                "a/b"               malformed-address MissingLeadingSlash nomatch
-"/a"                "/"                 malformed-address TrailingSlash nomatch
-"/a"                "//"                malformed-address EmptyPart nomatch
-"/a"                "//a"               malformed-address EmptyPart nomatch
-"/a"                "/a//b"             malformed-address EmptyPart nomatch
-"/a"                "/a///b"            malformed-address EmptyPart nomatch
-"/a"                "/a//"              malformed-address EmptyPart nomatch
-"/a"                "/a/"               malformed-address TrailingSlash nomatch
-"/a"                "/a/b/"             malformed-address TrailingSlash nomatch
+"/a"                ""                  malformed-address MissingLeadingSlash
+"/a"                "a"                 malformed-address MissingLeadingSlash
+"/a"                "a/b"               malformed-address MissingLeadingSlash
+"/a"                "/"                 malformed-address TrailingSlash
+"/a"                "//"                malformed-address EmptyPart
+"/a"                "//a"               malformed-address EmptyPart
+"/a"                "/a//b"             malformed-address EmptyPart
+"/a"                "/a///b"            malformed-address EmptyPart
+"/a"                "/a//"              malformed-address EmptyPart
+"/a"                "/a/"               malformed-address TrailingSlash
+"/a"                "/a/b/"             malformed-address TrailingSlash
 
-## A pattern fault is reported by parse; an address fault only by AddressSpace::add
+## A pattern fault is reported by Pattern::parse and an address fault by Address::parse; match() is false for either
 
 "a"                 "b"                 malformed-pattern MissingLeadingSlash
-"/a/"               "/a/"               malformed-address TrailingSlash match
+"/a/"               "/a/"               malformed-address TrailingSlash
 
 ## Illegal bytes in an address: pattern characters, '#' and space
 
-"/a"                "/a?"               malformed-address IllegalByte nomatch
-"/a"                "/a*"               malformed-address IllegalByte nomatch
-"/a"                "/a["               malformed-address IllegalByte nomatch
-"/a"                "/a]"               malformed-address IllegalByte nomatch
-"/a"                "/a{"               malformed-address IllegalByte nomatch
-"/a"                "/a}"               malformed-address IllegalByte nomatch
-"/a"                "/a,"               malformed-address IllegalByte nomatch
-"/a"                "/a#"               malformed-address IllegalByte nomatch
-"/a"                "/a "               malformed-address IllegalByte nomatch
-"/a"                "/ /a"              malformed-address IllegalByte nomatch
-"/a"                "/x/y/z*"           malformed-address IllegalByte nomatch
+"/a"                "/a?"               malformed-address IllegalByte
+"/a"                "/a*"               malformed-address IllegalByte
+"/a"                "/a["               malformed-address IllegalByte
+"/a"                "/a]"               malformed-address IllegalByte
+"/a"                "/a{"               malformed-address IllegalByte
+"/a"                "/a}"               malformed-address IllegalByte
+"/a"                "/a,"               malformed-address IllegalByte
+"/a"                "/a#"               malformed-address IllegalByte
+"/a"                "/a "               malformed-address IllegalByte
+"/a"                "/ /a"              malformed-address IllegalByte
+"/a"                "/x/y/z*"           malformed-address IllegalByte
 
 ## '#' and space in a pattern are literal bytes that no address can contain
 
-"/a#b"              "/a#b"              malformed-address IllegalByte match
-"/a b"              "/a b"              malformed-address IllegalByte match
+"/a#b"              "/a#b"              malformed-address IllegalByte
+"/a b"              "/a b"              malformed-address IllegalByte
 "/#bundle"          "/x"                nomatch
 "/a/b c"            "/a/b"              nomatch
 
 ## The first fault wins
 
-"/a"                "a?"                malformed-address MissingLeadingSlash nomatch
-"/a"                "/a?/"              malformed-address IllegalByte nomatch
-"/a"                "/a/?/"             malformed-address IllegalByte nomatch
-"/a"                "/a//?"             malformed-address EmptyPart nomatch
+"/a"                "a?"                malformed-address MissingLeadingSlash
+"/a"                "/a?/"              malformed-address IllegalByte
+"/a"                "/a/?/"             malformed-address IllegalByte
+"/a"                "/a//?"             malformed-address EmptyPart
 
 ## '?' matches exactly one byte, never '/'
 
@@ -144,10 +143,10 @@
 "/?/?"              "/a"                nomatch
 "/?"                "/a/b"              nomatch
 
-## Matching is byte-wise: a two-byte UTF-8 sequence is two bytes, and AddressSpace::add rejects it
+## A two-byte UTF-8 sequence is outside printable ASCII, so Address::parse rejects it
 
-"/?"                "/é"                malformed-address IllegalByte nomatch
-"/??"               "/é"                malformed-address IllegalByte match
+"/?"                "/é"                malformed-address IllegalByte
+"/??"               "/é"                malformed-address IllegalByte
 
 ## '*' matches zero or more bytes, never '/'
 
@@ -168,7 +167,7 @@
 "/a*c"              "/ac"               match
 "/a*c"              "/abbbc"            match
 "/a*c"              "/abbb"             nomatch
-"/**"               "/"                 malformed-address TrailingSlash match
+"/**"               "/"                 malformed-address TrailingSlash
 "/**"               "/abc"              match
 "/*?"               "/a"                match
 "/*?"               "/abc"              match
@@ -205,7 +204,7 @@
 "/[abc]"            "/b"                match
 "/[abc]"            "/d"                nomatch
 "/[abc]"            "/ab"               nomatch
-"/[abc]"            "/]"                malformed-address IllegalByte nomatch
+"/[abc]"            "/]"                malformed-address IllegalByte
 "/[a]"              "/a"                match
 "/[a]/b"            "/a/b"              match
 "/[a]"              "/a/b"              nomatch
@@ -225,8 +224,8 @@
 "/[c-a]"            "/b"                nomatch
 "/[c-a]"            "/a"                nomatch
 "/[c-a]"            "/c"                nomatch
-"/[é]"              "/é"                malformed-address IllegalByte nomatch
-"/[!é]"             "/é"                malformed-address IllegalByte nomatch
+"/[é]"              "/é"                malformed-address IllegalByte
+"/[!é]"             "/é"                malformed-address IllegalByte
 
 ## A leading '!' negates a character class
 
@@ -345,9 +344,9 @@
 "/x{,}"             "/x"                match
 "/x{a,,b}"          "/x"                match
 "/x{a,,b}"          "/xb"               match
-"/{}"               "/"                 malformed-address TrailingSlash match
+"/{}"               "/"                 malformed-address TrailingSlash
 "/{}/a"             "/a"                nomatch
-"/{}/a"             "//a"               malformed-address EmptyPart match
+"/{}/a"             "//a"               malformed-address EmptyPart
 
 ## A brace list backtracks when more than one member matches
 
@@ -612,11 +611,11 @@
 "/a]//b"            "/a/b"              nomatch
 "//a//b#"           "/a/b"              nomatch
 
-## Two slashes in an address are an empty part; matching still compares bytes
+## Two slashes in an address are an empty part, which Address::parse rejects
 
-"//a"               "//a"               malformed-address EmptyPart match
-"/a//b"             "/a//b"             malformed-address EmptyPart match
-"//a"               "/"                 malformed-address TrailingSlash nomatch
+"//a"               "//a"               malformed-address EmptyPart
+"/a//b"             "/a//b"             malformed-address EmptyPart
+"//a"               "/"                 malformed-address TrailingSlash
 
 ## Bare "//" is a leading run with nothing after it: zero or more parts, so every address
 "//"                "/a"                match

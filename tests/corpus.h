@@ -29,7 +29,6 @@ struct CorpusCase
     std::string address;
     Expectation expectation = Expectation::Match;
     std::string errorName;
-    bool matchesBytewise = false;
 };
 
 /// Every case in the corpus file at `path`, read as bytes; fails the running

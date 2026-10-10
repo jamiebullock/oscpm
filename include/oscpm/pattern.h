@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <oscpm/address.h>
 #include <oscpm/detail/match.h>
 #include <oscpm/detail/syntax.h>
 #include <oscpm/detail/validate.h>
@@ -28,11 +29,11 @@ public:
     /// Parses `text`, yielding the pattern or the first fault.
     static constexpr Expected<Pattern, PatternError> parse(std::string_view text) noexcept;
 
-    /// Whether this pattern matches `address`, which is compared byte for
-    /// byte and never validated.
-    constexpr bool matches(std::string_view address) const noexcept
+    /// Whether this pattern matches `address`.
+    constexpr bool matches(const Address& address) const noexcept
     {
-        return m_isLiteral ? address == m_text : detail::matchParsed(m_text, address);
+        const std::string_view text = address.text();
+        return m_isLiteral ? text == m_text : detail::matchParsed(m_text, text);
     }
 
     /// The bytes this pattern was parsed from.
@@ -69,11 +70,17 @@ constexpr Expected<Pattern, PatternError> Pattern::parse(std::string_view text) 
     return Pattern(text);
 }
 
-/// @return true if @p address matches @p pattern
+/// @return true if @p address matches @p pattern; false when either is
+/// malformed
 constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
-    const Expected<Pattern, PatternError> parsed = Pattern::parse(pattern);
-    return parsed && parsed->matches(address);
+    const Expected<Pattern, PatternError> parsedPattern = Pattern::parse(pattern);
+    if (!parsedPattern)
+    {
+        return false;
+    }
+    const Expected<Address, AddressError> parsedAddress = Address::parse(address);
+    return parsedAddress && parsedPattern->matches(*parsedAddress);
 }
 
 }

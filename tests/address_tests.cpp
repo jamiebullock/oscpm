@@ -96,7 +96,7 @@ TEST_CASE("an address parses as a literal pattern that matches itself")
         REQUIRE(address);
         REQUIRE(pattern);
         CHECK(pattern->isLiteral());
-        CHECK(pattern->matches(address->text()));
+        CHECK(pattern->matches(*address));
     }
 }
 

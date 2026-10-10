@@ -46,22 +46,22 @@ oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
 oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
 ```
 
-> `oscpm::match()` returns `false` for both a pattern parse failure and a non-match. If the distinction matters then [Pattern::parse()](#patterns) should be used instead.
+> `oscpm::match()` returns `false` for a malformed pattern, a malformed address and a non-match alike. If the distinction matters then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
 
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
-- Matching with `Pattern::matches()` is faster than `oscpm::match()` because validation happens once in `Pattern::parse()`, and patterns without wildcards reduce to a plain string comparison
+- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once in `Pattern::parse()` and the address once in `Address::parse()`, and patterns without wildcards reduce to a plain string comparison
 
 ```cpp
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
 static_assert(parsed);
-static_assert(parsed->matches("/synth/12/amp"));
+static_assert(parsed->matches(*oscpm::Address::parse("/synth/12/amp")));
 
 if (const auto result = oscpm::Pattern::parse(text))
 {
-    result->matches(message.address()); // any std::string_view
+    result->matches(address); // an oscpm::Address
 }
 else
 {
@@ -73,6 +73,7 @@ else
 Similar to `Pattern`, `Address` is a validated OSC address:
 - A malformed address is reported as an `AddressError`, one of the faults under [Malformed Addresses](#malformed-addresses)
 - For `constexpr` addresses, validity can be checked at compile time
+- `Pattern::matches()` takes an `Address`, so a pattern is only ever matched against a well-formed address
 
 ```cpp
 #include <oscpm/address.h>
@@ -259,7 +260,7 @@ Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0
   | `/a//` | `/a` and every address below it |
   | `//` | every address |
 
-- A single trailing `/` is an empty part that only an address ending in `/` satisfies, so `/a/` does not match `/a`. The bare `/` likewise matches only the address `/`.
+- A single trailing `/` leaves an empty final part, the substring after the last slash. No address has one, because an address ends with a method name, so a pattern ending in `/`, and the bare `/`, match no address.
 
 ### Classes
 
@@ -283,7 +284,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 ### Other Bytes
 
 - A `]`, `}` or `,` outside its construct, a `#`, a space and any byte outside printable ASCII is a literal that matches only itself. No well-formed address contains one, so a part holding one matches no well-formed address. In a brace list only the member holding it is affected: `{a b,c}` still matches `c`.
-- Matching is by byte and case-sensitive, and the address is not validated.
+- Matching is by byte and case-sensitive.
 
 ### Malformed Patterns
 
@@ -310,7 +311,7 @@ Every other pattern parses. A rejected pattern matches nothing: `match` returns 
 | a byte outside printable ASCII, or one of `space`, `#`, `*`, `,`, `?`, `[`, `]`, `{`, `}` | `IllegalByte` |
 | a part longer than `kMaxAddressPartLength` | `PartTooLong` |
 
-Every well-formed address also parses as a literal pattern that matches only itself.
+A rejected address matches nothing: `match` returns false, and `Pattern::matches` takes only a parsed `Address`. Every well-formed address also parses as a literal pattern that matches only itself.
 
 [`corpus/matching.txt`](corpus/matching.txt) is the executable record of these rules: one case per line, replayed by the test suite, in a plain-text format other implementations can reuse.
 
@@ -333,42 +334,42 @@ A libFuzzer target checks the matcher, the pattern value and `Address::parse` ag
 ## Performance
 
 - Processor: Apple M4
-- Operating system: macOS 26.5.2
-- Compiler: AppleClang 21.0.0.21000101, `-O3 -DNDEBUG`
-- oscpm: v0.3.6, measured 2026-09-24
+- Operating system: macOS 27.0.1
+- Compiler: AppleClang 21.0.0.21000334, `-O3 -DNDEBUG`
+- oscpm: v0.9.0, measured 2026-10-10
 - Method: median wall-clock time of 10 repetitions; dispatch is into a space of 1,856 addresses
 
 **Repeated visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
-| Literal address | 5.51 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 50.1 |
-| `//freq`, matching 512 addresses | 154 |
-| One message of a repeating stream of 64 | 10.4 |
+| Literal address | 5.45 |
+| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 48.7 |
+| `//freq`, matching 512 addresses | 149 |
+| One message of a repeating stream of 64 | 10 |
 
 **First visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
-| Literal address | 5.12 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 88,600 |
-| `//freq` | 32,000 |
+| Literal address | 4.46 |
+| `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 86,100 |
+| `//freq` | 31,400 |
 
 **One pattern against one address**
 
 | Operation | Median (ns) |
 |---|---:|
-| `Pattern::matches`, literal | 1.3 |
-| `Pattern::matches`, wildcards | 100 |
-| `oscpm::match` (parse and match), wildcards | 125 |
+| `Pattern::matches`, literal | 1.28 |
+| `Pattern::matches`, wildcards | 90.5 |
+| `oscpm::match` (parse and match), wildcards | 158 |
 
 **Hostile patterns**
 
 | Pattern | Median (us) |
 |---|---:|
-| The slowest pattern of 1024 bytes (`list-alternatives`) | 5,000 |
-| A 64 KB wildcard pattern, rejected | 2.96 |
+| The slowest pattern of 1024 bytes (`list-alternatives`) | 4,680 |
+| A 64 KB wildcard pattern, rejected | 2.8 |
 
 - A repeated message costs one hash lookup plus one visitor call per matched address. A literal address costs the same the first time.
 - The first visit of any other pattern tests every registered address, so its cost grows with the size of the space.
