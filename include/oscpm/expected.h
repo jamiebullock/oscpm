@@ -30,6 +30,20 @@ namespace detail
     {
     };
 
+    /// Kept out of the constexpr callers: on some platforms `assert`
+    /// defines a static, which a constexpr function may not contain.
+    [[noreturn]] inline void abortWithoutValue() noexcept
+    {
+        assert(false && "an Expected holding an error has no value");
+        std::abort();
+    }
+
+    [[noreturn]] inline void abortWithoutError() noexcept
+    {
+        assert(false && "an Expected holding a value has no error");
+        std::abort();
+    }
+
 }
 
 /// Either a `T` or the error `E` that prevented one, with the member names of
@@ -111,19 +125,17 @@ private:
 
     constexpr void requireValue() const noexcept
     {
-        assert(has_value() && "an Expected holding an error has no value");
         if (!has_value())
         {
-            std::abort();
+            detail::abortWithoutValue();
         }
     }
 
     constexpr void requireError() const noexcept
     {
-        assert(!has_value() && "an Expected holding a value has no error");
         if (has_value())
         {
-            std::abort();
+            detail::abortWithoutError();
         }
     }
 
