@@ -192,7 +192,7 @@ def loadAccepted():
 
 
 def isAccepted(name, count, accepted):
-    return name in accepted and count <= accepted[name]
+    return name in accepted and round(count) <= accepted[name]
 
 
 def instructionTable(base, head, accepted):
