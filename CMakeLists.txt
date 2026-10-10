@@ -67,6 +67,7 @@ if(OSCPM_CHECK_FORMAT)
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.h
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.ino
         ${CMAKE_CURRENT_SOURCE_DIR}/fuzz/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/bench/*.h

@@ -390,7 +390,7 @@ On a pull request, CI counts the instructions per iteration of every benchmark u
 
 ## Integration
 
-CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS and MSVC on Windows.
+CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS and MSVC on Windows. It also compiles the sketch in `tests/arduino` with `arduino-cli` for the Arduino UNO R4 Minima, a generic ESP8266 and the Raspberry Pi Pico, each at its core's default flags. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
 
 With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
 
