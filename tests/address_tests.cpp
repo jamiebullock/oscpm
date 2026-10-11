@@ -61,6 +61,14 @@ TEST_CASE("parse reports the first fault")
     static_assert(faults(Address::parse("/a\x7f"), AddressError::IllegalByte));
     static_assert(faults(Address::parse("/a b"), AddressError::IllegalByte));
     static_assert(faults(Address::parse("/a#"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a,"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a?"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a["), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a]"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a{"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a}"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a\x80"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/a\xff"), AddressError::IllegalByte));
 }
 
 TEST_CASE("parse rejects a part longer than the supported length")
