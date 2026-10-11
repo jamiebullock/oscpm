@@ -74,7 +74,7 @@ constexpr std::optional<AddressError> validateAddress(std::string_view address) 
             }
             partLength = 0;
         }
-        else if (!isPrintableAscii(address[i]) || isReservedInAddress(address[i]))
+        else if (!isLegalInAddressPart(address[i]))
         {
             return AddressError::IllegalByte;
         }

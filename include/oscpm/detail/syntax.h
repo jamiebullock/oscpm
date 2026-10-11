@@ -9,6 +9,7 @@
 #include <oscpm/detail/string_view.h>
 #include <oscpm/error.h>
 
+#include <array>
 #include <cstddef>
 
 namespace oscpm::detail
@@ -31,6 +32,7 @@ namespace k
     constexpr unsigned char lastPrintableAscii = 0x7E;
     constexpr std::size_t operatorRunLength = 2;
     constexpr StringView descendantOperator = "//";
+    constexpr std::size_t numByteValues = 256;
 }
 
 constexpr std::size_t npos = StringView::npos;
@@ -76,6 +78,29 @@ constexpr bool isPrintableAscii(char byte) noexcept
 constexpr bool isReservedInAddress(char byte) noexcept
 {
     return k::reservedInAddress.find(byte) != npos;
+}
+
+using ByteTable = std::array<bool, k::numByteValues>;
+
+constexpr ByteTable legalInAddressPartTable() noexcept
+{
+    ByteTable table { };
+    for (std::size_t value = 0; value < table.size(); ++value)
+    {
+        const auto byte = static_cast<char>(static_cast<unsigned char>(value));
+        table[value] = isPrintableAscii(byte) && !isReservedInAddress(byte);
+    }
+    return table;
+}
+
+namespace k
+{
+    inline constexpr ByteTable legalInAddressPart = legalInAddressPartTable();
+}
+
+constexpr bool isLegalInAddressPart(char byte) noexcept
+{
+    return k::legalInAddressPart[static_cast<unsigned char>(byte)];
 }
 
 constexpr bool hasLeadingSlash(StringView text) noexcept
