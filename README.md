@@ -358,40 +358,40 @@ The rows marked CI are built on every push and pull request to `develop`. Each A
 - Processor: Apple M4
 - Operating system: macOS 27.0.1
 - Compiler: AppleClang 21.0.0.21000334, `-O3 -DNDEBUG`
-- oscpm: v0.9.0, measured 2026-10-10
+- oscpm: v0.9.5-1-gea3c93c, measured 2026-10-11
 - Method: median wall-clock time of 10 repetitions; dispatch is into a space of 1,856 addresses
 
 **Repeated visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
-| Literal address | 5.45 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 48.7 |
-| `//freq`, matching 512 addresses | 149 |
-| One message of a repeating stream of 64 | 10 |
+| Literal address | 5.49 |
+| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 48.2 |
+| `//freq`, matching 512 addresses | 148 |
+| One message of a repeating stream of 64 | 10.2 |
 
 **First visit of a pattern**
 
 | Pattern | Median (ns) |
 |---|---:|
-| Literal address | 4.46 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 86,100 |
+| Literal address | 4.73 |
+| `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 82,800 |
 | `//freq` | 31,400 |
 
 **One pattern against one address**
 
 | Operation | Median (ns) |
 |---|---:|
-| `Pattern::matches`, literal | 1.28 |
-| `Pattern::matches`, wildcards | 90.5 |
-| `oscpm::match` (parse and match), wildcards | 158 |
+| `Pattern::matches`, literal | 1.24 |
+| `Pattern::matches`, wildcards | 91.2 |
+| `oscpm::match` (parse and match), wildcards | 130 |
 
 **Hostile patterns**
 
 | Pattern | Median (us) |
 |---|---:|
-| The slowest pattern of 1024 bytes (`list-alternatives`) | 4,680 |
-| A 64 KB wildcard pattern, rejected | 2.8 |
+| The slowest pattern of 1024 bytes (`list-alternatives`) | 4,690 |
+| A 64 KB wildcard pattern, rejected | 2.79 |
 
 - A repeated message costs one hash lookup plus one visitor call per matched address. A literal address costs the same the first time.
 - The first visit of any other pattern tests every registered address, so its cost grows with the size of the space.
