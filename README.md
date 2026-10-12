@@ -12,7 +12,13 @@ It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp), whi
 
 oscpm does not depend on oscpp, or on anything outside the standard library.
 
-## Example
+## Integration Examples
+
+oscpm pairs with any library that reads OSC packets and leaves matching and dispatch to the caller. Each example below registers a method under an address and dispatches every received message to the methods its address pattern matches; `synth` stands for whatever the methods control.
+
+### oscpp
+
+[oscpp](https://github.com/kaoskorobase/oscpp) hands each message to the caller as an `OSCPP::Server::Message`, whose `address()` is the pattern to dispatch.
 
 ```cpp
 #include <oscpm/address_space.h>
@@ -32,6 +38,104 @@ methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
 
 // for each OSCPP::Server::Message received
 methods.dispatch(message.address(), message); // A message with address "/synth/*" calls setFrequency()
+```
+
+### oscpack
+
+[oscpack](https://github.com/RossBencina/oscpack) delivers messages through a subclass of `osc::OscPacketListener`, which also unpacks bundles, so the address space lives in the listener.
+
+```cpp
+#include <oscpm/address_space.h>
+#include <osc/OscPacketListener.h>
+
+#include <functional>
+
+using Handler = std::function<void(const osc::ReceivedMessage&)>;
+
+void setFrequency(const osc::ReceivedMessage& message)
+{
+    float frequency;
+    message.ArgumentStream() >> frequency >> osc::EndMessage;
+    synth.setFrequency(frequency);
+}
+
+class Listener : public osc::OscPacketListener
+{
+public:
+    Listener() { m_methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency); }
+
+protected:
+    void ProcessMessage(const osc::ReceivedMessage& message, const IpEndpointName&) override
+    {
+        m_methods.dispatch(message.AddressPattern(), message); // A message with address "/synth/*" calls setFrequency()
+    }
+
+private:
+    oscpm::AddressSpace<Handler> m_methods;
+};
+```
+
+### tinyosc
+
+[tinyosc](https://github.com/mhroth/tinyosc) is a C library that parses a datagram in place. A `tosc_message` is a read cursor over the arguments, so each method takes its own copy and reads from the first argument.
+
+```cpp
+#include <oscpm/address_space.h>
+#include <tinyosc.h>
+
+#include <functional>
+
+using Handler = std::function<void(tosc_message)>;
+
+void setFrequency(tosc_message message)
+{
+    synth.setFrequency(tosc_getNextFloat(&message));
+}
+
+oscpm::AddressSpace<Handler> methods;
+methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
+
+// for each datagram of length bytes received into buffer
+tosc_message message;
+if (tosc_parseMessage(&message, buffer, length) == 0)
+{
+    methods.dispatch(tosc_getAddress(&message), message); // A message with address "/synth/*" calls setFrequency()
+}
+```
+
+### MicroOsc
+
+[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. This sketch compiles for the Arduino UNO R4 Minima, the ESP8266 and the Raspberry Pi Pico.
+
+```cpp
+#include <MicroOscSlip.h>
+#include <oscpm/address_space.h>
+
+using Handler = void (*)(MicroOscMessage);
+
+MicroOscSlip<128> osc(&Serial);
+oscpm::AddressSpace<Handler> methods;
+
+void setFrequency(MicroOscMessage message)
+{
+    synth.setFrequency(message.nextAsFloat());
+}
+
+void onMessage(MicroOscMessage& message)
+{
+    methods.dispatch(message.getOscAddress(), message); // A message with address "/synth/*" calls setFrequency()
+}
+
+void setup()
+{
+    Serial.begin(115200);
+    methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
+}
+
+void loop()
+{
+    osc.onOscMessageReceived(onMessage);
+}
 ```
 
 ## Matching
