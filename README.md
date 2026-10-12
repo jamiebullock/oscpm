@@ -19,132 +19,6 @@ Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 - Pairs with any packet library that leaves matching to the caller: oscpp, oscpack, tinyosc, MicroOsc ([Integration Examples](#integration-examples))
 - Fuzzed under AddressSanitizer and UndefinedBehaviorSanitizer on every change; mutation tested
 
-## Integration Examples
-
-oscpm pairs with any library that reads OSC packets and leaves matching and dispatch to the caller. Each example below registers a method under an address and dispatches every received message to the methods its address pattern matches; `synth` stands for whatever the methods control.
-
-### oscpp
-
-[oscpp](https://github.com/kaoskorobase/oscpp) hands each message to the caller as an `OSCPP::Server::Message`, whose `address()` is the pattern to dispatch.
-
-```cpp
-#include <oscpm/address_space.h>
-#include <oscpp/server.hpp>
-
-#include <functional>
-
-using Handler = std::function<void(const OSCPP::Server::Message&)>;
-
-void setFrequency(const OSCPP::Server::Message& message)
-{
-    synth.setFrequency(OSCPP::Server::ArgStream(message.args()).float32());
-}
-
-oscpm::AddressSpace<Handler> methods;
-methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
-
-// for each OSCPP::Server::Message received
-methods.dispatch(message.address(), message); // A message with address "/synth/*" calls setFrequency()
-```
-
-### oscpack
-
-[oscpack](https://github.com/RossBencina/oscpack) delivers messages through a subclass of `osc::OscPacketListener`, which also unpacks bundles, so the address space lives in the listener.
-
-```cpp
-#include <oscpm/address_space.h>
-#include <osc/OscPacketListener.h>
-
-#include <functional>
-
-using Handler = std::function<void(const osc::ReceivedMessage&)>;
-
-void setFrequency(const osc::ReceivedMessage& message)
-{
-    float frequency;
-    message.ArgumentStream() >> frequency >> osc::EndMessage;
-    synth.setFrequency(frequency);
-}
-
-class Listener : public osc::OscPacketListener
-{
-public:
-    Listener() { m_methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency); }
-
-protected:
-    void ProcessMessage(const osc::ReceivedMessage& message, const IpEndpointName&) override
-    {
-        m_methods.dispatch(message.AddressPattern(), message); // A message with address "/synth/*" calls setFrequency()
-    }
-
-private:
-    oscpm::AddressSpace<Handler> m_methods;
-};
-```
-
-### tinyosc
-
-[tinyosc](https://github.com/mhroth/tinyosc) is a C library that parses a datagram in place. A `tosc_message` is a read cursor over the arguments, so each method takes its own copy and reads from the first argument.
-
-```cpp
-#include <oscpm/address_space.h>
-#include <tinyosc.h>
-
-#include <functional>
-
-using Handler = std::function<void(tosc_message)>;
-
-void setFrequency(tosc_message message)
-{
-    synth.setFrequency(tosc_getNextFloat(&message));
-}
-
-oscpm::AddressSpace<Handler> methods;
-methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
-
-// for each datagram of length bytes received into buffer
-tosc_message message;
-if (tosc_parseMessage(&message, buffer, length) == 0)
-{
-    methods.dispatch(tosc_getAddress(&message), message); // A message with address "/synth/*" calls setFrequency()
-}
-```
-
-### MicroOsc
-
-[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. This sketch compiles for the Arduino UNO R4 Minima, the ESP8266 and the Raspberry Pi Pico.
-
-```cpp
-#include <MicroOscSlip.h>
-#include <oscpm/address_space.h>
-
-using Handler = void (*)(MicroOscMessage);
-
-MicroOscSlip<128> osc(&Serial);
-oscpm::AddressSpace<Handler> methods;
-
-void setFrequency(MicroOscMessage message)
-{
-    synth.setFrequency(message.nextAsFloat());
-}
-
-void onMessage(MicroOscMessage& message)
-{
-    methods.dispatch(message.getOscAddress(), message); // A message with address "/synth/*" calls setFrequency()
-}
-
-void setup()
-{
-    Serial.begin(115200);
-    methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
-}
-
-void loop()
-{
-    osc.onOscMessageReceived(onMessage);
-}
-```
-
 ## Matching
 In the simple case a match can be checked by comparing two `std::string_view`:
 
@@ -343,6 +217,102 @@ int main()
 }
 ```
 
+## Integration Examples
+
+oscpm pairs with any library that reads OSC packets and leaves matching and dispatch to the caller. Each example registers `setFrequency` under `/synth/freq` and dispatches every received message to the methods its address pattern matches; `synth` stands for whatever the methods control. The oscpp example is complete. The others show only what differs: the method's signature, how it reads its arguments, and where `dispatch` is called.
+
+### oscpp
+
+[oscpp](https://github.com/kaoskorobase/oscpp) hands each message to the caller as an `OSCPP::Server::Message`, whose `address()` is the pattern to dispatch.
+
+```cpp
+#include <oscpm/address_space.h>
+#include <oscpp/server.hpp>
+
+#include <functional>
+
+using Handler = std::function<void(const OSCPP::Server::Message&)>;
+
+void setFrequency(const OSCPP::Server::Message& message)
+{
+    synth.setFrequency(OSCPP::Server::ArgStream(message.args()).float32());
+}
+
+oscpm::AddressSpace<Handler> methods;
+methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
+
+// for each OSCPP::Server::Message received
+methods.dispatch(message.address(), message); // A message with address "/synth/*" calls setFrequency()
+```
+
+### oscpack
+
+[oscpack](https://github.com/RossBencina/oscpack) delivers messages through a subclass of `osc::OscPacketListener`, which also unpacks bundles. `Handler` is a `std::function<void(const osc::ReceivedMessage&)>`.
+
+```cpp
+#include <osc/OscPacketListener.h>
+
+void setFrequency(const osc::ReceivedMessage& message)
+{
+    float frequency;
+    message.ArgumentStream() >> frequency >> osc::EndMessage;
+    synth.setFrequency(frequency);
+}
+
+class Listener : public osc::OscPacketListener
+{
+    void ProcessMessage(const osc::ReceivedMessage& message, const IpEndpointName&) override
+    {
+        methods.dispatch(message.AddressPattern(), message); // A message with address "/synth/*" calls setFrequency()
+    }
+};
+```
+
+### tinyosc
+
+[tinyosc](https://github.com/mhroth/tinyosc) is a C library that parses a datagram in place. A `tosc_message` is a read cursor over the arguments, so each method takes its own copy and reads from the first argument. `Handler` is a `std::function<void(tosc_message)>`.
+
+```cpp
+#include <tinyosc.h>
+
+void setFrequency(tosc_message message)
+{
+    synth.setFrequency(tosc_getNextFloat(&message));
+}
+
+// for each datagram of length bytes received into buffer
+tosc_message message;
+if (tosc_parseMessage(&message, buffer, length) == 0)
+{
+    methods.dispatch(tosc_getAddress(&message), message); // A message with address "/synth/*" calls setFrequency()
+}
+```
+
+### MicroOsc
+
+[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. `Handler` is a function pointer, `void (*)(MicroOscMessage)`. This sketch compiles for the Arduino UNO R4 Minima, the ESP8266 and the Raspberry Pi Pico.
+
+```cpp
+#include <MicroOscSlip.h>
+
+MicroOscSlip<128> osc(&Serial);
+
+void setFrequency(MicroOscMessage message)
+{
+    synth.setFrequency(message.nextAsFloat());
+}
+
+void onMessage(MicroOscMessage& message)
+{
+    methods.dispatch(message.getOscAddress(), message); // A message with address "/synth/*" calls setFrequency()
+}
+
+void loop()
+{
+    osc.onOscMessageReceived(onMessage);
+}
+```
+
 ## Matching Rules
 
 A pattern and an address are split into parts on `/`. Both must have the same number of parts, except where `//` applies, and every pattern part must match the address part in the same position.
@@ -442,6 +412,36 @@ The stack a visit or dispatch uses is likewise fixed when it is compiled, and do
 
 A libFuzzer target checks the matcher, the pattern value and `Address::parse` against each other under AddressSanitizer and UndefinedBehaviorSanitizer on every change.
 
+## CMake Setup
+
+With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
+
+- **FetchContent**, pinned to one of the [release tags](https://github.com/jamiebullock/oscpm/tags):
+
+  ```cmake
+  include(FetchContent)
+  FetchContent_Declare(oscpm
+      GIT_REPOSITORY https://github.com/jamiebullock/oscpm.git
+      GIT_TAG        <tag>)
+  FetchContent_MakeAvailable(oscpm)
+  target_link_libraries(app PRIVATE oscpm::oscpm)
+  ```
+
+- **`find_package`** after `cmake --install`, which installs the headers and a package config with a version file:
+
+  ```cmake
+  find_package(oscpm REQUIRED)
+  target_link_libraries(app PRIVATE oscpm::oscpm)
+  ```
+
+  While the major version is 0, a version passed to `find_package` is satisfied only by an install of the same minor version; from 1.0, by one of the same major version.
+
+- **`add_subdirectory`** on a checkout or a vendored copy. A source archive has no git history to read the version from, so pass `-DOSCPM_VERSION=<version>` when configuring it.
+
+Without CMake, put `include/` on the include path.
+
+`oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value, `oscpm/address_space.h` the address space and `oscpm/error.h` the faults they report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is public API.
+
 ## Supported Platforms
 
 oscpm supports the following platforms, needing only a C++17 compiler and its standard library:
@@ -462,7 +462,7 @@ oscpm supports the following platforms, needing only a C++17 compiler and its st
 | Arduino MKR Zero | `arduino:samd` core, with `-std=gnu++17` | `arduino-cli`, 2026-10-10 |
 | Adafruit Feather nRF52840 | `adafruit:nrf52` core, with `-std=gnu++17` and `-lstdc++` | `arduino-cli`, 2026-10-10 |
 
-The rows marked CI are built on every push and pull request to `develop`. Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The 8-bit AVR boards have no C++ standard library, and the `arduino:mbed_nano` core's `abs` macro breaks libstdc++ at C++17, so oscpm does not compile for them.
+The rows marked CI are built on every push and pull request to `develop`. Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The 8-bit AVR boards have no C++ standard library, and the `arduino:mbed_nano` core's `abs` macro breaks libstdc++ at C++17, so oscpm does not compile for them. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
 
 ## Performance
 
@@ -520,38 +520,6 @@ build/bench/bench/oscpm_bench
 `python3 bench/compare.py report` builds the benchmarks and prints the setup and tables above.
 
 On a pull request, CI counts the instructions per iteration of every benchmark under Cachegrind for the change and for `develop`, and fails when a benchmark rises by more than 2% and 4 instructions. A change that accepts such a rise names the benchmark and its new ceiling, in instructions per iteration as the job's summary reports them, in `bench/accepted.json`. The check passes that benchmark while it stays at or below the ceiling and fails it again above, and it reports an entry that covers no rise against `develop`, which is the case once the change has merged, so the entry can be removed.
-
-## Integration
-
-CI builds and tests oscpm with GCC and Clang on Linux, AppleClang on macOS and MSVC on Windows. It also compiles the sketch in `tests/arduino` with `arduino-cli` for the Arduino UNO R4 Minima, a generic ESP8266 and the Raspberry Pi Pico, each at its core's default flags. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
-
-With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
-
-- **FetchContent**, pinned to one of the [release tags](https://github.com/jamiebullock/oscpm/tags):
-
-  ```cmake
-  include(FetchContent)
-  FetchContent_Declare(oscpm
-      GIT_REPOSITORY https://github.com/jamiebullock/oscpm.git
-      GIT_TAG        <tag>)
-  FetchContent_MakeAvailable(oscpm)
-  target_link_libraries(app PRIVATE oscpm::oscpm)
-  ```
-
-- **`find_package`** after `cmake --install`, which installs the headers and a package config with a version file:
-
-  ```cmake
-  find_package(oscpm REQUIRED)
-  target_link_libraries(app PRIVATE oscpm::oscpm)
-  ```
-
-  While the major version is 0, a version passed to `find_package` is satisfied only by an install of the same minor version; from 1.0, by one of the same major version.
-
-- **`add_subdirectory`** on a checkout or a vendored copy. A source archive has no git history to read the version from, so pass `-DOSCPM_VERSION=<version>` when configuring it.
-
-Without CMake, put `include/` on the include path.
-
-`oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value, `oscpm/address_space.h` the address space and `oscpm/error.h` the faults they report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is public API.
 
 ## Building
 
