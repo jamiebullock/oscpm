@@ -1,16 +1,23 @@
 # oscpm
 
-Header-only C++17 OpenSoundControl (OSC) address pattern matching.
+Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 
 [![CI](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml)
 [![Latest tag](https://img.shields.io/github/v/tag/jamiebullock/oscpm?sort=semver&label=tag)](https://github.com/jamiebullock/oscpm/tags)
 [![Licence](https://img.shields.io/github/license/jamiebullock/oscpm?label=licence)](LICENSE)
 
-oscpm matches OSC address patterns against addresses, and through an address space visits or dispatches to the values registered under the matching addresses. It supports the [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) matching syntax, and the proposed `//` operator from [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html).
+## Features
 
-It is designed to complement [oscpp](https://github.com/kaoskorobase/oscpp), which reads and writes OSC packets, leaving matching and dispatch to the caller.  Like oscpp, it suits realtime contexts, with matching and dispatch (`matches()`, `visit()` and `dispatch()`) allocation free with documented [memory and time guarantees](#guarantees). 
-
-oscpm does not depend on oscpp, or on anything outside the standard library.
+- Full OSC 1.0 pattern syntax (`?`, `*`, `[...]`, `{a,b}`) plus the OSC 1.1 `//` operator
+- Address space: register handlers or values, then `visit` or `dispatch` every match of a received pattern, with repeated patterns served from a memo
+- Allocation-free, non-throwing matching and dispatch, usable on a realtime thread
+- Bounded time: at most pattern length x address length whatever the pattern; no backtracking, no recursion
+- Fixed stack: every buffer sized at compile time, independent of the pattern, the address and the number of registered addresses
+- Strict validation: a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
+- `constexpr` parsing and matching: a literal that does not parse is a compile error
+- Header-only, C++17, standard library only; builds on Linux, macOS, Windows and Arduino cores ([Supported Platforms](#supported-platforms))
+- Pairs with any packet library that leaves matching to the caller: oscpp, oscpack, tinyosc, MicroOsc ([Integration Examples](#integration-examples))
+- Fuzzed under AddressSanitizer and UndefinedBehaviorSanitizer on every change; mutation tested
 
 ## Integration Examples
 
