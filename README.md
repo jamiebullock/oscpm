@@ -2,7 +2,7 @@
 
 Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 
-[![CI](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml)
+[![CI](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jamiebullock/oscpm/actions/workflows/ci.yml)
 [![Latest tag](https://img.shields.io/github/v/tag/jamiebullock/oscpm?sort=semver&label=tag)](https://github.com/jamiebullock/oscpm/tags)
 [![Licence](https://img.shields.io/github/license/jamiebullock/oscpm?label=licence)](LICENSE)
 
@@ -462,7 +462,7 @@ oscpm supports the following platforms, needing only a C++17 compiler and its st
 | Arduino MKR Zero | `arduino:samd` core, with `-std=gnu++17` | `arduino-cli`, 2026-10-10 |
 | Adafruit Feather nRF52840 | `adafruit:nrf52` core, with `-std=gnu++17` and `-lstdc++` | `arduino-cli`, 2026-10-10 |
 
-The rows marked CI are built on every push and pull request to `develop`. Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The 8-bit AVR boards have no C++ standard library, and the `arduino:mbed_nano` core's `abs` macro breaks libstdc++ at C++17, so oscpm does not compile for them. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
+The rows marked CI are built on every pull request and every push to `develop` or `main`. Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The 8-bit AVR boards have no C++ standard library, and the `arduino:mbed_nano` core's `abs` macro breaks libstdc++ at C++17, so oscpm does not compile for them. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
 
 ## Performance
 
@@ -545,7 +545,7 @@ ctest --preset release
 
 ## Versioning
 
-oscpm follows [Semantic Versioning](https://semver.org/). Each release is a `vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags).
+oscpm follows [Semantic Versioning](https://semver.org/). Each release is a `vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags) on `main`; changes land on `develop` between releases. `CHANGELOG.md` lists what each release changed, and [CONTRIBUTING.md](CONTRIBUTING.md) describes how one is made.
 
 ## Licence
 
