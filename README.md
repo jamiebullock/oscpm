@@ -38,7 +38,7 @@ oscpm::match("synth/*/freq", "1/synth/freq"); // false (address and pattern are 
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
-- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once in `Pattern::parse()` and the address once in `Address::parse()`, and patterns without wildcards reduce to a plain string comparison
+- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once in `Pattern::parse()`, and patterns without wildcards reduce to a plain string comparison
 
 ```cpp
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
