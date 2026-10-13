@@ -8,16 +8,17 @@ Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 
 ## Features
 
-- Full OSC 1.0 pattern syntax (`?`, `*`, `[...]`, `{a,b}`) plus the OSC 1.1 `//` operator
-- Address space: register handlers or values, then `visit` or `dispatch` every match of a received pattern, with repeated patterns served from a memo
-- Allocation-free, non-throwing matching and dispatch, usable on a realtime thread
-- Bounded time: at most pattern length x address length whatever the pattern; no backtracking, no recursion
-- Fixed stack: every buffer sized at compile time, independent of the pattern, the address and the number of registered addresses
-- Strict validation: a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
-- `constexpr` parsing and matching: a literal that does not parse is a compile error
-- Header-only, C++17, standard library only; builds on Linux, macOS, Windows and Arduino cores ([Supported Platforms](#supported-platforms))
-- Pairs with any packet library that leaves matching to the caller: oscpp, oscpack, tinyosc, MicroOsc ([Integration Examples](#integration-examples))
-- Fuzzed under AddressSanitizer and UndefinedBehaviorSanitizer on every change; mutation tested
+- **Compliant:** full [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) pattern syntax (`?`, `*`, `[...]`, `{a,b}`) plus the [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html) `//` operator
+- **Address space:** register handlers or values, then `visit` or `dispatch` every match of a received pattern, with repeated patterns served from a memo
+- **Allocation-free, non-throwing** matching and dispatch, usable on a realtime thread
+- **Bounded time:** at most pattern length x address length whatever the pattern; no backtracking, no recursion
+- **Fixed stack:** every buffer sized at compile time, independent of the pattern, the address and the number of registered addresses
+- **Strict validation:** a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
+- **`constexpr` parsing and matching:** a literal that does not parse is a compile error
+- **Header-only, C++17, standard library only:** builds on Linux, macOS, Windows and Arduino cores ([Supported Platforms](#supported-platforms))
+- **Fuzzed under AddressSanitizer and UndefinedBehaviorSanitizer on every change; mutation tested
+
+oscpm pairs well with any packet library that leaves matching to the caller: [oscpp](https://github.com/kaoskorobase/oscpp), [oscpack](https://github.com/RossBencina/oscpack), [tinyosc](https://github.com/mhroth/tinyosc), and [MicroOsc](https://github.com/thomasfredericks/MicroOsc). See [Integration Examples](#integration-examples).
 
 ## Matching
 In the simple case a match can be checked by comparing two `std::string_view`:
