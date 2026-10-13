@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Breaking changes
+
+- The `AddressSpace` calls are renamed after what they do: `invoke(pattern, args...)` is `dispatch(pattern, args...)`, `dispatch(pattern, visitor)` is `visit(pattern, visitor)`, `forEach(visitor)` is `visit(visitor)`, and `DispatchResult` is `MatchResult`.
+- `Pattern::parse` returns `Expected<Pattern, PatternError>` and `Address::parse` returns `Expected<Address, AddressError>`. `Pattern::ParseResult` and `Address::ParseResult` are removed, and `Pattern` and `Address` have no default constructor.
+- `Error` is replaced by `PatternError` (`MissingLeadingSlash`, `UnterminatedClass`, `UnterminatedBraces`, `PatternTooLong`) and `AddressError` (`MissingLeadingSlash`, `TrailingSlash`, `EmptyPart`, `IllegalByte`, `PartTooLong`), each with a `toString` overload. `MatchResult::error` is a `std::optional<PatternError>`.
+- `Pattern::matches` takes an `Address`, and `match` parses its address argument as it parses its pattern, returning false for a malformed pattern, a malformed address or a non-match. A pattern ending in `/` matches no address.
+- Releases are the tags on `main`, which is fast-forwarded to `develop` when a release is made. Pushes to `develop` are no longer tagged.
+
+### Added
+
+- `oscpm/expected.h`: `Expected<T, E>`, holding either a value or a fault, with the member names of `std::expected`: `has_value`, `operator bool`, `operator*`, `operator->` and `error`. Reading the side it does not hold calls `std::abort`.
+- `AddressSpace::dispatch` calls each value through `std::invoke`, so a space of pointers to member functions takes the object, or a pointer to it, as the first of `args`.
+- `AddressSpace<T>` asserts at compile time that `T` is an object type that is move-constructible and move-assignable, and `visit` and `dispatch` assert the visitor or handler signature, each with a message naming the requirement at the caller's own line.
+- The headers compile with libstdc++ 7, as shipped by the GCC 7 Arduino cores. A compile-time call on that toolchain passes a `std::string_view` built with an explicit length, because the library's constant expressions cannot measure a literal there. Defining `OSCPM_STRING_VIEW_FALLBACK` selects the same code on any toolchain. CI compiles a sketch for the Arduino UNO R4 Minima, the ESP8266 and the Raspberry Pi Pico, and the README lists the boards checked.
+- `CONTRIBUTING.md`, with the branch model, the changelog entry a pull request owes, and how a release is made.
+
+### Changed
+
+- `match` validates the address with a lookup table over the byte values. On x86-64 GCC 13 the `Match/parse` benchmarks execute 15% to 33% fewer instructions; `Pattern::matches` and the address space are unchanged.
+- A space without a memo no longer carries a results array, and a space with one no longer zero-fills it on every visit. The peak stack of a wildcard visit on `AddressSpace<T, false>` falls from about 6.2 KiB to about 2.2 KiB. The README states the stack a visit or dispatch uses.
+
+### Fixed
+
+- A failed `Address::parse` no longer yields a readable empty `Address`, which `AddressSpace::add` read through a null pointer in a release build.
+- `Expected`'s accessors contain no `assert`, so `oscpm/expected.h` compiles on toolchains whose `assert` expands to a static definition, such as the ESP8266 Arduino core, in a build without `NDEBUG`.
+
 ## 0.6.1 - 2026-10-04
 
 ### Breaking changes
