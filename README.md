@@ -28,10 +28,11 @@ In the simple case a match can be checked by comparing two `std::string_view`:
 oscpm::match("/synth/*/freq", "/synth/1/freq"); // true
 oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true (OSC 1.1 syntax)
 oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
-oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
+oscpm::match("/synth/*/freq", "/1/synth/freq"); // false (no match found)
+oscpm::match("synth/*/freq", "1/synth/freq"); // false (address and pattern are not valid)
 ```
 
-> `oscpm::match()` returns `false` for a malformed pattern, a malformed address and a non-match alike. If the distinction matters then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
+> `oscpm::match()` returns `true` if the address and pattern are well-formed and the address matches the pattern. If the caller needs to distinguish validity from match success, then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
 
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
