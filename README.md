@@ -16,7 +16,6 @@ Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 - **Strict validation:** a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
 - **`constexpr` parsing and matching:** a literal that does not parse is a compile error
 - **Header-only, C++17, standard library only:** builds on Linux, macOS, Windows and Arduino cores ([Supported Platforms](#supported-platforms))
-- **Fuzzed under AddressSanitizer and UndefinedBehaviorSanitizer on every change; mutation tested
 
 oscpm pairs well with any packet library that leaves matching to the caller: [oscpp](https://github.com/kaoskorobase/oscpp), [oscpack](https://github.com/RossBencina/oscpack), [tinyosc](https://github.com/mhroth/tinyosc), and [MicroOsc](https://github.com/thomasfredericks/MicroOsc). See [Integration Examples](#integration-examples).
 
