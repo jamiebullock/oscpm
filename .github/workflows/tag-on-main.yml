@@ -1,19 +1,21 @@
-name: Tag on develop
+name: Tag on main
 
-# Every push to develop is tagged; the tag is the only place the version is
-# written down. Each push moves the patch, and a minor or major only when a
-# commit subject since the last tag says (MINOR) or (MAJOR).
+# main holds releases and is only ever fast-forwarded to develop. Every push
+# to main is tagged; the tag is the only place the version is written down.
+# Each push moves the patch, and a minor or major only when a commit subject
+# since the last tag says (MINOR) or (MAJOR).
 
 on:
   push:
-    branches: [develop]
+    branches: [main]
 
 permissions:
   contents: write
 
 concurrency:
-  group: tag-on-develop
+  group: tag-on-main
   cancel-in-progress: false
+  queue: max
 
 jobs:
   tag:

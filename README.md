@@ -545,7 +545,7 @@ ctest --preset release
 
 ## Versioning
 
-oscpm follows [Semantic Versioning](https://semver.org/). Each release is a `vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags).
+oscpm follows [Semantic Versioning](https://semver.org/). Each release is a `vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags) on `main`; changes land on `develop` between releases. `CHANGELOG.md` lists what each release changed, and [CONTRIBUTING.md](CONTRIBUTING.md) describes how one is made.
 
 ## Licence
 
