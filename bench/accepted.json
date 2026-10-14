@@ -1,1 +1,6 @@
-{}
+{
+  "Dispatch/handler/literal/large": 239,
+  "Dispatch/invoke/literal/large": 243,
+  "Dispatch/invoke/literal/small": 203,
+  "Dispatch/invoke/miss/small": 203
+}
