@@ -225,7 +225,7 @@ int main()
 
 ## Integration Examples
 
-oscpm pairs with any library that reads OSC packets and leaves matching and dispatch to the caller. Each example registers `setFrequency` under `/synth/freq` and dispatches every received message to the methods its address pattern matches; `synth` stands for whatever the methods control. The oscpp example is complete. The others show only what differs: the method's signature, how it reads its arguments, and where `dispatch` is called.
+The following examples show how to integrate oscpm with common OSC packet libraries.
 
 ### oscpp
 
@@ -296,7 +296,8 @@ if (tosc_parseMessage(&message, buffer, length) == 0)
 
 ### MicroOsc
 
-[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. `Handler` is a function pointer, `void (*)(MicroOscMessage)`. This sketch compiles for the Arduino UNO R4 Minima, the ESP8266 and the Raspberry Pi Pico.
+[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. `Handler` is a function pointer, `void (*)(MicroOscMessage)`.
+
 
 ```cpp
 #include <MicroOscSlip.h>
