@@ -8,16 +8,16 @@ Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 
 ## Features
 
-- Full OSC 1.0 pattern syntax (`?`, `*`, `[...]`, `{a,b}`) plus the OSC 1.1 `//` operator
-- Address space: register handlers or values, then `visit` or `dispatch` every match of a received pattern, with repeated patterns served from a memo
-- Allocation-free, non-throwing matching and dispatch, usable on a realtime thread
-- Bounded time: at most pattern length x address length whatever the pattern; no backtracking, no recursion
-- Fixed stack: every buffer sized at compile time, independent of the pattern, the address and the number of registered addresses
-- Strict validation: a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
-- `constexpr` parsing and matching: a literal that does not parse is a compile error
-- Header-only, C++17, standard library only; builds on Linux, macOS, Windows and Arduino cores ([Supported Platforms](#supported-platforms))
-- Pairs with any packet library that leaves matching to the caller: oscpp, oscpack, tinyosc, MicroOsc ([Integration Examples](#integration-examples))
-- Fuzzed under AddressSanitizer and UndefinedBehaviorSanitizer on every change; mutation tested
+- **Compliant:** full [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) pattern syntax (`?`, `*`, `[...]`, `{a,b}`) plus the [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html) `//` operator
+- **Address space:** register handlers or values, then `visit` or `dispatch` every match of a received pattern, with repeated patterns served from a memo
+- **Allocation-free, non-throwing** matching and dispatch, usable on a realtime thread
+- **Bounded time:** at most pattern length x address length whatever the pattern; no backtracking, no recursion
+- **Fixed stack:** every buffer sized at compile time, independent of the pattern, the address and the number of registered addresses
+- **Strict validation:** a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
+- **`constexpr` parsing and matching:** a literal that does not parse is a compile error
+- **Header-only, C++17, standard library only:** builds on Linux, macOS, Windows and Arduino cores ([Supported Platforms](#supported-platforms))
+
+oscpm pairs well with any packet library that leaves matching to the caller: [oscpp](https://github.com/kaoskorobase/oscpp), [oscpack](https://github.com/RossBencina/oscpack), [tinyosc](https://github.com/mhroth/tinyosc), and [MicroOsc](https://github.com/thomasfredericks/MicroOsc). See [Integration Examples](#integration-examples).
 
 ## Matching
 In the simple case a match can be checked by comparing two `std::string_view`:
@@ -28,16 +28,17 @@ In the simple case a match can be checked by comparing two `std::string_view`:
 oscpm::match("/synth/*/freq", "/synth/1/freq"); // true
 oscpm::match("/synth//freq", "/synth/1/osc/freq"); // true (OSC 1.1 syntax)
 oscpm::match("/synth/[1-3]/{freq,amp}", "/synth/2/amp"); // true
-oscpm::match("/synth/*/freq", "/1/synth/freq"); // false
+oscpm::match("/synth/*/freq", "/1/synth/freq"); // false (no match found)
+oscpm::match("synth/*/freq", "1/synth/freq"); // false (address and pattern are not valid)
 ```
 
-> `oscpm::match()` returns `false` for a malformed pattern, a malformed address and a non-match alike. If the distinction matters then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
+> `oscpm::match()` returns `true` if the address and pattern are well-formed and the address matches the pattern. If the caller needs to distinguish validity from match success, then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
 
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
-- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once in `Pattern::parse()` and the address once in `Address::parse()`, and patterns without wildcards reduce to a plain string comparison
+- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once in `Pattern::parse()`, and patterns without wildcards reduce to a plain string comparison
 
 ```cpp
 constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
@@ -80,11 +81,13 @@ else
 
 ## Address Space
 
-`AddressSpace<T>` associates values of a caller-chosen type `T` with OSC addresses. Depending on the type chosen for `T`, an OSC method can correspond to a function the caller supplies or a parameter the address space itself manages.
+`AddressSpace<T>` associates OSC addresses with values of type `T`. Depending on the type chosen for `T`, an OSC method can correspond to a callback function or a parameter the address space itself manages.
 
 ### Registering Callbacks
 
-In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument. The mixer example below shows this:
+In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument.
+
+The mixer example below shows this:
 
 ```cpp
 // A message received from the OSC client, e.g. { "/mixer/*/gain", 0.5f } or { "/mixer/3/mute", 1 }
@@ -97,11 +100,9 @@ struct Message
 // In a real application this would read the next incoming message into message
 bool receive(Message& message);
 
-// An Address views the bytes it was parsed from, so each channel keeps its address strings for as long as the address space holds them
+// Application-side struct to hold the live channel settings
 struct Channel
 {
-  std::string gainAddress;
-  std::string muteAddress;
   float gain = 0.0f;
   bool mute = false;
 };
@@ -111,16 +112,14 @@ int main()
   std::array<Channel, 8> channels;
   oscpm::AddressSpace<std::function<void(const Message&)>> handlers;
 
-  // Add a gain and a mute handler for each mixer channel
+  // Add a gain and a mute handler for each channel
   for (std::size_t index = 0; index < channels.size(); ++index)
   {
       Channel& channel = channels[index];
       const std::string prefix = "/mixer/" + std::to_string(index + 1);
-      channel.gainAddress = prefix + "/gain";
-      channel.muteAddress = prefix + "/mute";
-      handlers.add(*oscpm::Address::parse(channel.gainAddress), [&channel](const Message& message)
+      handlers.add(*oscpm::Address::parse(prefix + "/gain"), [&channel](const Message& message)
           { channel.gain = std::get<float>(message.argument); });
-      handlers.add(*oscpm::Address::parse(channel.muteAddress), [&channel](const Message& message)
+      handlers.add(*oscpm::Address::parse(prefix + "/mute"), [&channel](const Message& message)
           { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
   }
 
