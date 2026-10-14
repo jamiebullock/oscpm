@@ -132,18 +132,18 @@ int main()
       const oscpm::MatchResult result = handlers.dispatch(message.addressPattern, message);
       if (result.error)
       {
-          std::fprintf(stderr, "malformed pattern %.*s: %s\n", static_cast<int>(message.addressPattern.size()), message.addressPattern.data(), oscpm::toString(*result.error));
+          std::cerr << "malformed pattern " << message.addressPattern << ": " << oscpm::toString(*result.error) << '\n';
       }
       else if (result.matched == 0)
       {
-          std::fprintf(stderr, "no channel at %.*s\n", static_cast<int>(message.addressPattern.size()), message.addressPattern.data());
+          std::cerr << "no channel at " << message.addressPattern << '\n';
       }
   }
 
   // Print the new values set by the handlers
   for (std::size_t index = 0; index < channels.size(); ++index)
   {
-      std::printf("%zu %g%s\n", index + 1, static_cast<double>(channels[index].gain), channels[index].mute ? " muted" : "");
+      std::cout << index + 1 << ' ' << channels[index].gain << (channels[index].mute ? " muted" : "") << '\n';
   }
   return 0;
 }
@@ -190,11 +190,11 @@ void outputFrame(oscpm::AddressSpace<float>& levels)
   }
 
   // Read one level back by its address
-  std::printf("dimmer 3: %g\n", static_cast<double>(*levels.find("/light/03/level")));
+  std::cout << "dimmer 3: " << *levels.find("/light/03/level") << '\n';
 
   // Or read every level in address order to build the frame
   levels.visit([](std::string_view address, float level)
-      { std::printf("%.*s %g\n", static_cast<int>(address.size()), address.data(), static_cast<double>(level)); });
+      { std::cout << address << ' ' << level << '\n'; });
 }
 
 int main()
