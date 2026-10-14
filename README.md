@@ -121,6 +121,8 @@ int main()
   {
       Channel& channel = channels[index];
       const std::string prefix = "/mixer/" + std::to_string(index + 1);
+      
+      // Each callback knows how to handle its own argument type
       handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message) { channel.gain = std::get<float>(message.argument); });
       handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message) { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
   }
