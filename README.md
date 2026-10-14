@@ -325,6 +325,7 @@ void loop()
 - A pattern and an address are split into parts on `/`
 - For a match:
     * Both must have the same number of parts, except where `//` applies
+    * Comparison is by byte and case-sensitive
     * Each pattern part must match the address part in the same position, by these rules:
     
 | Syntax | Meaning | Example | Matches | Does not match |
@@ -375,7 +376,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 ### Other Bytes
 
 - A `]`, `}` or `,` outside its construct, a `#`, a space and any byte outside printable ASCII is a literal that matches only itself. No well-formed address contains one, so a part holding one matches no well-formed address. In a brace list only the member holding it is affected: `{a b,c}` still matches `c`.
-- Matching is by byte and case-sensitive.
+
 
 ### Malformed Patterns
 
