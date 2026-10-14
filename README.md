@@ -81,11 +81,13 @@ else
 
 ## Address Space
 
-`AddressSpace<T>` associates values of a caller-chosen type `T` with OSC addresses. Depending on the type chosen for `T`, an OSC method can correspond to a function the caller supplies or a parameter the address space itself manages.
+`AddressSpace<T>` associates OSC addresses with values of type `T`. Depending on the type chosen for `T`, an OSC method can correspond to a callback function or a parameter the address space itself manages.
 
 ### Registering Callbacks
 
-In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument. The mixer example below shows this:
+In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument.
+
+The mixer example below shows this:
 
 ```cpp
 // A message received from the OSC client, e.g. { "/mixer/*/gain", 0.5f } or { "/mixer/3/mute", 1 }
@@ -98,11 +100,9 @@ struct Message
 // In a real application this would read the next incoming message into message
 bool receive(Message& message);
 
-// An Address views the bytes it was parsed from, so each channel keeps its address strings for as long as the address space holds them
+// Application-side struct to hold the live channel settings
 struct Channel
 {
-  std::string gainAddress;
-  std::string muteAddress;
   float gain = 0.0f;
   bool mute = false;
 };
@@ -112,16 +112,14 @@ int main()
   std::array<Channel, 8> channels;
   oscpm::AddressSpace<std::function<void(const Message&)>> handlers;
 
-  // Add a gain and a mute handler for each mixer channel
+  // Add a gain and a mute handler for each channel
   for (std::size_t index = 0; index < channels.size(); ++index)
   {
       Channel& channel = channels[index];
       const std::string prefix = "/mixer/" + std::to_string(index + 1);
-      channel.gainAddress = prefix + "/gain";
-      channel.muteAddress = prefix + "/mute";
-      handlers.add(*oscpm::Address::parse(channel.gainAddress), [&channel](const Message& message)
+      handlers.add(*oscpm::Address::parse(prefix + "/gain"), [&channel](const Message& message)
           { channel.gain = std::get<float>(message.argument); });
-      handlers.add(*oscpm::Address::parse(channel.muteAddress), [&channel](const Message& message)
+      handlers.add(*oscpm::Address::parse(prefix + "/mute"), [&channel](const Message& message)
           { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
   }
 
