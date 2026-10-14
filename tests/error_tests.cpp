@@ -18,6 +18,7 @@ TEST_CASE("toString names every pattern error")
     static_assert(std::string_view(oscpm::toString(PatternError::MissingLeadingSlash)) == "MissingLeadingSlash");
     static_assert(std::string_view(oscpm::toString(PatternError::UnterminatedClass)) == "UnterminatedClass");
     static_assert(std::string_view(oscpm::toString(PatternError::UnterminatedBraces)) == "UnterminatedBraces");
+    static_assert(std::string_view(oscpm::toString(PatternError::IllegalByte)) == "IllegalByte");
     static_assert(std::string_view(oscpm::toString(PatternError::PatternTooLong)) == "PatternTooLong");
 }
 

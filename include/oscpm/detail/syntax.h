@@ -28,8 +28,10 @@ namespace k
     constexpr char listClose = '}';
     constexpr char listSeparator = ',';
     constexpr StringView reservedInAddress = "#*,?[]{}";
+    constexpr char nul = '\0';
     constexpr unsigned char firstPrintableAscii = 0x21;
     constexpr unsigned char lastPrintableAscii = 0x7E;
+    constexpr unsigned char lastAscii = 0x7F;
     constexpr std::size_t operatorRunLength = 2;
     constexpr StringView descendantOperator = "//";
     constexpr std::size_t numByteValues = 256;
@@ -59,16 +61,6 @@ constexpr bool hasOpener(StringView text) noexcept
     return false;
 }
 
-constexpr std::size_t closeWithinPart(StringView pattern, std::size_t open, char closeByte) noexcept
-{
-    const std::size_t close = pattern.find(closeByte, open + 1);
-    if (close == npos || pattern.substr(open + 1, close - open - 1).find(k::partSeparator) != npos)
-    {
-        return npos;
-    }
-    return close;
-}
-
 constexpr bool isPrintableAscii(char byte) noexcept
 {
     const auto value = static_cast<unsigned char>(byte);
@@ -78,6 +70,45 @@ constexpr bool isPrintableAscii(char byte) noexcept
 constexpr bool isReservedInAddress(char byte) noexcept
 {
     return k::reservedInAddress.find(byte) != npos;
+}
+
+constexpr bool isLegalInPattern(char byte) noexcept
+{
+    return byte != k::nul && static_cast<unsigned char>(byte) <= k::lastAscii;
+}
+
+enum class PatternByte : unsigned char
+{
+    Plain,
+    SetOpen,
+    ListOpen,
+    Illegal
+};
+
+using PatternByteTable = std::array<PatternByte, k::numByteValues>;
+
+constexpr PatternByteTable patternByteTable() noexcept
+{
+    PatternByteTable table { };
+    for (std::size_t value = 0; value < table.size(); ++value)
+    {
+        const auto byte = static_cast<char>(static_cast<unsigned char>(value));
+        table[value] = !isLegalInPattern(byte) ? PatternByte::Illegal
+            : byte == k::setOpen               ? PatternByte::SetOpen
+            : byte == k::listOpen              ? PatternByte::ListOpen
+                                               : PatternByte::Plain;
+    }
+    return table;
+}
+
+namespace k
+{
+    inline constexpr PatternByteTable patternByte = patternByteTable();
+}
+
+constexpr PatternByte classifyPatternByte(char byte) noexcept
+{
+    return k::patternByte[static_cast<unsigned char>(byte)];
 }
 
 using ByteTable = std::array<bool, k::numByteValues>;

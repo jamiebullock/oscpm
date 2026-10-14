@@ -19,9 +19,10 @@
 # oscpm::AddressError for an address.
 #
 # A malformed-pattern case asserts that Pattern::parse fails with that kind
-# and that match() returns false. Only four kinds arise from a pattern:
+# and that match() returns false. Only five kinds arise from a pattern:
 # MissingLeadingSlash; UnterminatedClass for a '[' with no ']' before the
 # next '/'; UnterminatedBraces for a '{' with no '}' before the next '/';
+# IllegalByte for a null or a byte above 0x7F;
 # PatternTooLong for a pattern longer than 1024 bytes that contains '*',
 # '?', '[', '{' or "//". Every other pattern parses. A byte that no address can
 # contain, a '{' inside braces, an empty class, a stray closer or an empty
@@ -148,6 +149,15 @@
 "/?"                "/é"                malformed-address IllegalByte
 "/??"               "/é"                malformed-address IllegalByte
 
+## A byte above 0x7F is outside the ASCII of an OSC-string, so Pattern::parse rejects it
+
+"/é"                "/e"                malformed-pattern IllegalByte
+"/caf[é]"           "/cafe"             malformed-pattern IllegalByte
+"/{a,é}"            "/a"                malformed-pattern IllegalByte
+"/*é"               "/a"                malformed-pattern IllegalByte
+"/[é]"              "/é"                malformed-pattern IllegalByte
+"/[!é]"             "/é"                malformed-pattern IllegalByte
+
 ## '*' matches zero or more bytes, never '/'
 
 "/synth/*"          "/synth/freq"       match
@@ -224,8 +234,6 @@
 "/[c-a]"            "/b"                nomatch
 "/[c-a]"            "/a"                nomatch
 "/[c-a]"            "/c"                nomatch
-"/[é]"              "/é"                malformed-address IllegalByte
-"/[!é]"             "/é"                malformed-address IllegalByte
 
 ## A leading '!' negates a character class
 

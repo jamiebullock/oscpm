@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Breaking changes
+
+- `Pattern::parse` rejects a null or a byte above 0x7F as `PatternError::IllegalByte`, since an OSC-string holds only ASCII. Such patterns previously parsed: a part holding the byte matched no address, and a brace list still matched through its other members.
+
 ### Added
 
 - `Address` and `Pattern` construct directly from text: `oscpm::Address("/synth/1/freq")`, `oscpm::Pattern("/synth/*")`. The constructor calls `std::abort` when the text is malformed, so a malformed literal in a constant expression fails to compile. `Address::parse` and `Pattern::parse` remain the calls for text whose fault the caller wants reported.

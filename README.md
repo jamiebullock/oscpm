@@ -374,7 +374,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 
 ### Other Bytes
 
-- A `]`, `}` or `,` outside its construct, a `#`, a space and any byte outside printable ASCII is a literal that matches only itself. No well-formed address contains one, so a part holding one matches no well-formed address. In a brace list only the member holding it is affected: `{a b,c}` still matches `c`.
+- Outside a class or brace list, a `]`, `}` or `,` is a literal, as is a `#`, a space and a control character other than null. None of these bytes can appear in a well-formed address, so a pattern part that contains any of them matches no address. In a brace list only the member that contains the byte is ruled out: `{a b,c}` still matches `c`.
 
 
 ### Malformed Patterns
@@ -386,6 +386,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 | no leading `/` | `MissingLeadingSlash` |
 | a `[` with no `]` before the next `/` | `UnterminatedClass` |
 | a `{` with no `}` before the next `/` | `UnterminatedBraces` |
+| a null or a byte above 0x7F | `IllegalByte` |
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
 Every other pattern parses. A rejected pattern matches nothing: `match` returns false, and `AddressSpace::visit` and `dispatch` reach no value.
