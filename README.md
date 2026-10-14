@@ -322,8 +322,11 @@ void loop()
 
 ## Matching Rules
 
-A pattern and an address are split into parts on `/`. Both must have the same number of parts, except where `//` applies, and every pattern part must match the address part in the same position.
-
+- A pattern and an address are split into parts on `/`
+- For a match:
+    * Both must have the same number of parts, except where `//` applies
+    * Each pattern part must match the address part in the same position, by these rules:
+    
 | Syntax | Meaning | Example | Matches | Does not match |
 | --- | --- | --- | --- | --- |
 | `?` | any one byte | `/synth/?` | `/synth/1` | `/synth/10` |
