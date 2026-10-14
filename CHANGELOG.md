@@ -4,7 +4,7 @@
 
 ### Breaking changes
 
-- `Pattern::parse` rejects a null or a byte above 0x7F as `PatternError::IllegalByte`, since an OSC-string holds only ASCII. Such patterns previously parsed and matched nothing.
+- `Pattern::parse` rejects a null or a byte above 0x7F as `PatternError::IllegalByte`, since an OSC-string holds only ASCII. Such patterns previously parsed: a part holding the byte matched no address, and a brace list still matched through its other members.
 
 ### Added
 

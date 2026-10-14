@@ -374,7 +374,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 
 ### Other Bytes
 
-- Outside a class or brace list, a `]`, `}` or `,` is a literal, as is a `#`, a space and a control character. None of these bytes can appear in a well-formed address, so a pattern part that contains any of them matches no address. In a brace list only the member that contains the byte is ruled out: `{a b,c}` still matches `c`.
+- Outside a class or brace list, a `]`, `}` or `,` is a literal, as is a `#`, a space and a control character other than null. None of these bytes can appear in a well-formed address, so a pattern part that contains any of them matches no address. In a brace list only the member that contains the byte is ruled out: `{a b,c}` still matches `c`.
 
 
 ### Malformed Patterns
