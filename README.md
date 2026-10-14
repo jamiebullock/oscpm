@@ -86,7 +86,10 @@ else
 
 ### Registering Callbacks
 
-In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument.
+In the common form:
+- The caller registers a callback for each OSC address
+- An OSC message is dispatched to the address space
+- Every callback whose address matches the message's address pattern is called with the message as an argument
 
 The mixer example below shows this:
 
@@ -98,7 +101,7 @@ struct Message
   std::variant<float, std::int32_t, std::string_view> argument;
 };
 
-// In a real application this would read the next incoming message into message
+// In a real application this would read the next incoming message
 bool receive(Message& message);
 
 // Application-side struct to hold the live channel settings
