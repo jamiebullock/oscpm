@@ -86,19 +86,22 @@ else
 
 ### Registering Callbacks
 
-In the common form, the caller registers a callback for each address. When a received OSC message is dispatched to the address space, every callback whose address matches the message's address pattern is called with the message as an argument.
+In the common form:
+- The caller registers a callback for each OSC address
+- An OSC message is dispatched to the address space
+- Every callback whose address matches the message's address pattern is called with the message as an argument
 
 The mixer example below shows this:
 
 ```cpp
-// A message received from the OSC client, e.g. { "/mixer/*/gain", 0.5f } or { "/mixer/3/mute", 1 }
+// A message received from the OSC client, e.g. { "/mixer/*/gain", 0.5f } or { "/mixer/3/mute", 1.0f }
 struct Message
 {
   std::string_view addressPattern;
-  std::variant<float, std::int32_t, std::string_view> argument;
+  float argument;
 };
 
-// In a real application this would read the next incoming message into message
+// In a real application this would read the next incoming message
 bool receive(Message& message);
 
 // Application-side struct to hold the live channel settings
@@ -118,10 +121,9 @@ int main()
   {
       Channel& channel = channels[index];
       const std::string prefix = "/mixer/" + std::to_string(index + 1);
-      handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message)
-          { channel.gain = std::get<float>(message.argument); });
-      handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message)
-          { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
+      
+      handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message) { channel.gain = message.argument; });
+      handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message) { channel.mute = message.argument != 0.0f; });
   }
 
   // The main receive loop
@@ -151,13 +153,18 @@ int main()
 
 ### Registering Parameters
 
-In the alternative form, the address space stores the parameters directly. This suits an application where every address holds the same kind of value and only the latest value matters, because the values are sampled when they are needed rather than acted on as each message arrives. A message that must have an effect each time it is received, such as a trigger, needs the callback form.
+In the alternative form, the address space stores the parameters directly.
 
-Using oscpm in this way, the caller registers a _value_ instead of a callback for each address and uses `visit()` in place of `dispatch()`. 
+This suits applications where:
+- Every address holds the same kind of value
+- Only the latest value is needed, not every intermediate one
 
-The visitor is invoked once for each method whose address matches the received pattern. Since a method corresponds to a value in this use case, the visitor's role is simply to assign the OSC message's argument to the stored value. Values can then be read back individually by address with `find()`, or all together with `visit(visitor)`. 
- 
-The example below is a lighting rig: every address is a dimmer level, a network thread queues the console's messages, and the output thread applies them and reads the current level of every dimmer each frame. The address space is only ever touched by the output thread:
+Used as follows:
+- The caller registers a _value_ for each OSC address
+- A visitor is called for each address matching an incoming OSC pattern
+- The visitor can then set or get the value
+
+The lighting rig example below shows this:
 
 ```cpp
 // A message received from the lighting console, e.g. { "/light/0[1-4]/level", 0.75f } or { "/light/*/level", 0.0f }
@@ -217,7 +224,7 @@ int main()
 
 ## Integration Examples
 
-oscpm pairs with any library that reads OSC packets and leaves matching and dispatch to the caller. Each example registers `setFrequency` under `/synth/freq` and dispatches every received message to the methods its address pattern matches; `synth` stands for whatever the methods control. The oscpp example is complete. The others show only what differs: the method's signature, how it reads its arguments, and where `dispatch` is called.
+The following examples show how to integrate oscpm with common OSC packet libraries.
 
 ### oscpp
 
@@ -288,7 +295,8 @@ if (tosc_parseMessage(&message, buffer, length) == 0)
 
 ### MicroOsc
 
-[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. `Handler` is a function pointer, `void (*)(MicroOscMessage)`. This sketch compiles for the Arduino UNO R4 Minima, the ESP8266 and the Raspberry Pi Pico.
+[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. `Handler` is a function pointer, `void (*)(MicroOscMessage)`.
+
 
 ```cpp
 #include <MicroOscSlip.h>
@@ -313,8 +321,12 @@ void loop()
 
 ## Matching Rules
 
-A pattern and an address are split into parts on `/`. Both must have the same number of parts, except where `//` applies, and every pattern part must match the address part in the same position.
-
+- A pattern and an address are split into parts on `/`
+- For a match:
+    * Both must have the same number of parts, except where `//` applies
+    * Comparison is by byte and case-sensitive
+    * Each pattern part must match the address part in the same position, by these rules:
+    
 | Syntax | Meaning | Example | Matches | Does not match |
 | --- | --- | --- | --- | --- |
 | `?` | any one byte | `/synth/?` | `/synth/1` | `/synth/10` |
@@ -339,7 +351,7 @@ Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0
   | `/a//` | `/a` and every address below it |
   | `//` | every address |
 
-- A single trailing `/` leaves an empty final part, the substring after the last slash. No address has one, because an address ends with a method name, so a pattern ending in `/`, and the bare `/`, match no address.
+- A pattern ending in `/` matches nothing, since an address ending in `/` is [malformed](#malformed-addresses). `/a/` and `/` therefore match no address.
 
 ### Classes
 
@@ -363,7 +375,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 ### Other Bytes
 
 - A `]`, `}` or `,` outside its construct, a `#`, a space and any byte outside printable ASCII is a literal that matches only itself. No well-formed address contains one, so a part holding one matches no well-formed address. In a brace list only the member holding it is affected: `{a b,c}` still matches `c`.
-- Matching is by byte and case-sensitive.
+
 
 ### Malformed Patterns
 
