@@ -118,10 +118,8 @@ int main()
   {
       Channel& channel = channels[index];
       const std::string prefix = "/mixer/" + std::to_string(index + 1);
-      handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message)
-          { channel.gain = std::get<float>(message.argument); });
-      handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message)
-          { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
+      handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message) { channel.gain = std::get<float>(message.argument); });
+      handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message) { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
   }
 
   // The main receive loop
