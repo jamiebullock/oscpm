@@ -351,7 +351,7 @@ Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0
   | `/a//` | `/a` and every address below it |
   | `//` | every address |
 
-- A pattern ending in `/` matches nothing, since an address ending in `/` is [malformed](#malformed-addresses). `/a/` and `/` therefore match no address.
+- A pattern ending in a single `/` matches nothing, since an address ending in `/` is [malformed](#malformed-addresses). `/a/` and `/` therefore match no address.
 
 ### Classes
 
