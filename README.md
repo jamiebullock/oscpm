@@ -98,7 +98,7 @@ The mixer example below shows this:
 struct Message
 {
   std::string_view addressPattern;
-  std::variant<float, std::int32_t, std::string_view> argument;
+  std::variant<float, std::int32_t> argument;
 };
 
 // In a real application this would read the next incoming message
