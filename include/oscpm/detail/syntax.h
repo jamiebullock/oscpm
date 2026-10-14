@@ -28,8 +28,10 @@ namespace k
     constexpr char listClose = '}';
     constexpr char listSeparator = ',';
     constexpr StringView reservedInAddress = "#*,?[]{}";
+    constexpr char nul = '\0';
     constexpr unsigned char firstPrintableAscii = 0x21;
     constexpr unsigned char lastPrintableAscii = 0x7E;
+    constexpr unsigned char lastAscii = 0x7F;
     constexpr std::size_t operatorRunLength = 2;
     constexpr StringView descendantOperator = "//";
     constexpr std::size_t numByteValues = 256;
@@ -78,6 +80,11 @@ constexpr bool isPrintableAscii(char byte) noexcept
 constexpr bool isReservedInAddress(char byte) noexcept
 {
     return k::reservedInAddress.find(byte) != npos;
+}
+
+constexpr bool isLegalInPattern(char byte) noexcept
+{
+    return byte != k::nul && static_cast<unsigned char>(byte) <= k::lastAscii;
 }
 
 using ByteTable = std::array<bool, k::numByteValues>;

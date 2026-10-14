@@ -24,6 +24,7 @@ enum class PatternError
     MissingLeadingSlash, ///< no leading '/'
     UnterminatedClass, ///< a '[' with no ']' before the next '/'
     UnterminatedBraces, ///< a '{' with no '}' before the next '/'
+    IllegalByte, ///< a null or a byte above 0x7F, which an OSC-string cannot hold
     PatternTooLong ///< a wildcard pattern longer than `kMaxPatternLength`
 };
 
@@ -49,6 +50,8 @@ constexpr const char* toString(PatternError error) noexcept
         return "UnterminatedClass";
     case PatternError::UnterminatedBraces:
         return "UnterminatedBraces";
+    case PatternError::IllegalByte:
+        return "IllegalByte";
     case PatternError::PatternTooLong:
         return "PatternTooLong";
     }

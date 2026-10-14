@@ -16,6 +16,18 @@
 namespace oscpm::detail
 {
 
+constexpr bool hasIllegalByte(std::string_view text) noexcept
+{
+    for (const char byte : text)
+    {
+        if (!isLegalInPattern(byte))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 constexpr std::optional<PatternError> validatePattern(std::string_view pattern) noexcept
 {
     if (!hasLeadingSlash(pattern))
@@ -26,12 +38,20 @@ constexpr std::optional<PatternError> validatePattern(std::string_view pattern) 
     std::size_t i = 0;
     while (i < checked)
     {
+        if (!isLegalInPattern(pattern[i]))
+        {
+            return PatternError::IllegalByte;
+        }
         if (pattern[i] == k::setOpen)
         {
             const std::size_t close = closeWithinPart(pattern, i, k::setClose);
             if (close == npos)
             {
                 return PatternError::UnterminatedClass;
+            }
+            if (hasIllegalByte(pattern.substr(i + 1, close - i - 1)))
+            {
+                return PatternError::IllegalByte;
             }
             i = close + 1;
         }
@@ -42,12 +62,20 @@ constexpr std::optional<PatternError> validatePattern(std::string_view pattern) 
             {
                 return PatternError::UnterminatedBraces;
             }
+            if (hasIllegalByte(pattern.substr(i + 1, close - i - 1)))
+            {
+                return PatternError::IllegalByte;
+            }
             i = close + 1;
         }
         else
         {
             ++i;
         }
+    }
+    if (hasIllegalByte(pattern.substr(checked)))
+    {
+        return PatternError::IllegalByte;
     }
     if (pattern.size() > kMaxPatternLength && hasWildcard(pattern))
     {

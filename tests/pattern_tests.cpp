@@ -52,9 +52,9 @@ TEST_CASE("parse yields a pattern for a well-formed pattern")
     static_assert(Pattern::parse("//"));
     static_assert(Pattern::parse("/a/?/[a-z]/{x,y}"));
     static_assert(Pattern::parse("/{a,{b,c}}"));
-    static_assert(Pattern::parse("/{a,{b,c}}]} #\xc3\xa9"));
+    static_assert(Pattern::parse("/{a,{b,c}}]} #"));
     static_assert(Pattern::parse("/a]"));
-    static_assert(Pattern::parse("/caf\xc3\xa9"));
+    static_assert(Pattern::parse("/\x01\x1f\x7f"));
 }
 
 TEST_CASE("parse reports the first fault")
@@ -65,6 +65,21 @@ TEST_CASE("parse reports the first fault")
     static_assert(faults(Pattern::parse("/x/[a/b]"), PatternError::UnterminatedClass));
     static_assert(faults(Pattern::parse("/{a,b}{c"), PatternError::UnterminatedBraces));
     static_assert(faults(Pattern::parse("/[a{"), PatternError::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/caf\xc3\xa9"), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse("/\x80"), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse("/a\xff"), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse("/[\xc3]"), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse("/{a,\xc3}"), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse("/[\xc3"), PatternError::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/\xc3["), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse(std::string_view("/a\0b", 4)), PatternError::IllegalByte));
+}
+
+TEST_CASE("a literal pattern longer than the wildcard limit is still checked for illegal bytes")
+{
+    const std::string longest(oscpm::kMaxPatternLength + 1, 'a');
+    CHECK(Pattern::parse("/" + longest));
+    CHECK(faults(Pattern::parse("/" + longest + "\xc3"), PatternError::IllegalByte));
 }
 
 TEST_CASE("a pattern keeps a view of the text it was parsed from")
