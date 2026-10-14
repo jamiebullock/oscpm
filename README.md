@@ -94,11 +94,11 @@ In the common form:
 The mixer example below shows this:
 
 ```cpp
-// A message received from the OSC client, e.g. { "/mixer/*/gain", 0.5f } or { "/mixer/3/mute", 1 }
+// A message received from the OSC client, e.g. { "/mixer/*/gain", 0.5f } or { "/mixer/3/mute", 1.0f }
 struct Message
 {
   std::string_view addressPattern;
-  std::variant<float, std::int32_t> argument;
+  float argument;
 };
 
 // In a real application this would read the next incoming message
@@ -122,9 +122,8 @@ int main()
       Channel& channel = channels[index];
       const std::string prefix = "/mixer/" + std::to_string(index + 1);
       
-      // Each callback knows how to handle its own argument type
-      handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message) { channel.gain = std::get<float>(message.argument); });
-      handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message) { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
+      handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message) { channel.gain = message.argument; });
+      handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message) { channel.mute = message.argument != 0.0f; });
   }
 
   // The main receive loop
