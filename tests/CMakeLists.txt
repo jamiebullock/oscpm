@@ -168,3 +168,23 @@ target_compile_options(oscpm_expected_rule PRIVATE
 )
 add_test(NAME "reading the value of an expected holding an error aborts" COMMAND oscpm_expected_rule value)
 add_test(NAME "reading the error of an expected holding a value aborts" COMMAND oscpm_expected_rule error)
+
+add_executable(oscpm_constructor_rule constructor_rule.cpp)
+target_link_libraries(oscpm_constructor_rule PRIVATE oscpm::oscpm)
+target_compile_options(oscpm_constructor_rule PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
+)
+add_test(NAME "constructing an address from malformed text aborts" COMMAND oscpm_constructor_rule address /synth/1/)
+add_test(NAME "constructing a pattern from malformed text aborts" COMMAND oscpm_constructor_rule pattern "/synth/[1-3")
+
+set(OSCPM_CONSTRUCTOR_CASES
+    "an address"
+    "a pattern"
+)
+set(caseNumber 0)
+foreach(caseName IN LISTS OSCPM_CONSTRUCTOR_CASES)
+    math(EXPR caseNumber "${caseNumber} + 1")
+    oscpm_add_compile_failure(oscpm_constructor_constant_${caseNumber} constructor_constant.cpp OSCPM_CONSTRUCTOR_CASE=${caseNumber}
+        "${caseName} constructed from malformed text in a constant expression fails to compile" "constant expression|evaluate to a constant")
+endforeach()

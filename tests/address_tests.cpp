@@ -12,6 +12,7 @@
 #include <doctest/doctest.h>
 
 #include <cstddef>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -121,4 +122,15 @@ TEST_CASE("parsing an address allocates nothing")
     CHECK(after == before);
     CHECK(parsed);
     CHECK_FALSE(failed);
+}
+
+TEST_CASE("the constructor yields the address parse yields")
+{
+    constexpr Address address("/synth/1/freq");
+    static_assert(address.text() == kFrequency->text());
+
+    const std::string text = "/mixer/" + std::to_string(3) + "/gain";
+    const Address built(text);
+    CHECK(built.text() == Address::parse(text)->text());
+    CHECK(built.text().data() == text.data());
 }

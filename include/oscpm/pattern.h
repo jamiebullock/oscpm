@@ -15,6 +15,7 @@
 #include <oscpm/expected.h>
 
 #include <cstddef>
+#include <cstdlib>
 #include <optional>
 #include <string_view>
 
@@ -29,6 +30,19 @@ class Pattern
 public:
     /// Parses `text`, yielding the pattern or the first fault.
     static constexpr Expected<Pattern, PatternError> parse(std::string_view text) noexcept;
+
+    /// Parses `text`, calling `std::abort` on the first fault; in a constant
+    /// expression a fault is a compile error. For text the program controls;
+    /// `parse` is for text it does not.
+    constexpr explicit Pattern(std::string_view text) noexcept
+        : m_text(text)
+        , m_isLiteral(detail::isLiteralText(text))
+    {
+        if (detail::validatePattern(text).has_value())
+        {
+            std::abort();
+        }
+    }
 
     /// Whether this pattern matches `address`.
     constexpr bool matches(const Address& address) const noexcept
@@ -51,7 +65,11 @@ public:
     }
 
 private:
-    constexpr explicit Pattern(std::string_view text) noexcept
+    struct Validated
+    {
+    };
+
+    constexpr Pattern(Validated, std::string_view text) noexcept
         : m_text(text)
         , m_isLiteral(detail::isLiteralText(text))
     {
@@ -68,7 +86,7 @@ constexpr Expected<Pattern, PatternError> Pattern::parse(std::string_view text) 
     {
         return *fault;
     }
-    return Pattern(text);
+    return Pattern(Validated { }, text);
 }
 
 /// @return true if @p address matches @p pattern; false when either is

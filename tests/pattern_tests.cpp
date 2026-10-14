@@ -214,3 +214,20 @@ TEST_CASE("the allocation counter observes the heap")
     CHECK(oscpm_test::allocationCount() > before);
     ::operator delete(allocated);
 }
+
+TEST_CASE("the constructor yields the pattern parse yields")
+{
+    constexpr Pattern wildcard("/synth/*/{freq,amp}");
+    static_assert(wildcard.text() == kWildcard->text());
+    static_assert(!wildcard.isLiteral());
+    static_assert(wildcard.matches(Address("/synth/12/amp")));
+
+    constexpr Pattern literal("/synth/1/freq");
+    static_assert(literal.isLiteral());
+
+    const std::string text = "/mixer/" + std::to_string(3) + "/*";
+    const Pattern built(text);
+    CHECK(built.text() == Pattern::parse(text)->text());
+    CHECK(built.text().data() == text.data());
+    CHECK(built.isLiteral() == Pattern::parse(text)->isLiteral());
+}
