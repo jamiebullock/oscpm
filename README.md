@@ -351,7 +351,7 @@ Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0
   | `/a//` | `/a` and every address below it |
   | `//` | every address |
 
-- A single trailing `/` leaves an empty final part, the substring after the last slash. No address has one, because an address ends with a method name, so a pattern ending in `/`, and the bare `/`, match no address.
+- A pattern ending in `/` matches nothing, since an address ending in `/` is [malformed](#malformed-addresses). `/a/` and `/` therefore match no address.
 
 ### Classes
 
