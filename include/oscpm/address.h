@@ -10,6 +10,7 @@
 #include <oscpm/error.h>
 #include <oscpm/expected.h>
 
+#include <cstdlib>
 #include <optional>
 #include <string_view>
 
@@ -25,6 +26,18 @@ public:
     /// Parses `text`, yielding the address or the first fault.
     static constexpr Expected<Address, AddressError> parse(std::string_view text) noexcept;
 
+    /// Parses `text`, calling `std::abort` on the first fault; in a constant
+    /// expression a fault is a compile error. For text the program controls;
+    /// `parse` is for text it does not.
+    constexpr explicit Address(std::string_view text) noexcept
+        : m_text(text)
+    {
+        if (detail::validateAddress(text).has_value())
+        {
+            std::abort();
+        }
+    }
+
     /// The bytes this address was parsed from.
     constexpr std::string_view text() const noexcept
     {
@@ -32,7 +45,11 @@ public:
     }
 
 private:
-    constexpr explicit Address(std::string_view text) noexcept
+    struct Validated
+    {
+    };
+
+    constexpr Address(Validated, std::string_view text) noexcept
         : m_text(text)
     {
     }
@@ -47,7 +64,7 @@ constexpr Expected<Address, AddressError> Address::parse(std::string_view text) 
     {
         return *fault;
     }
-    return Address(text);
+    return Address(Validated { }, text);
 }
 
 }

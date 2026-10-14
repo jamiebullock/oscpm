@@ -38,12 +38,13 @@ oscpm::match("synth/*/freq", "1/synth/freq"); // false (address and pattern are 
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
 - For `constexpr` patterns, validity can be checked at compile time
-- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once in `Pattern::parse()`, and patterns without wildcards reduce to a plain string comparison
+- Matching with `Pattern::matches()` is faster than `oscpm::match()` because the pattern is validated once, and patterns without wildcards reduce to a plain string comparison
+
+A `Pattern` is constructed from text the program controls, and aborts if the text is malformed. For text from outside the program, `Pattern::parse()` returns the fault as a value instead:
 
 ```cpp
-constexpr auto parsed = oscpm::Pattern::parse("/synth/*/{freq,amp}");
-static_assert(parsed);
-static_assert(parsed->matches(*oscpm::Address::parse("/synth/12/amp")));
+constexpr oscpm::Pattern pattern("/synth/*/{freq,amp}"); // a malformed literal fails to compile
+static_assert(pattern.matches(oscpm::Address("/synth/12/amp")));
 
 if (const auto result = oscpm::Pattern::parse(text))
 {
@@ -65,8 +66,8 @@ Similar to `Pattern`, `Address` is a validated OSC address:
 #include <oscpm/address.h>
 #include <oscpp/client.hpp>
 
-constexpr auto parsed = oscpm::Address::parse("/synth/1/freq");
-static_assert(parsed);
+constexpr oscpm::Address address("/synth/1/freq"); // a malformed literal fails to compile
+static_assert(oscpm::Pattern("/synth/*/freq").matches(address));
 
 // Validate e.g. a user-typed address
 if (const auto result = oscpm::Address::parse(userAddress))
@@ -117,9 +118,9 @@ int main()
   {
       Channel& channel = channels[index];
       const std::string prefix = "/mixer/" + std::to_string(index + 1);
-      handlers.add(*oscpm::Address::parse(prefix + "/gain"), [&channel](const Message& message)
+      handlers.add(oscpm::Address(prefix + "/gain"), [&channel](const Message& message)
           { channel.gain = std::get<float>(message.argument); });
-      handlers.add(*oscpm::Address::parse(prefix + "/mute"), [&channel](const Message& message)
+      handlers.add(oscpm::Address(prefix + "/mute"), [&channel](const Message& message)
           { channel.mute = std::get<std::int32_t>(message.argument) != 0; });
   }
 
@@ -198,17 +199,15 @@ void outputFrame(oscpm::AddressSpace<float>& levels)
 
 int main()
 {
-  // An Address views the bytes it was parsed from, so the address strings outlive the address space
-  std::array<std::string, 24> addresses;
+  constexpr std::size_t numDimmers = 24;
   oscpm::AddressSpace<float> levels;
 
   // Add a level for each dimmer, before either thread starts
-  for (std::size_t dimmer = 0; dimmer < addresses.size(); ++dimmer)
+  for (std::size_t dimmer = 1; dimmer <= numDimmers; ++dimmer)
   {
       char text[32];
-      std::snprintf(text, sizeof text, "/light/%02zu/level", dimmer + 1);
-      addresses[dimmer] = text;
-      levels.add(*oscpm::Address::parse(addresses[dimmer]), 0.0f);
+      std::snprintf(text, sizeof text, "/light/%02zu/level", dimmer);
+      levels.add(oscpm::Address(text), 0.0f);
   }
 
   // Start the network thread, which pushes each received message, and the output thread, which calls outputFrame(levels) on its frame timer
@@ -238,7 +237,7 @@ void setFrequency(const OSCPP::Server::Message& message)
 }
 
 oscpm::AddressSpace<Handler> methods;
-methods.add(*oscpm::Address::parse("/synth/freq"), setFrequency);
+methods.add(oscpm::Address("/synth/freq"), setFrequency);
 
 // for each OSCPP::Server::Message received
 methods.dispatch(message.address(), message); // A message with address "/synth/*" calls setFrequency()
@@ -368,7 +367,7 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 
 ### Malformed Patterns
 
-`Pattern::parse` rejects a pattern only for one of these faults:
+`Pattern::parse` rejects a pattern, and the `Pattern` constructor aborts, only for one of these faults:
 
 | Fault | `PatternError` |
 | --- | --- |
@@ -381,7 +380,7 @@ Every other pattern parses. A rejected pattern matches nothing: `match` returns 
 
 ### Malformed Addresses
 
-`Address::parse` rejects an address only for one of these faults:
+`Address::parse` rejects an address, and the `Address` constructor aborts, only for one of these faults:
 
 | Fault | `AddressError` |
 | --- | --- |
@@ -404,6 +403,8 @@ A rejected address matches nothing: `match` returns false, and `Pattern::matches
 - run in time bounded by the product of the pattern and address lengths, whatever the pattern contains;
 - use an amount of stack that is fixed when they are compiled, whatever the pattern and address;
 - are `constexpr` outside the address space, so a fixed pattern is parsed or matched at compile time.
+
+The library calls `std::abort` in two places: the `Address` and `Pattern` constructors on malformed text, and `Expected` when the side it does not hold is read. Each is a programming error in the caller.
 
 `AddressSpace::visit` and `dispatch` allocate nothing and never throw, apart from whatever the visitor or handler they call does; they are not declared `noexcept`. Matching a pattern against the space takes at most the time bound above for each registered address. `AddressSpace::add` and `remove` allocate.
 
