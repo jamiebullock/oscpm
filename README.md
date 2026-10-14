@@ -154,13 +154,18 @@ int main()
 
 ### Registering Parameters
 
-In the alternative form, the address space stores the parameters directly. This suits an application where every address holds the same kind of value and only the latest value matters, because the values are sampled when they are needed rather than acted on as each message arrives. A message that must have an effect each time it is received, such as a trigger, needs the callback form.
+In the alternative form, the address space stores the parameters directly.
 
-Using oscpm in this way, the caller registers a _value_ instead of a callback for each address and uses `visit()` in place of `dispatch()`. 
+This suits applications where:
+- Every address holds the same kind of value
+- Only the latest value is needed, not every intermediate one
 
-The visitor is invoked once for each method whose address matches the received pattern. Since a method corresponds to a value in this use case, the visitor's role is simply to assign the OSC message's argument to the stored value. Values can then be read back individually by address with `find()`, or all together with `visit(visitor)`. 
- 
-The example below is a lighting rig: every address is a dimmer level, a network thread queues the console's messages, and the output thread applies them and reads the current level of every dimmer each frame. The address space is only ever touched by the output thread:
+Used as follows:
+- The caller registers a _value_ for each OSC address
+- A visitor is called for each address matching an incoming OSC pattern
+- The visitor can then set or get the value
+
+The lighting rig example below shows this:
 
 ```cpp
 // A message received from the lighting console, e.g. { "/light/0[1-4]/level", 0.75f } or { "/light/*/level", 0.0f }
