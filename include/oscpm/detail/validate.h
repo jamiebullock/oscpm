@@ -28,6 +28,34 @@ constexpr bool hasIllegalByte(std::string_view text) noexcept
     return false;
 }
 
+struct ConstructScan
+{
+    std::size_t close;
+    bool legal;
+};
+
+constexpr ConstructScan scanConstruct(std::string_view pattern, std::size_t open, char closeByte) noexcept
+{
+    bool legal = true;
+    for (std::size_t i = open + 1; i < pattern.size(); ++i)
+    {
+        const char byte = pattern[i];
+        if (byte == closeByte)
+        {
+            return { i, legal };
+        }
+        if (byte == k::partSeparator)
+        {
+            break;
+        }
+        if (!isLegalInPattern(byte))
+        {
+            legal = false;
+        }
+    }
+    return { npos, legal };
+}
+
 constexpr std::optional<PatternError> validatePattern(std::string_view pattern) noexcept
 {
     if (!hasLeadingSlash(pattern))
@@ -38,48 +66,37 @@ constexpr std::optional<PatternError> validatePattern(std::string_view pattern) 
     std::size_t i = 0;
     while (i < checked)
     {
-        if (!isLegalInPattern(pattern[i]))
-        {
-            return PatternError::IllegalByte;
-        }
-        if (pattern[i] == k::setOpen)
-        {
-            const std::size_t close = closeWithinPart(pattern, i, k::setClose);
-            if (close == npos)
-            {
-                return PatternError::UnterminatedClass;
-            }
-            if (hasIllegalByte(pattern.substr(i + 1, close - i - 1)))
-            {
-                return PatternError::IllegalByte;
-            }
-            i = close + 1;
-        }
-        else if (pattern[i] == k::listOpen)
-        {
-            const std::size_t close = closeWithinPart(pattern, i, k::listClose);
-            if (close == npos)
-            {
-                return PatternError::UnterminatedBraces;
-            }
-            if (hasIllegalByte(pattern.substr(i + 1, close - i - 1)))
-            {
-                return PatternError::IllegalByte;
-            }
-            i = close + 1;
-        }
-        else
+        const PatternByte kind = classifyPatternByte(pattern[i]);
+        if (kind == PatternByte::Plain)
         {
             ++i;
         }
-    }
-    if (hasIllegalByte(pattern.substr(checked)))
-    {
-        return PatternError::IllegalByte;
+        else if (kind == PatternByte::Illegal)
+        {
+            return PatternError::IllegalByte;
+        }
+        else
+        {
+            const bool isClass = kind == PatternByte::SetOpen;
+            const ConstructScan scan = scanConstruct(pattern, i, isClass ? k::setClose : k::listClose);
+            if (scan.close == npos)
+            {
+                return isClass ? PatternError::UnterminatedClass : PatternError::UnterminatedBraces;
+            }
+            if (!scan.legal)
+            {
+                return PatternError::IllegalByte;
+            }
+            i = scan.close + 1;
+        }
     }
     if (pattern.size() > kMaxPatternLength && hasWildcard(pattern))
     {
         return PatternError::PatternTooLong;
+    }
+    if (hasIllegalByte(pattern.substr(checked)))
+    {
+        return PatternError::IllegalByte;
     }
     return std::nullopt;
 }
