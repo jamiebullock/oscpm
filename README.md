@@ -84,6 +84,10 @@ else
 
 `AddressSpace<T>` associates OSC addresses with values of type `T`. Depending on the type chosen for `T`, an OSC method can correspond to a callback function or a parameter the address space itself manages.
 
+`visit` and `dispatch` take the pattern as text and return a `MatchResult` holding:
+- `matched`, the number of values visited or called
+- `error`, the `PatternError` when the pattern was malformed
+
 ### Registering Callbacks
 
 In the common form:
@@ -394,7 +398,7 @@ Inside a class or brace list, only the member containing the byte is excluded:
 
 ### Malformed Patterns
 
-`Pattern::parse` rejects a pattern, and the `Pattern` constructor aborts, only for one of these faults:
+The following patterns are considered malformed and will be rejected by `Pattern::parse()` and cause the `Pattern` constructor to abort:
 
 | Fault | `PatternError` |
 | --- | --- |
@@ -403,8 +407,6 @@ Inside a class or brace list, only the member containing the byte is excluded:
 | a `{` with no `}` before the next `/` | `UnterminatedBraces` |
 | a null or a byte above 0x7F | `IllegalByte` |
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
-
-Every other pattern parses. A rejected pattern matches nothing: `match` returns false, and `AddressSpace::visit` and `dispatch` reach no value.
 
 ### Malformed Addresses
 
