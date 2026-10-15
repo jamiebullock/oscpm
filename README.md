@@ -461,20 +461,12 @@ With CMake 3.26 or later, any of these provides the target `oscpm::oscpm`:
   target_link_libraries(app PRIVATE oscpm::oscpm)
   ```
 
-- **`find_package`** after `cmake --install`, which installs the headers and a package config with a version file:
+- **`find_package`** after `cmake --install`, which installs the headers and a package config
+- **`add_subdirectory`** on a checkout or a vendored copy
 
-  ```cmake
-  find_package(oscpm REQUIRED)
-  target_link_libraries(app PRIVATE oscpm::oscpm)
-  ```
+A version passed to `find_package` is satisfied only by an install of the same minor version while the major version is 0, and by one of the same major version from 1.0.
 
-  While the major version is 0, a version passed to `find_package` is satisfied only by an install of the same minor version; from 1.0, by one of the same major version.
-
-- **`add_subdirectory`** on a checkout or a vendored copy. A source archive has no git history to read the version from, so pass `-DOSCPM_VERSION=<version>` when configuring it.
-
-Without CMake, put `include/` on the include path.
-
-`oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value, `oscpm/address_space.h` the address space and `oscpm/error.h` the faults they report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is public API.
+Without CMake, put `include/` on the include path. `oscpm/oscpm.h` includes every public header. Nothing under `oscpm/detail/` is public API.
 
 ## Supported Platforms
 
@@ -566,6 +558,8 @@ ctest --preset release
 ```
 
 `debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and `bench` is `release` with the benchmarks. `mutation` is `release` with the tests compiled under clang-18 with the [Mull](https://github.com/mull-project/mull) plugin, and its build runs them once per mutant; it needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists what is fetched at configure time and why.
+
+The version is read from the most recent git tag. A source archive has no git history, so pass `-DOSCPM_VERSION=<version>` when configuring.
 
 | Option | Default | Effect |
 | --- | --- | --- |
