@@ -428,7 +428,7 @@ The following addresses are considered malformed and will be rejected by `Addres
 
 Nothing in the library allocates except `AddressSpace` construction, copying, `add` and `remove`.
 
-Nothing in the library calls `std::abort` except the `Address` and `Pattern` constructors on malformed text, and `Expected::value` or `Expected::error` read in the wrong state.
+Nothing in the library calls `std::abort` except the `Address` and `Pattern` constructors on malformed text, and `Expected` dereferenced while holding an error or `Expected::error` called while holding a value.
 
 `match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find`:
 - never throw, and are declared `noexcept`
