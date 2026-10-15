@@ -442,7 +442,7 @@ Nothing in the library calls `std::abort` except the `Address` and `Pattern` con
 - have a stack size fixed at compile time
 - use only a single lookup for literal and memoised patterns
 
-Every code change can only merge after the test suite and [conformance corpus](#conformance-corpus) have run under `AddressSanitizer` and `UndefinedBehaviorSanitizer`. This guarantees the following for the paths they exercise:
+Every code change can only merge after the test suite and [conformance corpus](#conformance-corpus) have run under `AddressSanitizer` and `UndefinedBehaviorSanitizer`. This guarantees the following for the tested code paths:
 - no out-of-bounds or use-after-free memory access
 - no undefined behaviour
 
