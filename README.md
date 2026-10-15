@@ -84,6 +84,10 @@ else
 
 `AddressSpace<T>` associates OSC addresses with values of type `T`. Depending on the type chosen for `T`, an OSC method can correspond to a callback function or a parameter the address space itself manages.
 
+`visit` and `dispatch` take the pattern as text and return a `MatchResult` holding:
+- `matched`, the number of values visited or called
+- `error`, the `PatternError` when the pattern was malformed
+
 ### Registering Callbacks
 
 In the common form:
@@ -367,19 +371,34 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 | `[!]` | any one byte |
 | `[a!]` | `a` or `!` |
 
-### Brace Lists
+### Brackets and Braces
 
-- Inside `{` and `}` every byte is literal, `,` always delimits and the first `}` closes: `{a,{b,c}}` is the members `a`, `{b` and `c` followed by a literal `}`.
-- An empty member matches the empty string: `{a,}` matches `a` or nothing.
+- Following an opening `[`, the first `]` closes it
+- Following an opening `{`, the first `}` closes it
+- Inside `{` and `}`:
+    * Every byte is literal and `,` always delimits, so `{a,{b,c}}` is the members `a`, `{b` and `c` followed by a literal `}`
+    * An empty member matches the empty string: `{a,}` matches `a` or nothing
+- Inside `[` and `]`:
+    * Every byte is a member except a leading `!` and a `-` between two bytes
+    * `[a*]b]` is the class `a` or `*` followed by the literals `b` and `]`
 
 ### Other Bytes
 
-- Outside a class or brace list, a `]`, `}` or `,` is a literal, as is a `#`, a space and a control character other than null. None of these bytes can appear in a well-formed address, so a pattern part that contains any of them matches no address. In a brace list only the member that contains the byte is ruled out: `{a b,c}` still matches `c`.
+The following are treated as literals:
+- `#`, space, and all control characters except null
+- `]`, `}`, and `,` outside a class or brace list
 
+None of the above bytes are valid in a well-formed address, so they never match:
+- `/a b` matches nothing
+- `/a}` matches nothing
+  
+Inside a class or brace list, only the member containing the byte is excluded:
+- `/{a b,c}` matches `/c`
+- `/[a ]` matches `/a`
 
 ### Malformed Patterns
 
-`Pattern::parse` rejects a pattern, and the `Pattern` constructor aborts, only for one of these faults:
+The following patterns are considered malformed and will be rejected by `Pattern::parse()` and cause the `Pattern` constructor to abort:
 
 | Fault | `PatternError` |
 | --- | --- |
@@ -389,11 +408,9 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 | a null or a byte above 0x7F | `IllegalByte` |
 | a wildcard, class, brace list or `//` in a pattern longer than `kMaxPatternLength` | `PatternTooLong` |
 
-Every other pattern parses. A rejected pattern matches nothing: `match` returns false, and `AddressSpace::visit` and `dispatch` reach no value.
-
 ### Malformed Addresses
 
-`Address::parse` rejects an address, and the `Address` constructor aborts, only for one of these faults:
+The following addresses are considered malformed and will be rejected by `Address::parse()` and cause the `Address` constructor to abort:
 
 | Fault | `AddressError` |
 | --- | --- |
@@ -403,31 +420,35 @@ Every other pattern parses. A rejected pattern matches nothing: `match` returns 
 | a byte outside printable ASCII, or one of `space`, `#`, `*`, `,`, `?`, `[`, `]`, `{`, `}` | `IllegalByte` |
 | a part longer than `kMaxAddressPartLength` | `PartTooLong` |
 
-A rejected address matches nothing: `match` returns false, and `Pattern::matches` takes only a parsed `Address`. Every well-formed address also parses as a literal pattern that matches only itself.
+### Conformance Corpus
 
-[`corpus/matching.txt`](corpus/matching.txt) is the executable record of these rules: one case per line, replayed by the test suite, in a plain-text format other implementations can reuse.
+[`corpus/matching.txt`](corpus/matching.txt) is the executable record of every rule in this section. It's structured one case per line and replayed by the test suite. It is in a plain-text format other implementations can reuse.
 
 ## Guarantees
 
+Nothing in the library allocates except `AddressSpace` construction, copying, `add` and `remove`.
+
+Nothing in the library calls `std::abort` except the `Address` and `Pattern` constructors on malformed text, and `Expected` dereferenced while holding an error or `Expected::error` called while holding a value.
+
 `match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find`:
+- never throw, and are declared `noexcept`
+- have execution time bounded by the product of the pattern and address lengths
+- have stack size fixed at compile time
+- are `constexpr` outside the address space, so a fixed pattern can be parsed or matched at compile time
 
-- allocate nothing, which the test suite asserts with a counting `operator new`;
-- never throw, and are declared `noexcept`;
-- run in time bounded by the product of the pattern and address lengths, whatever the pattern contains;
-- use an amount of stack that is fixed when they are compiled, whatever the pattern and address;
-- are `constexpr` outside the address space, so a fixed pattern is parsed or matched at compile time.
+`AddressSpace::visit` and `AddressSpace::dispatch`:
+- only propagate exceptions thrown by the visitor or handler they call
+- have execution time bounded by the pattern match time multiplied by the number of registered addresses
+- have a stack size fixed at compile time
+- use only a single lookup for literal and memoised patterns
 
-The library calls `std::abort` in two places: the `Address` and `Pattern` constructors on malformed text, and `Expected` when the side it does not hold is read. Each is a programming error in the caller.
-
-`AddressSpace::visit` and `dispatch` allocate nothing and never throw, apart from whatever the visitor or handler they call does; they are not declared `noexcept`. Matching a pattern against the space takes at most the time bound above for each registered address. `AddressSpace::add` and `remove` allocate.
-
-The stack a visit or dispatch uses is likewise fixed when it is compiled, and does not depend on the pattern, the address or the number of registered addresses: matching, visiting and dispatching never recurse, and size every stack buffer at compile time. With AppleClang 21 and GCC 14 at `-O3`, visiting a wildcard pattern typically uses under 2.5 KiB, plus 4 bytes for each of `InlineResults` when `Memo` is true (under 6.5 KiB with the defaults), and up to 1 KiB more for an address part of 64 bytes or longer. A visit served from the memo uses under 200 bytes.
-
-A libFuzzer target checks the matcher, the pattern value and `Address::parse` against each other under AddressSanitizer and UndefinedBehaviorSanitizer on every change.
+Every code change can only merge after the test suite and [conformance corpus](#conformance-corpus) have run under `AddressSanitizer` and `UndefinedBehaviorSanitizer`. This guarantees the following for the tested code paths:
+- no out-of-bounds or use-after-free memory access
+- no undefined behaviour
 
 ## CMake Setup
 
-With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
+With CMake 3.26 or later, any of these provides the target `oscpm::oscpm`:
 
 - **FetchContent**, pinned to one of the [release tags](https://github.com/jamiebullock/oscpm/tags):
 
@@ -440,24 +461,16 @@ With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
   target_link_libraries(app PRIVATE oscpm::oscpm)
   ```
 
-- **`find_package`** after `cmake --install`, which installs the headers and a package config with a version file:
+- **`find_package`** after `cmake --install`, which installs the headers and a package config
+- **`add_subdirectory`** on a checkout or a vendored copy
 
-  ```cmake
-  find_package(oscpm REQUIRED)
-  target_link_libraries(app PRIVATE oscpm::oscpm)
-  ```
+A version passed to `find_package` is satisfied only by an install of the same minor version while the major version is 0, and by one of the same major version from 1.0.
 
-  While the major version is 0, a version passed to `find_package` is satisfied only by an install of the same minor version; from 1.0, by one of the same major version.
-
-- **`add_subdirectory`** on a checkout or a vendored copy. A source archive has no git history to read the version from, so pass `-DOSCPM_VERSION=<version>` when configuring it.
-
-Without CMake, put `include/` on the include path.
-
-`oscpm/pattern.h` holds the matcher, `oscpm/address.h` the address value, `oscpm/address_space.h` the address space and `oscpm/error.h` the faults they report; `oscpm/oscpm.h` includes all four. Nothing under `oscpm/detail/` is public API.
+Without CMake, put `include/` on the include path. `oscpm/oscpm.h` includes every public header. Nothing under `oscpm/detail/` is public API.
 
 ## Supported Platforms
 
-oscpm supports the following platforms, needing only a C++17 compiler and its standard library:
+oscpm supports the following platforms:
 
 | Platform | Toolchain | Checked |
 | --- | --- | --- |
@@ -475,7 +488,9 @@ oscpm supports the following platforms, needing only a C++17 compiler and its st
 | Arduino MKR Zero | `arduino:samd` core, with `-std=gnu++17` | `arduino-cli`, 2026-10-10 |
 | Adafruit Feather nRF52840 | `adafruit:nrf52` core, with `-std=gnu++17` and `-lstdc++` | `arduino-cli`, 2026-10-10 |
 
-The rows marked CI are built on every push and pull request to `develop`. Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The 8-bit AVR boards have no C++ standard library, and the `arduino:mbed_nano` core's `abs` macro breaks libstdc++ at C++17, so oscpm does not compile for them. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
+The rows marked CI are built on every push and pull request to `develop`.
+
+Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
 
 ## Performance
 
@@ -545,6 +560,8 @@ ctest --preset release
 ```
 
 `debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and `bench` is `release` with the benchmarks. `mutation` is `release` with the tests compiled under clang-18 with the [Mull](https://github.com/mull-project/mull) plugin, and its build runs them once per mutant; it needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists what is fetched at configure time and why.
+
+The version is read from the most recent git tag. A source archive has no git history, so pass `-DOSCPM_VERSION=<version>` when configuring.
 
 | Option | Default | Effect |
 | --- | --- | --- |
