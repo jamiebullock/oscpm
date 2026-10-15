@@ -420,8 +420,9 @@ The following addresses are considered malformed and will be rejected by `Addres
 | a byte outside printable ASCII, or one of `space`, `#`, `*`, `,`, `?`, `[`, `]`, `{`, `}` | `IllegalByte` |
 | a part longer than `kMaxAddressPartLength` | `PartTooLong` |
 
+### Conformance Corpus
 
-[`corpus/matching.txt`](corpus/matching.txt) is the executable record of these rules: one case per line, replayed by the test suite, in a plain-text format other implementations can reuse.
+[`corpus/matching.txt`](corpus/matching.txt) is the executable record of every rule in this section. It's structured one case per line and replayed by the test suite. It is in a plain-text format other implementations can reuse.
 
 ## Guarantees
 
