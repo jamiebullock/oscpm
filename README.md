@@ -448,7 +448,7 @@ Every code change can only merge after the test suite and [conformance corpus](#
 
 ## CMake Setup
 
-With CMake 3.26 or later, any of these gives the target `oscpm::oscpm`:
+With CMake 3.26 or later, any of these provides the target `oscpm::oscpm`:
 
 - **FetchContent**, pinned to one of the [release tags](https://github.com/jamiebullock/oscpm/tags):
 
