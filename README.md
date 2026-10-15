@@ -470,7 +470,7 @@ Without CMake, put `include/` on the include path. `oscpm/oscpm.h` includes ever
 
 ## Supported Platforms
 
-oscpm supports the following platforms, needing only a C++17 compiler and its standard library:
+oscpm supports the following platforms:
 
 | Platform | Toolchain | Checked |
 | --- | --- | --- |
@@ -488,7 +488,9 @@ oscpm supports the following platforms, needing only a C++17 compiler and its st
 | Arduino MKR Zero | `arduino:samd` core, with `-std=gnu++17` | `arduino-cli`, 2026-10-10 |
 | Adafruit Feather nRF52840 | `adafruit:nrf52` core, with `-std=gnu++17` and `-lstdc++` | `arduino-cli`, 2026-10-10 |
 
-The rows marked CI are built on every push and pull request to `develop`. Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The 8-bit AVR boards have no C++ standard library, and the `arduino:mbed_nano` core's `abs` macro breaks libstdc++ at C++17, so oscpm does not compile for them. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
+The rows marked CI are built on every push and pull request to `develop`.
+
+Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
 
 ## Performance
 
