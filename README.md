@@ -367,15 +367,30 @@ A `-` between two characters is a range; first or last it is a member. Only a le
 | `[!]` | any one byte |
 | `[a!]` | `a` or `!` |
 
-### Brace Lists
+### Brackets and Braces
 
-- Inside `{` and `}` every byte is literal, `,` always delimits and the first `}` closes: `{a,{b,c}}` is the members `a`, `{b` and `c` followed by a literal `}`.
-- An empty member matches the empty string: `{a,}` matches `a` or nothing.
+- Following an opening `[`, the first `]` closes it
+- Following an opening `{`, the first `}` closes it
+- Inside `{` and `}`:
+    * Every byte is literal and `,` always delimits, so `{a,{b,c}}` is the members `a`, `{b` and `c` followed by a literal `}`
+    * An empty member matches the empty string: `{a,}` matches `a` or nothing
+- Inside `[` and `]`:
+    * Every byte is a member except a leading `!` and a `-` between two bytes
+    * `[a*]b]` is the class `a` or `*` followed by the literals `b` and `]`
 
 ### Other Bytes
 
-- Outside a class or brace list, a `]`, `}` or `,` is a literal, as is a `#`, a space and a control character other than null. None of these bytes can appear in a well-formed address, so a pattern part that contains any of them matches no address. In a brace list only the member that contains the byte is ruled out: `{a b,c}` still matches `c`.
+The following are treated as literals:
+- `#`, space, and all control characters except null
+- `]`, `}`, and `,` outside a class or brace list
 
+None of the above bytes are valid in a well-formed address, so they never match:
+- `/a b` matches nothing
+- `/a}` matches nothing
+  
+Inside a class or brace list, only the member containing the byte is excluded:
+- `/{a b,c}` matches `/c`
+- `/[a ]` matches `/a`
 
 ### Malformed Patterns
 
