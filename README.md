@@ -410,7 +410,7 @@ The following patterns are considered malformed and will be rejected by `Pattern
 
 ### Malformed Addresses
 
-`Address::parse` rejects an address, and the `Address` constructor aborts, only for one of these faults:
+The following addresses are considered malformed and will be rejected by `Address::parse()` and cause the `Address` constructor to abort:
 
 | Fault | `AddressError` |
 | --- | --- |
@@ -420,7 +420,6 @@ The following patterns are considered malformed and will be rejected by `Pattern
 | a byte outside printable ASCII, or one of `space`, `#`, `*`, `,`, `?`, `[`, `]`, `{`, `}` | `IllegalByte` |
 | a part longer than `kMaxAddressPartLength` | `PartTooLong` |
 
-A rejected address matches nothing: `match` returns false, and `Pattern::matches` takes only a parsed `Address`. Every well-formed address also parses as a literal pattern that matches only itself.
 
 [`corpus/matching.txt`](corpus/matching.txt) is the executable record of these rules: one case per line, replayed by the test suite, in a plain-text format other implementations can reuse.
 
