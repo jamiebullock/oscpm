@@ -426,15 +426,17 @@ The following addresses are considered malformed and will be rejected by `Addres
 
 ## Guarantees
 
+Nothing in the library allocates except `AddressSpace` construction, copying, `add` and `remove`.
+
+Nothing in the library calls `std::abort` except the `Address` and `Pattern` constructors on malformed text, and `Expected::value` or `Expected::error` read in the wrong state.
+
 `match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find`:
-- do not allocate memory
 - never throw, and are declared `noexcept`
 - have execution time bounded by the product of the pattern and address lengths
 - have stack size fixed at compile time
 - are `constexpr` outside the address space, so a fixed pattern can be parsed or matched at compile time
 
 `AddressSpace::visit` and `AddressSpace::dispatch`:
-- do not allocate memory
 - only propagate exceptions thrown by the visitor or handler they call
 - have execution time bounded by the pattern match time multiplied by the number of registered addresses
 - have a stack size fixed at compile time
