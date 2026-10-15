@@ -427,20 +427,22 @@ The following addresses are considered malformed and will be rejected by `Addres
 ## Guarantees
 
 `match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find`:
+- do not allocate memory
+- never throw, and are declared `noexcept`
+- have execution time bounded by the product of the pattern and address lengths
+- have stack size fixed at compile time
+- are `constexpr` outside the address space, so a fixed pattern can be parsed or matched at compile time
 
-- allocate nothing, which the test suite asserts with a counting `operator new`;
-- never throw, and are declared `noexcept`;
-- run in time bounded by the product of the pattern and address lengths, whatever the pattern contains;
-- use an amount of stack that is fixed when they are compiled, whatever the pattern and address;
-- are `constexpr` outside the address space, so a fixed pattern is parsed or matched at compile time.
+`AddressSpace::visit` and `AddressSpace::dispatch`:
+- do not allocate memory
+- only propagate exceptions thrown by the visitor or handler they call
+- have execution time bounded by the pattern match time multiplied by the number of registered addresses
+- have a stack size fixed at compile time
+- use only a single lookup for literal and memoised patterns
 
-The library calls `std::abort` in two places: the `Address` and `Pattern` constructors on malformed text, and `Expected` when the side it does not hold is read. Each is a programming error in the caller.
-
-`AddressSpace::visit` and `dispatch` allocate nothing and never throw, apart from whatever the visitor or handler they call does; they are not declared `noexcept`. Matching a pattern against the space takes at most the time bound above for each registered address. `AddressSpace::add` and `remove` allocate.
-
-The stack a visit or dispatch uses is likewise fixed when it is compiled, and does not depend on the pattern, the address or the number of registered addresses: matching, visiting and dispatching never recurse, and size every stack buffer at compile time. With AppleClang 21 and GCC 14 at `-O3`, visiting a wildcard pattern typically uses under 2.5 KiB, plus 4 bytes for each of `InlineResults` when `Memo` is true (under 6.5 KiB with the defaults), and up to 1 KiB more for an address part of 64 bytes or longer. A visit served from the memo uses under 200 bytes.
-
-A libFuzzer target checks the matcher, the pattern value and `Address::parse` against each other under AddressSanitizer and UndefinedBehaviorSanitizer on every change.
+Every code change can only merge after the test suite and [conformance corpus](#conformance-corpus) have run under `AddressSanitizer` and `UndefinedBehaviorSanitizer`. This guarantees the following for the paths they exercise:
+- no out-of-bounds or use-after-free memory access
+- no undefined behaviour
 
 ## CMake Setup
 

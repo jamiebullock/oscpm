@@ -32,7 +32,8 @@ namespace detail
 }
 
 /// Either a `T` or the error `E` that prevented one, with the member names of
-/// `std::expected`. Reading the side it does not hold calls `std::abort`.
+/// `std::expected`. `value()` on an error and `error()` on a value call
+/// `std::abort`.
 /// @tparam E a scoped enumeration that neither converts to nor from `T`
 template <typename T, typename E>
 class Expected
