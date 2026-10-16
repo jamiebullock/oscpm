@@ -49,16 +49,21 @@ constexpr bool isOpener(char byte) noexcept
     return byte == k::anyBytes || byte == k::anyByte || byte == k::setOpen || byte == k::listOpen;
 }
 
-constexpr bool hasOpener(StringView text) noexcept
+constexpr std::size_t firstOpener(StringView text) noexcept
 {
-    for (const char byte : text)
+    for (std::size_t i = 0; i < text.size(); ++i)
     {
-        if (isOpener(byte))
+        if (isOpener(text[i]))
         {
-            return true;
+            return i;
         }
     }
-    return false;
+    return npos;
+}
+
+constexpr bool hasOpener(StringView text) noexcept
+{
+    return firstOpener(text) != npos;
 }
 
 constexpr bool isPrintableAscii(char byte) noexcept
@@ -80,6 +85,8 @@ constexpr bool isLegalInPattern(char byte) noexcept
 enum class PatternByte : unsigned char
 {
     Plain,
+    Separator,
+    Wildcard,
     SetOpen,
     ListOpen,
     Illegal
@@ -93,10 +100,12 @@ constexpr PatternByteTable patternByteTable() noexcept
     for (std::size_t value = 0; value < table.size(); ++value)
     {
         const auto byte = static_cast<char>(static_cast<unsigned char>(value));
-        table[value] = !isLegalInPattern(byte) ? PatternByte::Illegal
-            : byte == k::setOpen               ? PatternByte::SetOpen
-            : byte == k::listOpen              ? PatternByte::ListOpen
-                                               : PatternByte::Plain;
+        table[value] = !isLegalInPattern(byte)          ? PatternByte::Illegal
+            : byte == k::partSeparator                  ? PatternByte::Separator
+            : byte == k::anyBytes || byte == k::anyByte ? PatternByte::Wildcard
+            : byte == k::setOpen                        ? PatternByte::SetOpen
+            : byte == k::listOpen                       ? PatternByte::ListOpen
+                                                        : PatternByte::Plain;
     }
     return table;
 }
@@ -144,30 +153,21 @@ constexpr bool hasWildcard(StringView pattern) noexcept
     return hasOpener(pattern) || pattern.find(k::descendantOperator) != npos;
 }
 
-constexpr bool isLiteralText(StringView pattern) noexcept
+constexpr bool hasPartLongerThan(StringView text, std::size_t limit) noexcept
 {
     std::size_t partLength = 0;
-    for (std::size_t i = 0; i < pattern.size(); ++i)
+    for (const char byte : text)
     {
-        const char byte = pattern[i];
-        if (isOpener(byte))
-        {
-            return false;
-        }
         if (byte == k::partSeparator)
         {
-            if (i + 1 < pattern.size() && pattern[i + 1] == k::partSeparator)
-            {
-                return false;
-            }
             partLength = 0;
         }
-        else if (++partLength > kMaxAddressPartLength)
+        else if (++partLength > limit)
         {
-            return false;
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 }

@@ -56,14 +56,23 @@ constexpr ConstructScan scanConstruct(std::string_view pattern, std::size_t open
     return { npos, legal };
 }
 
-constexpr std::optional<PatternError> validatePattern(std::string_view pattern) noexcept
+static_assert(kMaxPatternLength <= kMaxAddressPartLength, "a part over the address part limit fits only in a pattern over the wildcard limit");
+
+struct PatternScan
+{
+    std::optional<PatternError> fault;
+    bool isLiteral = false;
+};
+
+constexpr PatternScan scanPattern(std::string_view pattern) noexcept
 {
     if (!hasLeadingSlash(pattern))
     {
-        return PatternError::MissingLeadingSlash;
+        return { PatternError::MissingLeadingSlash, false };
     }
     const std::size_t checked = pattern.size() < kMaxPatternLength ? pattern.size() : kMaxPatternLength;
-    std::size_t i = 0;
+    bool isLiteral = true;
+    std::size_t i = 1;
     while (i < checked)
     {
         const PatternByte kind = classifyPatternByte(pattern[i]);
@@ -71,9 +80,19 @@ constexpr std::optional<PatternError> validatePattern(std::string_view pattern) 
         {
             ++i;
         }
+        else if (kind == PatternByte::Separator)
+        {
+            isLiteral = isLiteral && pattern[i - 1] != k::partSeparator;
+            ++i;
+        }
+        else if (kind == PatternByte::Wildcard)
+        {
+            isLiteral = false;
+            ++i;
+        }
         else if (kind == PatternByte::Illegal)
         {
-            return PatternError::IllegalByte;
+            return { PatternError::IllegalByte, false };
         }
         else
         {
@@ -81,24 +100,29 @@ constexpr std::optional<PatternError> validatePattern(std::string_view pattern) 
             const ConstructScan scan = scanConstruct(pattern, i, isClass ? k::setClose : k::listClose);
             if (scan.close == npos)
             {
-                return isClass ? PatternError::UnterminatedClass : PatternError::UnterminatedBraces;
+                return { isClass ? PatternError::UnterminatedClass : PatternError::UnterminatedBraces, false };
             }
             if (!scan.legal)
             {
-                return PatternError::IllegalByte;
+                return { PatternError::IllegalByte, false };
             }
+            isLiteral = false;
             i = scan.close + 1;
         }
     }
-    if (pattern.size() > kMaxPatternLength && hasWildcard(pattern))
+    if (pattern.size() > kMaxPatternLength)
     {
-        return PatternError::PatternTooLong;
+        if (hasWildcard(pattern))
+        {
+            return { PatternError::PatternTooLong, false };
+        }
+        if (hasIllegalByte(pattern.substr(checked)))
+        {
+            return { PatternError::IllegalByte, false };
+        }
+        isLiteral = !hasPartLongerThan(pattern, kMaxAddressPartLength);
     }
-    if (hasIllegalByte(pattern.substr(checked)))
-    {
-        return PatternError::IllegalByte;
-    }
-    return std::nullopt;
+    return { std::nullopt, isLiteral };
 }
 
 constexpr std::optional<AddressError> validateAddress(std::string_view address) noexcept

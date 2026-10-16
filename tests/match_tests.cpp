@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 using oscpm::match;
 using oscpm::Pattern;
@@ -80,6 +81,56 @@ TEST_CASE("an address part longer than the supported length never matches")
     CHECK(match("/*", "/" + longest));
     CHECK_FALSE(match("/" + tooLong, "/" + tooLong));
     CHECK_FALSE(match("/*", "/" + tooLong));
+}
+
+TEST_CASE("the general matcher takes a literal part at the length limit and rejects one byte more")
+{
+    using oscpm::detail::matchParsed;
+    const std::string longest(oscpm::kMaxAddressPartLength, 'a');
+    const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
+    CHECK(matchParsed("/" + longest + "/?", "/" + longest + "/x"));
+    CHECK_FALSE(matchParsed("/" + longest + "/?", "/" + longest + "b/x"));
+    CHECK_FALSE(matchParsed("/" + tooLong + "/?", "/" + tooLong + "/x"));
+    const std::string half(2500, 'a');
+    CHECK(matchParsed("/" + half + "/" + half + "/?", "/" + half + "/" + half + "/x"));
+}
+
+TEST_CASE("a part shape selects the direct matcher for at most one star and no brace list")
+{
+    const auto shapeOf = [](std::string_view text, std::size_t maxTokens = oscpm::kMaxAddressPartLength)
+    { return oscpm::detail::shapeOf(text, oscpm::detail::firstOpener(text), maxTokens); };
+    CHECK(shapeOf("a?b").isDirect);
+    CHECK(shapeOf("a*b").isDirect);
+    CHECK(shapeOf("[ab]c").isDirect);
+    CHECK(shapeOf("[a][b]").isDirect);
+    CHECK(shapeOf("[!]a").isDirect);
+    CHECK_FALSE(shapeOf("a*b*c").isDirect);
+    CHECK_FALSE(shapeOf("a{b,c}").isDirect);
+    CHECK_FALSE(shapeOf("[ab").isDirect);
+    CHECK(shapeOf("a*bc").star == 1);
+    CHECK(shapeOf("a*bc").numTokensBeforeStar == 1);
+    CHECK(shapeOf("a*bc").numTokensAfterStar == 2);
+    CHECK(shapeOf("ab[c]?*[d]").numTokensBeforeStar == 4);
+    CHECK(shapeOf("ab[c]?*[d]").numTokensAfterStar == 1);
+    CHECK_FALSE(shapeOf("ab?c", 4).exceedsPart);
+    CHECK(shapeOf("ab?c", 3).exceedsPart);
+    CHECK(shapeOf("ab*cd", 3).exceedsPart);
+    CHECK(shapeOf("[a]?{b,c}", 1).exceedsPart);
+    CHECK_FALSE(shapeOf("[a]{b,c}d", 1).exceedsPart);
+    CHECK_FALSE(shapeOf("a*", 0).exceedsPart);
+}
+
+TEST_CASE("the general matcher and the cursor matcher agree at the edges of malformed text")
+{
+    const char* const texts[] = { "", "/", "//", "///", "/a", "/a/", "/a//", "//a", "/a/b", "/a//b", "/a/b/", "a", "a/b" };
+    for (const char* pattern : texts)
+    {
+        for (const char* address : texts)
+        {
+            INFO("pattern \"" << pattern << "\" address \"" << address << "\"");
+            CHECK(oscpm::detail::matchParsed(pattern, address) == oscpm::detail::matchWithCursors(pattern, address));
+        }
+    }
 }
 
 TEST_CASE("a wildcard pattern longer than the supported length is reported and matches nothing")

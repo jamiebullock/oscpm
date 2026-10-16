@@ -103,6 +103,12 @@ const std::vector<MatchPair>& matchPairs()
         { "example-miss-last", "/synth[3-6]/voice/*/osc/{saw,square}/freq", "/synth4/voice/12/osc/square/gain", false },
         { "example-miss-first", "/synth[3-6]/voice/*/osc/{saw,square}/freq", "/synth8/voice/12/osc/square/freq", false },
         { "literal-hit", "/synth3/voice/7/osc/saw/freq", "/synth3/voice/7/osc/saw/freq", true },
+        { "question-hit", "/mixer/ch?/gain", "/mixer/ch3/gain", true },
+        { "star-hit", "/synth2/voice/*/filter/cutoff", "/synth2/voice/12/filter/cutoff", true },
+        { "class-hit", "/synth[3-6]/voice/1/osc/saw/freq", "/synth4/voice/1/osc/saw/freq", true },
+        { "list-hit", "/synth1/voice/1/osc/{saw,square}/freq", "/synth1/voice/1/osc/square/freq", true },
+        { "descendant-hit", "//freq", "/synth4/voice/12/osc/square/freq", true },
+        { "backtracking-miss", "/*a*a*a*a*a*b", "/aaaaaaaaaaaaaaaaaaaaaaaa", false },
     };
     return all;
 }

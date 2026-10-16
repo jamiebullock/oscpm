@@ -10,6 +10,10 @@
 
 - `Address` and `Pattern` construct directly from text: `oscpm::Address("/synth/1/freq")`, `oscpm::Pattern("/synth/*")`. The constructor calls `std::abort` when the text is malformed, so a malformed literal in a constant expression fails to compile. `Address::parse` and `Pattern::parse` remain the calls for text whose fault the caller wants reported.
 
+### Changed
+
+- `Pattern::matches` and `match` compare literal parts with the address in one pass and match a part holding at most one `*` and no brace list by a direct walk. Parts with a brace list or several `*` keep the bounded matcher, so the worst-case bound is unchanged. `Pattern::parse` validates the text and decides whether it is literal in one scan.
+
 ## 0.9.8 - 2026-10-13
 
 ### Breaking changes

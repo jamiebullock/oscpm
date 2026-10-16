@@ -1,6 +1,23 @@
 {
-  "Dispatch/handler/literal/large": 239,
-  "Dispatch/invoke/literal/large": 243,
-  "Dispatch/invoke/literal/small": 203,
-  "Dispatch/invoke/miss/small": 203
+  "Dispatch/adversarial/descendant-stars-1024/large": 3819101,
+  "Dispatch/adversarial/descendant-stars-1024/small": 513505,
+  "Dispatch/adversarial/descendant-stars-256/large": 3808475,
+  "Dispatch/adversarial/descendant-stars-256/small": 502968,
+  "Dispatch/adversarial/list-run-1024/large": 1043518,
+  "Dispatch/adversarial/list-run-1024/small": 154856,
+  "Dispatch/adversarial/list-run-256/large": 1034585,
+  "Dispatch/adversarial/list-run-256/small": 145571,
+  "Dispatch/adversarial/stars-1024/large": 750298,
+  "Dispatch/adversarial/stars-1024/small": 115677,
+  "Dispatch/adversarial/stars-256/large": 739650,
+  "Dispatch/adversarial/stars-256/small": 105114,
+  "Dispatch/rejected/large": 111791,
+  "Dispatch/rejected/small": 111766,
+  "Dispatch/repeat/all-synths-osc-gain/small": 309,
+  "Dispatch/repeat/filter-all-voices/small": 243,
+  "Dispatch/repeat/literal/small": 204,
+  "Dispatch/repeat/miss/large": 204,
+  "Dispatch/repeat/miss/small": 204,
+  "Dispatch/repeat/mixer-channel/large": 266,
+  "Dispatch/repeat/mixer-channel/small": 259
 }

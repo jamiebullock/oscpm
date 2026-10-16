@@ -35,13 +35,8 @@ public:
     /// expression a fault is a compile error. For text the program controls;
     /// `parse` is for text it does not.
     constexpr explicit Pattern(std::string_view text) noexcept
-        : m_text(text)
-        , m_isLiteral(detail::isLiteralText(text))
+        : Pattern(text, detail::scanPattern(text))
     {
-        if (detail::validatePattern(text).has_value())
-        {
-            std::abort();
-        }
     }
 
     /// Whether this pattern matches `address`.
@@ -69,9 +64,19 @@ private:
     {
     };
 
-    constexpr Pattern(Validated, std::string_view text) noexcept
+    constexpr Pattern(std::string_view text, detail::PatternScan scan) noexcept
         : m_text(text)
-        , m_isLiteral(detail::isLiteralText(text))
+        , m_isLiteral(scan.isLiteral)
+    {
+        if (scan.fault.has_value())
+        {
+            std::abort();
+        }
+    }
+
+    constexpr Pattern(Validated, std::string_view text, bool isLiteral) noexcept
+        : m_text(text)
+        , m_isLiteral(isLiteral)
     {
     }
 
@@ -81,12 +86,12 @@ private:
 
 constexpr Expected<Pattern, PatternError> Pattern::parse(std::string_view text) noexcept
 {
-    const std::optional<PatternError> fault = detail::validatePattern(text);
-    if (fault.has_value())
+    const detail::PatternScan scan = detail::scanPattern(text);
+    if (scan.fault.has_value())
     {
-        return *fault;
+        return *scan.fault;
     }
-    return Pattern(Validated { }, text);
+    return Pattern(Validated { }, text, scan.isLiteral);
 }
 
 /// @return true if @p address matches @p pattern; false when either is

@@ -50,6 +50,7 @@ void checkCase(const CorpusCase& corpusCase)
     REQUIRE(address);
     CHECK(address->text() == corpusCase.address);
     const bool matchedByValue = parsed->matches(*address);
+    CHECK(oscpm::detail::matchWithCursors(corpusCase.pattern, corpusCase.address) == matchedByValue);
     oscpm::AddressSpace<int, false> space;
     CHECK(space.add(*address, 0));
     CHECK(space.size() == 1);
