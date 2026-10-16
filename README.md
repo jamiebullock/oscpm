@@ -32,8 +32,6 @@ oscpm::match("/synth/*/freq", "/1/synth/freq"); // false (no match found)
 oscpm::match("synth/*/freq", "1/synth/freq"); // false (address and pattern are not valid)
 ```
 
-> `oscpm::match()` returns `true` if the address and pattern are well-formed and the address matches the pattern. If the caller needs to distinguish validity from match success, then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
-
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
@@ -225,6 +223,13 @@ int main()
   return 0;
 }
 ```
+
+## Choosing a Call
+
+Each entry point suits a different shape of program:
+- `oscpm::match` for a pattern and an address that are each used once. It validates both and parses the pattern on every call, which is most of its cost on short patterns, and it answers `false` for a malformed input as for a miss
+- `Pattern` for a pattern matched against many addresses, and `Address` for an address matched against many patterns. Validation and parsing are paid once
+- `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern it has visited before, costs one lookup; a new pattern is matched against every registered address, so the first message of a repeating stream pays for the rest
 
 ## Integration Examples
 
@@ -502,6 +507,7 @@ Each Arduino row compiles the sketch in `tests/arduino` at the core's default fl
 - oscpm: v0.9.8-17-gda271e0, measured 2026-10-15
 - Comparators: liblo 0.36 (025f277), libo master, 2023-07-16 (874edd2), CNMAT OSC 4.0.0 (d0a965d), rtosc v0.3.1 (f3882fe), oscpkt 1.2, JUCE 9.0.4 (3fb5cbc)
 - Method: median wall-clock time in nanoseconds of 10 repetitions; a ratio is the comparator's time over oscpm's, and the geometric mean is over the cases both took, leaving out the backtracking case
+- Blanks: cases the comparator does not take, listed in oscpm-bench's README
 
 **Two strings in, one bool out**
 
@@ -540,14 +546,6 @@ Each Arduino row compiles the sketch in `tests/arduino` at the core's default fl
 | literal | 3.76 | 1,403 (373.6x) | 105 (27.8x) |
 | pattern | 87,722 | 61,948 (0.7x) | - |
 | pattern-repeated | 46.9 | - | - |
-
-What the tables show:
-
-- `oscpm::match` validates both strings and parses the pattern on every call; the other matchers in its table take the strings as they are. `Pattern::matches` and JUCE work on objects their library has already validated
-- The time of a pattern is bounded by its length times the address length, so the backtracking case costs oscpm about the same as the combined case. The other matchers backtrack, and that case costs them thousands of times more
-- A literal address dispatched into the space is one hash lookup. liblo deserialises the message and compares it with each registered method in turn; rtosc hashes each path segment in turn
-- The first dispatch of a pattern tests every registered address, so its cost grows with the size of the space. The second is answered from the memo, which neither comparator has
-- A blank is a case the matcher does not take or answers differently: libo, CNMAT OSC, rtosc and JUCE have no `//`; rtosc takes `?` and `[` as literal bytes and `*` only at the end of a part, and dispatches a literal address only
 
 ### Running the Benchmarks
 
