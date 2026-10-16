@@ -148,30 +148,21 @@ constexpr bool hasWildcard(StringView pattern) noexcept
     return hasOpener(pattern) || pattern.find(k::descendantOperator) != npos;
 }
 
-constexpr bool isLiteralText(StringView pattern) noexcept
+constexpr bool hasPartLongerThan(StringView text, std::size_t limit) noexcept
 {
     std::size_t partLength = 0;
-    for (std::size_t i = 0; i < pattern.size(); ++i)
+    for (const char byte : text)
     {
-        const char byte = pattern[i];
-        if (isOpener(byte))
-        {
-            return false;
-        }
         if (byte == k::partSeparator)
         {
-            if (i + 1 < pattern.size() && pattern[i + 1] == k::partSeparator)
-            {
-                return false;
-            }
             partLength = 0;
         }
-        else if (++partLength > kMaxAddressPartLength)
+        else if (++partLength > limit)
         {
-            return false;
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 }

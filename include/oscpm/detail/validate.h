@@ -56,6 +56,8 @@ constexpr ConstructScan scanConstruct(std::string_view pattern, std::size_t open
     return { npos, legal };
 }
 
+static_assert(kMaxPatternLength <= kMaxAddressPartLength, "a part over the address part limit fits only in a pattern over the wildcard limit");
+
 struct PatternScan
 {
     std::optional<PatternError> fault;
@@ -70,20 +72,17 @@ constexpr PatternScan scanPattern(std::string_view pattern) noexcept
     }
     const std::size_t checked = pattern.size() < kMaxPatternLength ? pattern.size() : kMaxPatternLength;
     bool isLiteral = true;
-    std::size_t partLength = 0;
     std::size_t i = 1;
     while (i < checked)
     {
         const PatternByte kind = classifyPatternByte(pattern[i]);
         if (kind == PatternByte::Plain)
         {
-            isLiteral = isLiteral && ++partLength <= kMaxAddressPartLength;
             ++i;
         }
         else if (kind == PatternByte::Separator)
         {
             isLiteral = isLiteral && pattern[i - 1] != k::partSeparator;
-            partLength = 0;
             ++i;
         }
         else if (kind == PatternByte::Wildcard)
@@ -121,7 +120,7 @@ constexpr PatternScan scanPattern(std::string_view pattern) noexcept
         {
             return { PatternError::IllegalByte, false };
         }
-        isLiteral = isLiteralText(pattern);
+        isLiteral = !hasPartLongerThan(pattern, kMaxAddressPartLength);
     }
     return { std::nullopt, isLiteral };
 }
