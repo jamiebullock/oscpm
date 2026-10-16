@@ -40,7 +40,6 @@ std::string wordWith(unsigned value, std::size_t position)
     return text;
 }
 
-/// A word of letters with `value` at `position`.
 std::string lettersWith(unsigned value, std::size_t position)
 {
     std::string text(kWordSize, 'a');
@@ -48,7 +47,6 @@ std::string lettersWith(unsigned value, std::size_t position)
     return text;
 }
 
-/// The high bit of each byte whose bit is set in `marking`.
 constexpr Word marks(unsigned marking)
 {
     Word word = 0;
