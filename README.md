@@ -494,7 +494,7 @@ Each Arduino row compiles the sketch in `tests/arduino` at the core's default fl
 
 ## Performance
 
-[oscpm-bench](https://github.com/jamiebullock/oscpm-bench) times oscpm against other OSC pattern matchers on the same cases:
+[oscpm-bench](https://github.com/jamiebullock/oscpm-bench) times oscpm against other OSC pattern matchers on the cases its README defines:
 
 - Processor: Apple M4
 - Operating system: macOS 27.0.1
@@ -541,22 +541,6 @@ Each Arduino row compiles the sketch in `tests/arduino` at the core's default fl
 | pattern | 87,722 | 61,948 (0.7x) | - |
 | pattern-repeated | 46.9 | - | - |
 
-**Cases**
-
-| Case | Pattern | Address |
-|---|---|---|
-| literal | `/synth3/voice/7/osc/saw/freq` | the same |
-| question | `/mixer/ch?/gain` | `/mixer/ch3/gain` |
-| star | `/synth2/voice/*/filter/cutoff` | `/synth2/voice/12/filter/cutoff` |
-| class | `/synth[3-6]/voice/1/osc/saw/freq` | `/synth4/voice/1/osc/saw/freq` |
-| list | `/synth1/voice/1/osc/{saw,square}/freq` | `/synth1/voice/1/osc/square/freq` |
-| descendant | `//freq` | `/synth4/voice/12/osc/square/freq` |
-| combined | `/synth[3-6]/voice/*/osc/{saw,square}/freq` | `/synth4/voice/12/osc/square/freq` |
-| combined-miss | the same | `/synth4/voice/12/osc/square/gain` |
-| backtracking | `/*a*a*a*a*a*b` | `/` and 24 `a` |
-
-The space holds 8 synths of 16 voices with 4 oscillators and a filter each, plus 16 mixer channels. Its cases dispatch `/synth3/voice/7/osc/saw/freq`, which reaches one address, and `/synth[3-6]/voice/*/osc/{saw,square}/freq`, which reaches 128, once and then a second time.
-
 What the tables show:
 
 - `oscpm::match` validates both strings and parses the pattern on every call; the other matchers in its table take the strings as they are. `Pattern::matches` and JUCE work on objects their library has already validated
@@ -564,8 +548,6 @@ What the tables show:
 - A literal address dispatched into the space is one hash lookup. liblo deserialises the message and compares it with each registered method in turn; rtosc hashes each path segment in turn
 - The first dispatch of a pattern tests every registered address, so its cost grows with the size of the space. The second is answered from the memo, which neither comparator has
 - A blank is a case the matcher does not take or answers differently: libo, CNMAT OSC, rtosc and JUCE have no `//`; rtosc takes `?` and `[` as literal bytes and `*` only at the end of a part, and dispatches a literal address only
-
-The in-tree benchmark adds a hostile case on the same space: a 64 KB wildcard pattern is rejected in 2,800 ns, because a pattern longer than `kMaxPatternLength` is not matched.
 
 ### Running the Benchmarks
 
