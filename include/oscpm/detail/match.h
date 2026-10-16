@@ -143,6 +143,102 @@ constexpr bool matchPartWithin(StringView pattern, StringView part) noexcept
     return reach.test(part.size());
 }
 
+struct PartShape
+{
+    bool isDirect = true;
+    std::size_t star = npos;
+    std::size_t numTokensBeforeStar = 0;
+    std::size_t numTokensAfterStar = 0;
+};
+
+constexpr PartShape shapeOf(StringView pattern) noexcept
+{
+    PartShape shape;
+    std::size_t i = 0;
+    while (i < pattern.size())
+    {
+        const char byte = pattern[i];
+        if (byte == k::anyBytes)
+        {
+            if (shape.star != npos)
+            {
+                shape.isDirect = false;
+                return shape;
+            }
+            shape.star = i;
+            ++i;
+            continue;
+        }
+        if (byte == k::setOpen)
+        {
+            const std::size_t close = pattern.find(k::setClose, i + 1);
+            if (close == npos)
+            {
+                shape.isDirect = false;
+                return shape;
+            }
+            i = close + 1;
+        }
+        else if (byte == k::listOpen)
+        {
+            shape.isDirect = false;
+            return shape;
+        }
+        else
+        {
+            ++i;
+        }
+        ++(shape.star == npos ? shape.numTokensBeforeStar : shape.numTokensAfterStar);
+    }
+    return shape;
+}
+
+constexpr bool matchTokens(StringView tokens, StringView text) noexcept
+{
+    std::size_t i = 0;
+    for (const char candidate : text)
+    {
+        const char byte = tokens[i];
+        if (byte == k::setOpen)
+        {
+            std::size_t start = i + 1;
+            const bool negate = tokens[start] == k::setNegate;
+            if (negate)
+            {
+                ++start;
+            }
+            const std::size_t close = tokens.find(k::setClose, start);
+            if (setContains(tokens.substr(start, close - start), candidate) == negate)
+            {
+                return false;
+            }
+            i = close + 1;
+        }
+        else
+        {
+            if (byte != k::anyByte && byte != candidate)
+            {
+                return false;
+            }
+            ++i;
+        }
+    }
+    return true;
+}
+
+constexpr bool matchPartDirect(StringView pattern, StringView part, const PartShape& shape) noexcept
+{
+    const std::size_t numFixed = shape.numTokensBeforeStar + shape.numTokensAfterStar;
+    if (shape.star == npos ? part.size() != numFixed : part.size() < numFixed)
+    {
+        return false;
+    }
+    const StringView prefix = pattern.substr(0, shape.star);
+    const StringView suffix = shape.star == npos ? StringView() : pattern.substr(shape.star + 1);
+    return matchTokens(prefix, part.substr(0, shape.numTokensBeforeStar))
+        && matchTokens(suffix, part.substr(part.size() - shape.numTokensAfterStar));
+}
+
 constexpr bool matchPart(StringView pattern, StringView part) noexcept
 {
     if (part.size() > kMaxAddressPartLength)
@@ -152,6 +248,11 @@ constexpr bool matchPart(StringView pattern, StringView part) noexcept
     if (!hasOpener(pattern))
     {
         return pattern == part;
+    }
+    const PartShape shape = shapeOf(pattern);
+    if (shape.isDirect)
+    {
+        return matchPartDirect(pattern, part, shape);
     }
     if (part.size() < k::bitsPerWord)
     {
@@ -308,7 +409,95 @@ constexpr bool matchParts(PatternParts patternPart, AddressParts addressPart) no
     return true;
 }
 
+struct PartSpan
+{
+    std::size_t patternEnd = 0;
+    std::size_t addressEnd = 0;
+};
+
+constexpr std::size_t partEnd(StringView text, std::size_t from) noexcept
+{
+    const std::size_t separator = text.find(k::partSeparator, from);
+    return separator == npos ? text.size() : separator;
+}
+
+constexpr bool matchPartAt(StringView pattern, std::size_t patternStart, StringView address, std::size_t addressStart, PartSpan& span) noexcept
+{
+    std::size_t i = patternStart;
+    std::size_t j = addressStart;
+    while (i <= pattern.size())
+    {
+        const char patternByte = i < pattern.size() ? pattern[i] : k::partSeparator;
+        if (isOpener(patternByte))
+        {
+            span = { partEnd(pattern, i), partEnd(address, j) };
+            return matchPart(pattern.substr(patternStart, span.patternEnd - patternStart), address.substr(addressStart, span.addressEnd - addressStart));
+        }
+        const char addressByte = j < address.size() ? address[j] : k::partSeparator;
+        if (patternByte == k::partSeparator)
+        {
+            span = { i, j };
+            return addressByte == k::partSeparator && j - addressStart <= kMaxAddressPartLength;
+        }
+        if (patternByte != addressByte)
+        {
+            return false;
+        }
+        ++i;
+        ++j;
+    }
+    return false;
+}
+
 constexpr bool matchParsed(StringView pattern, StringView address) noexcept
+{
+    if (!hasLeadingSlash(address))
+    {
+        return false;
+    }
+    const std::size_t patternSize = pattern.size();
+    const std::size_t addressSize = address.size();
+    std::size_t patternStart = pattern.empty() || hasLeadingSlash(pattern) ? 1 : 0;
+    std::size_t addressStart = 1;
+    std::size_t retryPattern = 0;
+    std::size_t retryAddress = 0;
+    bool seenOperator = false;
+    while (patternStart <= patternSize || addressStart <= addressSize)
+    {
+        if (patternStart < patternSize && pattern[patternStart] == k::partSeparator)
+        {
+            while (patternStart < patternSize && pattern[patternStart] == k::partSeparator)
+            {
+                ++patternStart;
+            }
+            if (patternStart == patternSize)
+            {
+                ++patternStart;
+            }
+            retryPattern = patternStart;
+            retryAddress = addressStart;
+            seenOperator = true;
+            continue;
+        }
+        PartSpan span;
+        if (patternStart <= patternSize && addressStart <= addressSize && matchPartAt(pattern, patternStart, address, addressStart, span))
+        {
+            patternStart = span.patternEnd + 1;
+            addressStart = span.addressEnd + 1;
+            continue;
+        }
+        if (!seenOperator || retryAddress > addressSize)
+        {
+            return false;
+        }
+        retryAddress = partEnd(address, retryAddress) + 1;
+        patternStart = retryPattern;
+        addressStart = retryAddress;
+    }
+    return true;
+}
+
+constexpr bool matchWithCursors(StringView pattern, StringView address) noexcept
 {
     return hasLeadingSlash(address) && matchParts(PatternCursor(pattern), AddressCursor(address));
 }
