@@ -229,7 +229,7 @@ int main()
 Each entry point suits a different shape of program:
 - `oscpm::match` for a pattern and an address that are each used once. It validates both and parses the pattern on every call, which is most of its cost on short patterns, and it answers `false` for a malformed input as for a miss
 - `Pattern` for a pattern matched against many addresses, and `Address` for an address matched against many patterns. Validation and parsing are paid once
-- `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern it has visited before, costs one lookup; a new pattern is matched against every registered address, so the first message of a repeating stream pays for the rest
+- `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern the memo holds, costs one lookup; any other pattern is matched against every registered address. The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, so a repeating stream pays the match once per change to the space
 
 ## Integration Examples
 
