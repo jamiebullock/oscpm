@@ -18,6 +18,10 @@
   cmake --preset release && cmake --build --preset release && ctest --preset release
   ```
 
+## Benchmark gate
+
+On a pull request, CI counts the instructions per iteration of every benchmark under Cachegrind for the change and for `develop`, and fails when a benchmark rises by more than 2% and 4 instructions. A change that accepts such a rise names the benchmark and its new ceiling, in instructions per iteration as the job's summary reports them, in `bench/accepted.json`. The check passes that benchmark while it stays at or below the ceiling and fails it again above, and it reports an entry that covers no rise past the threshold against `develop`, which is the case once the change has merged, so the entry can be removed.
+
 ## Releases
 
 Nothing in the tree records the version. A release is a `vX.Y.Z` tag on `main`, created by `.github/workflows/tag-on-main.yml` on each push to `main`, and CMake reads the latest tag back with `git describe`. The version is the last tag plus one patch, or the next minor or major when a commit subject since the last tag carries `(MINOR)` or `(MAJOR)`; several such commits still move it once.
@@ -33,3 +37,4 @@ To make a release:
 
    A pull request from `develop` to `main` is not a substitute: the repository squash-merges pull requests, and a squash would put a commit on `main` that `develop` does not have.
 3. The workflow tags the new tip of `main`.
+4. Pin [oscpm-bench](https://github.com/jamiebullock/oscpm-bench) to the new tag, run its `report.py`, and replace the comparison in the README's Performance section with its output by a pull request on `develop`.

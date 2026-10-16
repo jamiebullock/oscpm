@@ -32,8 +32,6 @@ oscpm::match("/synth/*/freq", "/1/synth/freq"); // false (no match found)
 oscpm::match("synth/*/freq", "1/synth/freq"); // false (address and pattern are not valid)
 ```
 
-> `oscpm::match()` returns `true` if the address and pattern are well-formed and the address matches the pattern. If the caller needs to distinguish validity from match success, then [Pattern::parse()](#patterns) and [Address::parse()](#addresses) should be used instead.
-
 ## Patterns
 A pattern that will be matched many times can be validated once and kept as a `Pattern` object. This has the following advantages:
 - A malformed pattern is reported as a `PatternError` so the caller can distinguish an invalid pattern from a non-match
@@ -225,6 +223,13 @@ int main()
   return 0;
 }
 ```
+
+## Choosing a Call
+
+Each entry point suits a different shape of program:
+- `oscpm::match` for a pattern and an address that are each used once. It validates both and parses the pattern on every call, which is most of its cost on short patterns, and it answers `false` for a malformed input as for a miss
+- `Pattern` for a pattern matched against many addresses, and `Address` for an address matched against many patterns. Validation and parsing are paid once
+- `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern the memo holds, costs one lookup; any other pattern is matched against every registered address. The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, so a repeating stream pays the match once per change to the space
 
 ## Integration Examples
 
@@ -494,48 +499,53 @@ Each Arduino row compiles the sketch in `tests/arduino` at the core's default fl
 
 ## Performance
 
+[oscpm-bench](https://github.com/jamiebullock/oscpm-bench) times oscpm against other OSC pattern matchers on the cases its README defines:
+
 - Processor: Apple M4
 - Operating system: macOS 27.0.1
 - Compiler: AppleClang 21.0.0.21000334, `-O3 -DNDEBUG`
-- oscpm: v0.9.5-1-gea3c93c, measured 2026-10-11
-- Method: median wall-clock time of 10 repetitions; dispatch is into a space of 1,856 addresses
+- oscpm: v0.9.8-17-gda271e0, measured 2026-10-15
+- Comparators: liblo 0.36 (025f277), libo master, 2023-07-16 (874edd2), CNMAT OSC 4.0.0 (d0a965d), rtosc v0.3.1 (f3882fe), oscpkt 1.2, JUCE 9.0.4 (3fb5cbc)
+- Method: median wall-clock time in nanoseconds of 10 repetitions; a ratio is the comparator's time over oscpm's, and the geometric mean is over the cases both took, leaving out the backtracking case
+- Blanks: cases the comparator does not take, listed in oscpm-bench's README
 
-**Repeated visit of a pattern**
+**Two strings in, one bool out**
 
-| Pattern | Median (ns) |
-|---|---:|
-| Literal address | 5.49 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq`, matching 128 addresses | 48.2 |
-| `//freq`, matching 512 addresses | 148 |
-| One message of a repeating stream of 64 | 10.2 |
+| Case | oscpm::match | liblo | libo | CNMAT OSC | rtosc | oscpkt |
+|---|---:|---:|---:|---:|---:|---:|
+| literal | 53.0 | 25.7 (0.5x) | 50.0 (0.9x) | 7.29 (0.1x) | 39.9 (0.8x) | 17.9 (0.3x) |
+| question | 59.6 | 13.7 (0.2x) | 24.6 (0.4x) | 32.1 (0.5x) | - | 9.85 (0.2x) |
+| star | 99.2 | 27.3 (0.3x) | 52.4 (0.5x) | 62.5 (0.6x) | 40.2 (0.4x) | 21.1 (0.2x) |
+| class | 123 | 26.6 (0.2x) | 49.9 (0.4x) | 62.4 (0.5x) | - | 19.9 (0.2x) |
+| list | 129 | 32.3 (0.3x) | 60.6 (0.5x) | 69.3 (0.5x) | 39.7 (0.3x) | 26.4 (0.2x) |
+| descendant | 61.1 | 27.4 (0.4x) | - | - | - | 28.7 (0.5x) |
+| combined | 152 | 35.0 (0.2x) | 58.5 (0.4x) | 69.1 (0.5x) | - | 29.5 (0.2x) |
+| combined-miss | 148 | 58.4 (0.4x) | 55.5 (0.4x) | 64.5 (0.4x) | - | 28.0 (0.2x) |
+| backtracking | 146 | 239,297 (1635.3x) | 452,756 (3094.0x) | 553,349 (3781.5x) | - | 466,663 (3189.1x) |
+| geometric mean | 1.00x | 0.30x over 8 | 0.48x over 7 | 0.43x over 7 | 0.46x over 3 | 0.23x over 8 |
 
-**First visit of a pattern**
+**Parsed before the timed loop**
 
-| Pattern | Median (ns) |
-|---|---:|
-| Literal address | 4.73 |
-| `/synth[3-6]/voice/*/osc/{saw,square}/freq` | 82,800 |
-| `//freq` | 31,400 |
+| Case | Pattern::matches | JUCE |
+|---|---:|---:|
+| literal | 1.50 | 3.29 (2.2x) |
+| question | 34.4 | 24.4 (0.7x) |
+| star | 53.3 | 44.2 (0.8x) |
+| class | 83.1 | 63.0 (0.8x) |
+| list | 74.9 | 173 (2.3x) |
+| descendant | 40.4 | - |
+| combined | 99.1 | 189 (1.9x) |
+| combined-miss | 99.4 | 187 (1.9x) |
+| backtracking | 124 | 579,089 (4676.3x) |
+| geometric mean | 1.00x | 1.35x over 7 |
 
-**One pattern against one address**
+**Dispatch into a space of 1,856 addresses**
 
-| Operation | Median (ns) |
-|---|---:|
-| `Pattern::matches`, literal | 1.24 |
-| `Pattern::matches`, wildcards | 91.2 |
-| `oscpm::match` (parse and match), wildcards | 130 |
-
-**Hostile patterns**
-
-| Pattern | Median (us) |
-|---|---:|
-| The slowest pattern of 1024 bytes (`list-alternatives`) | 4,690 |
-| A 64 KB wildcard pattern, rejected | 2.79 |
-
-- A repeated message costs one hash lookup plus one visitor call per matched address. A literal address costs the same the first time.
-- The first visit of any other pattern tests every registered address, so its cost grows with the size of the space.
-- A wildcard pattern longer than `kMaxPatternLength` is rejected without being matched, which bounds the cost of a hostile pattern.
-- The times are from one machine; the ratios between rows carry across machines better than the absolute figures.
+| Case | AddressSpace | liblo | rtosc |
+|---|---:|---:|---:|
+| literal | 3.76 | 1,403 (373.6x) | 105 (27.8x) |
+| pattern | 87,722 | 61,948 (0.7x) | - |
+| pattern-repeated | 46.9 | - | - |
 
 ### Running the Benchmarks
 
@@ -545,9 +555,7 @@ cmake --build --preset bench
 build/bench/bench/oscpm_bench
 ```
 
-`python3 bench/compare.py report` builds the benchmarks and prints the setup and tables above.
-
-On a pull request, CI counts the instructions per iteration of every benchmark under Cachegrind for the change and for `develop`, and fails when a benchmark rises by more than 2% and 4 instructions. A change that accepts such a rise names the benchmark and its new ceiling, in instructions per iteration as the job's summary reports them, in `bench/accepted.json`. The check passes that benchmark while it stays at or below the ceiling and fails it again above, and it reports an entry that covers no rise against `develop`, which is the case once the change has merged, so the entry can be removed.
+`python3 bench/compare.py report` builds the in-tree benchmarks and prints the setup and their medians as Markdown. The tables above are produced by `report.py` in [oscpm-bench](https://github.com/jamiebullock/oscpm-bench).
 
 ## Building
 
