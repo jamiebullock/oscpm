@@ -18,6 +18,7 @@ namespace oscpm::detail
 namespace k
 {
     constexpr char partSeparator = '/';
+    constexpr char hash = '#';
     constexpr char anyByte = '?';
     constexpr char anyBytes = '*';
     constexpr char setOpen = '[';

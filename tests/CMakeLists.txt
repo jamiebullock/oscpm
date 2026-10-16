@@ -28,6 +28,7 @@ add_executable(oscpm_tests
     expected_tests.cpp
     match_tests.cpp
     pattern_tests.cpp
+    word_tests.cpp
 )
 
 target_compile_definitions(oscpm_tests PRIVATE

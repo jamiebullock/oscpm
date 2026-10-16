@@ -7,6 +7,7 @@
 #pragma once
 
 #include <oscpm/detail/syntax.h>
+#include <oscpm/detail/word.h>
 #include <oscpm/error.h>
 
 #include <cstddef>
@@ -15,6 +16,11 @@
 
 namespace oscpm::detail
 {
+
+namespace k
+{
+    constexpr std::size_t firstByteRun = 4 * wordSize;
+}
 
 constexpr bool hasIllegalByte(std::string_view text) noexcept
 {
@@ -56,6 +62,28 @@ constexpr ConstructScan scanConstruct(std::string_view pattern, std::size_t open
     return { npos, legal };
 }
 
+/// Whether `word` holds a byte that is not plain in a pattern: a null, a byte
+/// above 0x7F or an opener.
+constexpr bool hasPatternOpenerOrIllegalByte(Word word) noexcept
+{
+    const Word folded = word | broadcast(k::lowerCaseBit);
+    const Word plain = bytesDifferingFrom(word, k::nul) & bytesDifferingFrom(word, k::anyBytes)
+        & bytesDifferingFrom(word, k::anyByte) & bytesDifferingFrom(folded, k::listOpen);
+    return ((~plain | bytesAboveAscii(word)) & k::highBitPerByte) != 0;
+}
+
+/// Whether `word` holds a byte an address part cannot: one outside printable
+/// ASCII or one of `k::reservedInAddress`.
+constexpr bool hasIllegalAddressByte(Word word) noexcept
+{
+    const Word folded = word | broadcast(k::lowerCaseBit);
+    const Word printable = bytesAtLeast(word, k::firstPrintableAscii) & bytesDifferingFrom(word, k::lastAscii);
+    const Word plain = printable & bytesDifferingFrom(word, k::hash) & bytesDifferingFrom(word, k::anyBytes)
+        & bytesDifferingFrom(word, k::listSeparator) & bytesDifferingFrom(word, k::anyByte)
+        & bytesDifferingFrom(folded, k::listOpen) & bytesDifferingFrom(folded, k::listClose);
+    return ((~plain | bytesAboveAscii(word)) & k::highBitPerByte) != 0;
+}
+
 static_assert(kMaxPatternLength <= kMaxAddressPartLength, "a part over the address part limit fits only in a pattern over the wildcard limit");
 
 struct PatternScan
@@ -73,41 +101,60 @@ constexpr PatternScan scanPattern(std::string_view pattern) noexcept
     const std::size_t checked = pattern.size() < kMaxPatternLength ? pattern.size() : kMaxPatternLength;
     bool isLiteral = true;
     std::size_t i = 1;
+    std::size_t byteRun = k::firstByteRun;
     while (i < checked)
     {
-        const PatternByte kind = classifyPatternByte(pattern[i]);
-        if (kind == PatternByte::Plain)
+        if (i + k::wordSize <= checked)
         {
-            ++i;
-        }
-        else if (kind == PatternByte::Separator)
-        {
-            isLiteral = isLiteral && pattern[i - 1] != k::partSeparator;
-            ++i;
-        }
-        else if (kind == PatternByte::Wildcard)
-        {
-            isLiteral = false;
-            ++i;
-        }
-        else if (kind == PatternByte::Illegal)
-        {
-            return { PatternError::IllegalByte, false };
-        }
-        else
-        {
-            const bool isClass = kind == PatternByte::SetOpen;
-            const ConstructScan scan = scanConstruct(pattern, i, isClass ? k::setClose : k::listClose);
-            if (scan.close == npos)
+            const Word word = loadWord(pattern, i);
+            if (!hasPatternOpenerOrIllegalByte(word))
             {
-                return { isClass ? PatternError::UnterminatedClass : PatternError::UnterminatedBraces, false };
+                const Word separators = bytesEqualTo(word, k::partSeparator);
+                const bool afterSeparator = pattern[i - 1] == k::partSeparator;
+                isLiteral = isLiteral && !hasAdjacentPair(separators) && !(afterSeparator && hasFirstByte(separators));
+                i += k::wordSize;
+                byteRun = k::firstByteRun;
+                continue;
             }
-            if (!scan.legal)
+        }
+        const std::size_t stop = i + byteRun < checked ? i + byteRun : checked;
+        byteRun *= 2;
+        while (i < stop)
+        {
+            const PatternByte kind = classifyPatternByte(pattern[i]);
+            if (kind == PatternByte::Plain)
+            {
+                ++i;
+            }
+            else if (kind == PatternByte::Separator)
+            {
+                isLiteral = isLiteral && pattern[i - 1] != k::partSeparator;
+                ++i;
+            }
+            else if (kind == PatternByte::Wildcard)
+            {
+                isLiteral = false;
+                ++i;
+            }
+            else if (kind == PatternByte::Illegal)
             {
                 return { PatternError::IllegalByte, false };
             }
-            isLiteral = false;
-            i = scan.close + 1;
+            else
+            {
+                const bool isClass = kind == PatternByte::SetOpen;
+                const ConstructScan scan = scanConstruct(pattern, i, isClass ? k::setClose : k::listClose);
+                if (scan.close == npos)
+                {
+                    return { isClass ? PatternError::UnterminatedClass : PatternError::UnterminatedBraces, false };
+                }
+                if (!scan.legal)
+                {
+                    return { PatternError::IllegalByte, false };
+                }
+                isLiteral = false;
+                i = scan.close + 1;
+            }
         }
     }
     if (pattern.size() > kMaxPatternLength)
@@ -125,34 +172,57 @@ constexpr PatternScan scanPattern(std::string_view pattern) noexcept
     return { std::nullopt, isLiteral };
 }
 
+/// Validates `address` from byte `from`, where the current part starts at
+/// `partStart`; the bytes before `from` must already have passed.
+constexpr std::optional<AddressError> validateAddressBytes(std::string_view address, std::size_t from, std::size_t partStart) noexcept
+{
+    for (std::size_t i = from; i < address.size(); ++i)
+    {
+        const char byte = address[i];
+        if (byte == k::partSeparator)
+        {
+            if (i == partStart)
+            {
+                return AddressError::EmptyPart;
+            }
+            partStart = i + 1;
+        }
+        else if (!isLegalInAddressPart(byte))
+        {
+            return AddressError::IllegalByte;
+        }
+        else if (i + 1 - partStart > kMaxAddressPartLength)
+        {
+            return AddressError::PartTooLong;
+        }
+    }
+    return partStart == address.size() ? std::optional<AddressError>(AddressError::TrailingSlash) : std::nullopt;
+}
+
 constexpr std::optional<AddressError> validateAddress(std::string_view address) noexcept
 {
     if (!hasLeadingSlash(address))
     {
         return AddressError::MissingLeadingSlash;
     }
-    std::size_t partLength = 0;
-    for (std::size_t i = 1; i <= address.size(); ++i)
+    std::size_t checked = 1;
+    std::size_t partStart = 1;
+    while (checked + k::wordSize <= address.size())
     {
-        const bool atEnd = i == address.size();
-        if (atEnd || address[i] == k::partSeparator)
+        const Word word = loadWord(address, checked);
+        if (hasIllegalAddressByte(word) || checked + k::wordSize - partStart > kMaxAddressPartLength)
         {
-            if (partLength == 0)
-            {
-                return atEnd ? AddressError::TrailingSlash : AddressError::EmptyPart;
-            }
-            partLength = 0;
+            break;
         }
-        else if (!isLegalInAddressPart(address[i]))
+        const Word separators = bytesEqualTo(word, k::partSeparator);
+        if (hasAdjacentPair(separators) || (partStart == checked && hasFirstByte(separators)))
         {
-            return AddressError::IllegalByte;
+            return AddressError::EmptyPart;
         }
-        else if (++partLength > kMaxAddressPartLength)
-        {
-            return AddressError::PartTooLong;
-        }
+        checked += k::wordSize;
+        partStart = separators != 0 ? checked - numBytesAfterLast(separators) : partStart;
     }
-    return std::nullopt;
+    return validateAddressBytes(address, checked, partStart);
 }
 
 }

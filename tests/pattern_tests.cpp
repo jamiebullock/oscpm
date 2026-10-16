@@ -75,6 +75,72 @@ TEST_CASE("parse reports the first fault")
     static_assert(faults(Pattern::parse(std::string_view("/a\0b", 4)), PatternError::IllegalByte));
 }
 
+TEST_CASE("parse reports the first fault of a pattern longer than a word")
+{
+    static_assert(faults(Pattern::parse("/abcdefghijklmnop\x80"), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse("/abcdefgh\x80[klmno"), PatternError::IllegalByte));
+    static_assert(faults(Pattern::parse("/abcdefgh[\x80klmno"), PatternError::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/abcdefghijklmno[pq"), PatternError::UnterminatedClass));
+    static_assert(faults(Pattern::parse("/abcdefghijklmno{pq"), PatternError::UnterminatedBraces));
+    static_assert(faults(Pattern::parse(std::string_view("/abcdefgh/ijklm\0", 16)), PatternError::IllegalByte));
+}
+
+TEST_CASE("a pattern longer than a word is literal unless a wildcard or a slash run lies anywhere in it")
+{
+    static_assert(Pattern::parse("/synth3/voice/7/osc/saw/freq")->isLiteral());
+    static_assert(Pattern::parse("/abcdefg/ijklmnop/")->isLiteral());
+    static_assert(Pattern::parse("/abcdefgh/jklmnopq/stuvwxyz")->isLiteral());
+    static_assert(!Pattern::parse("/abcdefg//jklmnop")->isLiteral());
+    static_assert(!Pattern::parse("/abcdefgh//klmnop")->isLiteral());
+    static_assert(!Pattern::parse("/abcdefghijklmno//")->isLiteral());
+    static_assert(!Pattern::parse("/abcdefghijklmnop*")->isLiteral());
+    static_assert(!Pattern::parse("/abcdef[gh-ij]klmnop")->isLiteral());
+    static_assert(!Pattern::parse("/abcdefgh{ij,kl}mnop")->isLiteral());
+    static_assert(Pattern::parse("/abcdefgh{ij,kl}mnop")->matches(*Address::parse("/abcdefghklmnop")));
+}
+
+TEST_CASE("parse reads no byte beyond the text")
+{
+    constexpr std::string_view buffer = "/abcdefghijklmnopq//*";
+    constexpr std::string_view text = buffer.substr(0, 18);
+    static_assert(Pattern::parse(text)->isLiteral());
+    static_assert(Pattern::parse(buffer.substr(0, 19))->isLiteral());
+    static_assert(!Pattern::parse(buffer.substr(0, 20))->isLiteral());
+}
+
+TEST_CASE("parse judges a byte the same at every offset of a word")
+{
+    constexpr std::string_view plain = "/abcdefghijklmnopqrstuvw";
+    for (std::size_t offset = 1; offset < plain.size(); ++offset)
+    {
+        for (int value = 0; value < 256; ++value)
+        {
+            std::string text(plain);
+            text[offset] = static_cast<char>(value);
+            INFO("byte " << value << " at " << offset);
+            const oscpm::Expected<Pattern, oscpm::PatternError> parsed = Pattern::parse(text);
+            if (value == 0 || value > 0x7F)
+            {
+                CHECK(faults(parsed, PatternError::IllegalByte));
+            }
+            else if (value == '[')
+            {
+                CHECK(faults(parsed, PatternError::UnterminatedClass));
+            }
+            else if (value == '{')
+            {
+                CHECK(faults(parsed, PatternError::UnterminatedBraces));
+            }
+            else
+            {
+                REQUIRE(parsed);
+                const bool slashRun = value == '/' && offset == 1;
+                CHECK(parsed->isLiteral() == (value != '*' && value != '?' && !slashRun));
+            }
+        }
+    }
+}
+
 TEST_CASE("a literal pattern longer than the wildcard limit is still checked for illegal bytes")
 {
     const std::string longest(oscpm::kMaxPatternLength + 1, 'a');
