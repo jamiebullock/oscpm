@@ -504,7 +504,7 @@ Each Arduino row compiles the sketch in `tests/arduino` at the core's default fl
 - Processor: Apple M4
 - Operating system: macOS 27.0.1
 - Compiler: AppleClang 21.0.0.21000334, `-O3 -DNDEBUG`
-- oscpm: v0.9.8-17-gda271e0, measured 2026-10-15
+- oscpm: v0.10.0, measured 2026-10-16
 - Comparators: liblo 0.36 (025f277), libo master, 2023-07-16 (874edd2), CNMAT OSC 4.0.0 (d0a965d), rtosc v0.3.1 (f3882fe), oscpkt 1.2, JUCE 9.0.4 (3fb5cbc)
 - Method: median wall-clock time in nanoseconds of 10 repetitions; a ratio is the comparator's time over oscpm's, and the geometric mean is over the cases both took, leaving out the backtracking case
 - Blanks: cases the comparator does not take, listed in oscpm-bench's README
@@ -513,39 +513,39 @@ Each Arduino row compiles the sketch in `tests/arduino` at the core's default fl
 
 | Case | oscpm::match | liblo | libo | CNMAT OSC | rtosc | oscpkt |
 |---|---:|---:|---:|---:|---:|---:|
-| literal | 53.0 | 25.7 (0.5x) | 50.0 (0.9x) | 7.29 (0.1x) | 39.9 (0.8x) | 17.9 (0.3x) |
-| question | 59.6 | 13.7 (0.2x) | 24.6 (0.4x) | 32.1 (0.5x) | - | 9.85 (0.2x) |
-| star | 99.2 | 27.3 (0.3x) | 52.4 (0.5x) | 62.5 (0.6x) | 40.2 (0.4x) | 21.1 (0.2x) |
-| class | 123 | 26.6 (0.2x) | 49.9 (0.4x) | 62.4 (0.5x) | - | 19.9 (0.2x) |
-| list | 129 | 32.3 (0.3x) | 60.6 (0.5x) | 69.3 (0.5x) | 39.7 (0.3x) | 26.4 (0.2x) |
-| descendant | 61.1 | 27.4 (0.4x) | - | - | - | 28.7 (0.5x) |
-| combined | 152 | 35.0 (0.2x) | 58.5 (0.4x) | 69.1 (0.5x) | - | 29.5 (0.2x) |
-| combined-miss | 148 | 58.4 (0.4x) | 55.5 (0.4x) | 64.5 (0.4x) | - | 28.0 (0.2x) |
-| backtracking | 146 | 239,297 (1635.3x) | 452,756 (3094.0x) | 553,349 (3781.5x) | - | 466,663 (3189.1x) |
-| geometric mean | 1.00x | 0.30x over 8 | 0.48x over 7 | 0.43x over 7 | 0.46x over 3 | 0.23x over 8 |
+| literal | 30.7 | 25.2 (0.8x) | 50.1 (1.6x) | 8.33 (0.3x) | 39.7 (1.3x) | 17.7 (0.6x) |
+| question | 38.5 | 13.6 (0.4x) | 24.5 (0.6x) | 32.5 (0.8x) | - | 9.78 (0.3x) |
+| star | 66.7 | 27.2 (0.4x) | 52.0 (0.8x) | 62.3 (0.9x) | 40.7 (0.6x) | 21.3 (0.3x) |
+| class | 73.1 | 26.6 (0.4x) | 49.9 (0.7x) | 63.1 (0.9x) | - | 20.0 (0.3x) |
+| list | 83.4 | 32.3 (0.4x) | 58.4 (0.7x) | 69.7 (0.8x) | 39.2 (0.5x) | 26.1 (0.3x) |
+| descendant | 54.3 | 27.0 (0.5x) | - | - | - | 28.9 (0.5x) |
+| combined | 104 | 34.4 (0.3x) | 58.5 (0.6x) | 72.2 (0.7x) | - | 30.7 (0.3x) |
+| combined-miss | 98.6 | 57.2 (0.6x) | 53.7 (0.5x) | 67.2 (0.7x) | - | 28.3 (0.3x) |
+| backtracking | 144 | 238,330 (1655.8x) | 452,004 (3140.3x) | 552,765 (3840.3x) | - | 477,806 (3319.6x) |
+| geometric mean | 1.00x | 0.45x over 8 | 0.74x over 7 | 0.69x over 7 | 0.72x over 3 | 0.34x over 8 |
 
 **Parsed before the timed loop**
 
 | Case | Pattern::matches | JUCE |
 |---|---:|---:|
-| literal | 1.50 | 3.29 (2.2x) |
-| question | 34.4 | 24.4 (0.7x) |
-| star | 53.3 | 44.2 (0.8x) |
-| class | 83.1 | 63.0 (0.8x) |
-| list | 74.9 | 173 (2.3x) |
-| descendant | 40.4 | - |
-| combined | 99.1 | 189 (1.9x) |
-| combined-miss | 99.4 | 187 (1.9x) |
-| backtracking | 124 | 579,089 (4676.3x) |
-| geometric mean | 1.00x | 1.35x over 7 |
+| literal | 1.29 | 3.34 (2.6x) |
+| question | 22.1 | 23.7 (1.1x) |
+| star | 37.3 | 43.7 (1.2x) |
+| class | 43.0 | 61.2 (1.4x) |
+| list | 49.8 | 176 (3.5x) |
+| descendant | 25.8 | - |
+| combined | 68.6 | 192 (2.8x) |
+| combined-miss | 63.0 | 189 (3.0x) |
+| backtracking | 125 | 532,147 (4254.1x) |
+| geometric mean | 1.00x | 2.02x over 7 |
 
 **Dispatch into a space of 1,856 addresses**
 
 | Case | AddressSpace | liblo | rtosc |
 |---|---:|---:|---:|
-| literal | 3.76 | 1,403 (373.6x) | 105 (27.8x) |
-| pattern | 87,722 | 61,948 (0.7x) | - |
-| pattern-repeated | 46.9 | - | - |
+| literal | 4.63 | 1,321 (285.7x) | 104 (22.4x) |
+| pattern | 53,712 | 63,123 (1.2x) | - |
+| pattern-repeated | 50.7 | - | - |
 
 ### Running the Benchmarks
 
