@@ -49,16 +49,21 @@ constexpr bool isOpener(char byte) noexcept
     return byte == k::anyBytes || byte == k::anyByte || byte == k::setOpen || byte == k::listOpen;
 }
 
-constexpr bool hasOpener(StringView text) noexcept
+constexpr std::size_t firstOpener(StringView text) noexcept
 {
-    for (const char byte : text)
+    for (std::size_t i = 0; i < text.size(); ++i)
     {
-        if (isOpener(byte))
+        if (isOpener(text[i]))
         {
-            return true;
+            return i;
         }
     }
-    return false;
+    return npos;
+}
+
+constexpr bool hasOpener(StringView text) noexcept
+{
+    return firstOpener(text) != npos;
 }
 
 constexpr bool isPrintableAscii(char byte) noexcept

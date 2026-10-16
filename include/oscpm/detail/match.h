@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <oscpm/detail/compiler.h>
 #include <oscpm/detail/reach.h>
 #include <oscpm/detail/string_view.h>
 #include <oscpm/detail/syntax.h>
@@ -146,15 +147,18 @@ constexpr bool matchPartWithin(StringView pattern, StringView part) noexcept
 struct PartShape
 {
     bool isDirect = true;
+    bool exceedsPart = false;
     std::size_t star = npos;
     std::size_t numTokensBeforeStar = 0;
     std::size_t numTokensAfterStar = 0;
 };
 
-constexpr PartShape shapeOf(StringView pattern) noexcept
+constexpr PartShape shapeOf(StringView pattern, std::size_t firstOpener, std::size_t maxTokens) noexcept
 {
     PartShape shape;
-    std::size_t i = 0;
+    shape.numTokensBeforeStar = firstOpener;
+    std::size_t numTokens = firstOpener;
+    std::size_t i = firstOpener;
     while (i < pattern.size())
     {
         const char byte = pattern[i];
@@ -187,6 +191,11 @@ constexpr PartShape shapeOf(StringView pattern) noexcept
         else
         {
             ++i;
+        }
+        if (++numTokens > maxTokens)
+        {
+            shape.exceedsPart = true;
+            return shape;
         }
         ++(shape.star == npos ? shape.numTokensBeforeStar : shape.numTokensAfterStar);
     }
@@ -239,17 +248,22 @@ constexpr bool matchPartDirect(StringView pattern, StringView part, const PartSh
         && matchTokens(suffix, part.substr(part.size() - shape.numTokensAfterStar));
 }
 
-constexpr bool matchPart(StringView pattern, StringView part) noexcept
+OSCPM_NOINLINE constexpr bool matchPart(StringView pattern, StringView part) noexcept
 {
     if (part.size() > kMaxAddressPartLength)
     {
         return false;
     }
-    if (!hasOpener(pattern))
+    const std::size_t opener = firstOpener(pattern);
+    if (opener == npos)
     {
         return pattern == part;
     }
-    const PartShape shape = shapeOf(pattern);
+    const PartShape shape = shapeOf(pattern, opener, part.size());
+    if (shape.exceedsPart)
+    {
+        return false;
+    }
     if (shape.isDirect)
     {
         return matchPartDirect(pattern, part, shape);

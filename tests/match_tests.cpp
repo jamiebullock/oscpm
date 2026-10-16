@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 using oscpm::match;
 using oscpm::Pattern;
@@ -96,8 +97,8 @@ TEST_CASE("the general matcher takes a literal part at the length limit and reje
 
 TEST_CASE("a part shape selects the direct matcher for at most one star and no brace list")
 {
-    using oscpm::detail::shapeOf;
-    CHECK(shapeOf("abc").isDirect);
+    const auto shapeOf = [](std::string_view text, std::size_t maxTokens = oscpm::kMaxAddressPartLength)
+    { return oscpm::detail::shapeOf(text, oscpm::detail::firstOpener(text), maxTokens); };
     CHECK(shapeOf("a?b").isDirect);
     CHECK(shapeOf("a*b").isDirect);
     CHECK(shapeOf("[ab]c").isDirect);
@@ -109,8 +110,14 @@ TEST_CASE("a part shape selects the direct matcher for at most one star and no b
     CHECK(shapeOf("a*bc").star == 1);
     CHECK(shapeOf("a*bc").numTokensBeforeStar == 1);
     CHECK(shapeOf("a*bc").numTokensAfterStar == 2);
-    CHECK(shapeOf("[ab]?*[c]").numTokensBeforeStar == 2);
-    CHECK(shapeOf("[ab]?*[c]").numTokensAfterStar == 1);
+    CHECK(shapeOf("ab[c]?*[d]").numTokensBeforeStar == 4);
+    CHECK(shapeOf("ab[c]?*[d]").numTokensAfterStar == 1);
+    CHECK_FALSE(shapeOf("ab?c", 4).exceedsPart);
+    CHECK(shapeOf("ab?c", 3).exceedsPart);
+    CHECK(shapeOf("ab*cd", 3).exceedsPart);
+    CHECK(shapeOf("[a]?{b,c}", 1).exceedsPart);
+    CHECK_FALSE(shapeOf("[a]{b,c}d", 1).exceedsPart);
+    CHECK_FALSE(shapeOf("a*", 0).exceedsPart);
 }
 
 TEST_CASE("the general matcher and the cursor matcher agree at the edges of malformed text")
