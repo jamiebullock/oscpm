@@ -13,6 +13,7 @@
   "Dispatch/adversarial/stars-256/small": 105114,
   "Dispatch/rejected/large": 111791,
   "Dispatch/rejected/small": 111766,
+  "Dispatch/repeat/all-synths-osc-gain/small": 309,
   "Dispatch/repeat/filter-all-voices/small": 243,
   "Dispatch/repeat/literal/small": 204,
   "Dispatch/repeat/miss/large": 204,
