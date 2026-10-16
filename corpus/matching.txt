@@ -445,6 +445,11 @@
 "/synth/*/{freq,amp}""/synth/12/amp"     match
 "/synth/*/{freq,amp}""/synth/1/gain"     nomatch
 "/synth/*/{freq,amp}""/synth/freq"       nomatch
+"/{a,b}[!x]"        "/a!"               match
+"/{a,b}[!x]"        "/by"               match
+"/{a,b}[!x]"        "/ax"               nomatch
+"/{a,b}[x]y"        "/axy"              match
+"/{a,b}[x]y"        "/ayy"              nomatch
 
 ## The descendant operator "//" matches zero or more whole parts
 
