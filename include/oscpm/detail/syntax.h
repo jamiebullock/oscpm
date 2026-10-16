@@ -80,6 +80,8 @@ constexpr bool isLegalInPattern(char byte) noexcept
 enum class PatternByte : unsigned char
 {
     Plain,
+    Separator,
+    Wildcard,
     SetOpen,
     ListOpen,
     Illegal
@@ -93,10 +95,12 @@ constexpr PatternByteTable patternByteTable() noexcept
     for (std::size_t value = 0; value < table.size(); ++value)
     {
         const auto byte = static_cast<char>(static_cast<unsigned char>(value));
-        table[value] = !isLegalInPattern(byte) ? PatternByte::Illegal
-            : byte == k::setOpen               ? PatternByte::SetOpen
-            : byte == k::listOpen              ? PatternByte::ListOpen
-                                               : PatternByte::Plain;
+        table[value] = !isLegalInPattern(byte)          ? PatternByte::Illegal
+            : byte == k::partSeparator                  ? PatternByte::Separator
+            : byte == k::anyBytes || byte == k::anyByte ? PatternByte::Wildcard
+            : byte == k::setOpen                        ? PatternByte::SetOpen
+            : byte == k::listOpen                       ? PatternByte::ListOpen
+                                                        : PatternByte::Plain;
     }
     return table;
 }
