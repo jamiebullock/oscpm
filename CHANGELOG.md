@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `Pattern::parse` and `Address::parse` validate eight bytes at a time. A word holding only plain bytes, or plain bytes and slashes, is accepted with word-wide bit tests; any other word is checked byte by byte, so every fault kind and the first-fault order are unchanged, and both calls remain constant expressions. On Apple M4 with AppleClang 21, `oscpm::match` on a 28-byte literal takes 0.50x of its previous time, `Pattern::parse` 0.55x and `Address::parse` 0.40x; on x86-64 GCC 13 the `Match/parse/literal-hit` benchmark executes 24% fewer instructions.
+
 ## 0.10.0 - 2026-10-16
 
 ### Breaking changes

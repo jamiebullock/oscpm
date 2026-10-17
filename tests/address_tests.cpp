@@ -7,11 +7,13 @@
 #include "allocation_counter.h"
 
 #include <oscpm/address.h>
+#include <oscpm/detail/validate.h>
 #include <oscpm/pattern.h>
 
 #include <doctest/doctest.h>
 
 #include <cstddef>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -72,6 +74,62 @@ TEST_CASE("parse reports the first fault")
     static_assert(faults(Address::parse("/a\xff"), AddressError::IllegalByte));
 }
 
+TEST_CASE("parse reports the first fault of an address longer than a word")
+{
+    static_assert(Address::parse("/synth3/voice/7/osc/saw/freq"));
+    static_assert(faults(Address::parse("/abcdefg//jklmnop"), AddressError::EmptyPart));
+    static_assert(faults(Address::parse("/abcdefgh//klmnop"), AddressError::EmptyPart));
+    static_assert(faults(Address::parse("/abcdefgh/"), AddressError::TrailingSlash));
+    static_assert(faults(Address::parse("/abcdefghijklmnop/"), AddressError::TrailingSlash));
+    static_assert(faults(Address::parse("/abcdefghijklmnop\x80"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/ab//cde*"), AddressError::EmptyPart));
+    static_assert(faults(Address::parse("/abc*d//"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/abcdefgh*//"), AddressError::IllegalByte));
+    static_assert(faults(Address::parse("/abcdefg//jklmn*"), AddressError::EmptyPart));
+}
+
+TEST_CASE("parse judges a byte the same at every offset of a word")
+{
+    constexpr std::string_view legal = "/abcdefghijklmnopqrstuvw";
+    constexpr std::string_view reserved = "#*,?[]{}";
+    for (std::size_t offset = 1; offset < legal.size(); ++offset)
+    {
+        for (int value = 0; value < 256; ++value)
+        {
+            std::string text(legal);
+            text[offset] = static_cast<char>(value);
+            INFO("byte " << value << " at " << offset);
+            const oscpm::Expected<Address, oscpm::AddressError> parsed = Address::parse(text);
+            const std::optional<AddressError> byByte = oscpm::detail::validateAddressBytes(text, 1, 1);
+            CHECK(parsed.has_value() == !byByte.has_value());
+            CHECK((byByte && faults(parsed, *byByte)) == byByte.has_value());
+            if (value == '/')
+            {
+                const bool first = offset == 1;
+                const bool last = offset == legal.size() - 1;
+                CHECK((!first && !last) == parsed.has_value());
+                CHECK((first && faults(parsed, AddressError::EmptyPart)) == first);
+                CHECK((last && faults(parsed, AddressError::TrailingSlash)) == last);
+            }
+            else
+            {
+                const bool printable = value >= 0x21 && value <= 0x7E;
+                const bool inPart = printable && reserved.find(static_cast<char>(value)) == std::string_view::npos;
+                CHECK(inPart == parsed.has_value());
+                CHECK((!inPart && faults(parsed, AddressError::IllegalByte)) == !inPart);
+            }
+        }
+    }
+}
+
+TEST_CASE("parse reads no byte beyond the text")
+{
+    constexpr std::string_view buffer = "/abcdefghijklmnopq//*";
+    constexpr std::string_view text = buffer.substr(0, 18);
+    static_assert(Address::parse(text));
+    static_assert(faults(Address::parse(buffer.substr(0, 19)), AddressError::TrailingSlash));
+}
+
 TEST_CASE("parse rejects a part longer than the supported length")
 {
     const std::string longest(oscpm::kMaxAddressPartLength, 'a');
@@ -79,6 +137,23 @@ TEST_CASE("parse rejects a part longer than the supported length")
     CHECK(Address::parse("/" + longest + "/" + longest));
     CHECK(faults(Address::parse("/" + tooLong), AddressError::PartTooLong));
     CHECK(faults(Address::parse("/a/" + tooLong), AddressError::PartTooLong));
+}
+
+TEST_CASE("parse rejects a part over the limit whatever precedes it")
+{
+    const std::string longest(oscpm::kMaxAddressPartLength, 'a');
+    const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
+    for (std::size_t prefix = 0; prefix < 16; ++prefix)
+    {
+        const std::string head = prefix == 0 ? "/" : "/" + std::string(prefix, 'p') + "/";
+        INFO("prefix " << head);
+        CHECK(Address::parse(head + longest));
+        CHECK(Address::parse(head + longest + "/" + longest));
+        CHECK(faults(Address::parse(head + tooLong), AddressError::PartTooLong));
+        CHECK(faults(Address::parse(head + longest + "//"), AddressError::EmptyPart));
+        CHECK(faults(Address::parse(head + tooLong + "//"), AddressError::PartTooLong));
+        CHECK(faults(Address::parse(head + longest + "/"), AddressError::TrailingSlash));
+    }
 }
 
 TEST_CASE("an address keeps a view of the text it was parsed from")
