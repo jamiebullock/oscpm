@@ -16,5 +16,4 @@ oscpm
 oscpp
 [Pp]lugins?
 rtosc
-sanitizers?
 tinyosc
