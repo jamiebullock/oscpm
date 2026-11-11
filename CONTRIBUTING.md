@@ -80,7 +80,7 @@ cmake --build --preset release --target check-prose
 
 An error fails the check, and CI rejects a pull request that it fails on. A warning is reported and does not fail it. CI runs Vale 3.26.0. `cmake -DVALE=<path> -P cmake/CheckProse.cmake` runs the check with a chosen binary.
 
-CI also checks the title and the description of a pull request: the title as the subject of a commit message, and the description against the template. To run the same check before opening the pull request, write the title to a file named `COMMIT_EDITMSG` and the description to a file named `PR_BODY.md`, both outside the working tree, and pass the two paths to `vale` from the repository root.
+CI also checks the title and the description of a pull request: the title as the subject of a commit message, and the description against the template. To run the same check before opening the pull request, write the title to a file named `COMMIT_EDITMSG` and the description to a file named `PR_BODY.md`, both outside the working tree. Then, from the repository root, run `vale sync` and pass the two paths to `vale`.
 
 ## Releases
 

@@ -10,7 +10,7 @@
 
 ### Changed
 
-- **Breaking:** reject a null or a byte above 0x7F in `Pattern::parse` as `PatternError::IllegalByte` ([#69](https://github.com/jamiebullock/oscpm/pull/69))
+- **Breaking:** reject a null or a byte above 0x7F in `Pattern::parse` ([#69](https://github.com/jamiebullock/oscpm/pull/69))
 - Speed up `Pattern::matches`, `match` and `Pattern::parse` ([#73](https://github.com/jamiebullock/oscpm/pull/73))
 
 ### Added
@@ -92,7 +92,7 @@
 
 ### Changed
 
-- **Breaking:** reject a pattern over 1024 bytes that contains `*`, `?`, `[`, `{` or `//` as `PatternTooLong` ([#15](https://github.com/jamiebullock/oscpm/pull/15))
+- **Breaking:** reject a pattern over 1024 bytes that contains `*`, `?`, `[`, `{` or `//` ([#15](https://github.com/jamiebullock/oscpm/pull/15))
 
 ### Added
 
@@ -103,7 +103,7 @@
 
 ### Changed
 
-- Raise the default `AddressSpace` memo from 64 to 1024 methods, which takes more memory ([#14](https://github.com/jamiebullock/oscpm/pull/14))
+- Raise the default `AddressSpace` memo result limit from 64 to 1024 methods, which takes more memory ([#14](https://github.com/jamiebullock/oscpm/pull/14))
 
 ## [0.2.7] - 2026-09-21
 
@@ -129,7 +129,6 @@
 - Add `Error`, `ParseError` and `toString` ([#4](https://github.com/jamiebullock/oscpm/pull/4))
 - Add `Pattern` and `ParseResult`, with `Pattern::parse`, `matches`, `text` and `isLiteral` ([#5](https://github.com/jamiebullock/oscpm/pull/5))
 - Add `AddressSpace` in `oscpm/address_space.h`, with `add`, `remove`, `lookup` and `forEach` ([#8](https://github.com/jamiebullock/oscpm/pull/8))
-- Add the `OSCPM_BUILD_FUZZERS` and `OSCPM_SANITIZE` build options ([#7](https://github.com/jamiebullock/oscpm/pull/7), [#8](https://github.com/jamiebullock/oscpm/pull/8))
 - Add `examples/dispatch.cpp`, built with `OSCPM_BUILD_EXAMPLES` ([#9](https://github.com/jamiebullock/oscpm/pull/9))
 
 ## [0.1.0] - 2026-09-19
