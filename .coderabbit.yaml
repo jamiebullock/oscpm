@@ -14,17 +14,17 @@ reviews:
   path_instructions:
     - path: '**/*.cpp'
       instructions: |
-        A .cpp file carries no comments. The bar is a hidden constraint that
-        no rename, refactor or test name could carry, and it is almost never
-        met - flag a comment that restates what the code already says.
+        Comments are used sparingly. A comment states something that is not
+        obvious from the code and that no rename, refactor or test name
+        could carry. Flag a comment that restates what the code already
+        says, and do not ask for one to be added.
 
-        Contracts are documented on the header instead, where the declaration
-        is.
+        Contracts are documented on the header, where the declaration is.
     - path: 'CHANGELOG.md'
       instructions: |
         The rules are in the Changelog section of CONTRIBUTING.md, and the
-        check-changelog target enforces the format, so do not comment on
-        the format.
+        check-prose target enforces the format, so do not comment on the
+        format.
 
         Check each entry against the code and the pull request it cites.
         When an entry is inaccurate, ask for it to be corrected or narrowed
@@ -35,8 +35,8 @@ reviews:
         that restates a contract the header documents, and one that records
         a change no user of the library can observe (CI, tests, tooling,
         documentation, refactoring).
-  # The project keeps comments to header contracts and none in .cpp files,
-  # so a docstring coverage threshold would fail every pull request.
+  # The project documents contracts on the headers and keeps other comments
+  # sparse, so a docstring coverage threshold would fail every pull request.
   pre_merge_checks:
     docstrings:
       mode: off

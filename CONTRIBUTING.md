@@ -10,7 +10,7 @@
 
 - Commit subjects and pull request titles use Conventional Commit prefixes: `feat:`, `fix:`, `perf:`, `docs:`, `refactor:`, `test:`, `ci:`, `chore:`. The pull request title becomes the commit subject on `develop`.
 - A title containing `(MINOR)` or `(MAJOR)` moves that part of the version at the next release. Nothing else affects the version.
-- A pull request fills every section of the template.
+- A pull request fills every section of the template. The Summary opens with "This PR" and a verb in lower case, and Changes is one bullet per change.
 - `CHANGELOG.md` is written in the pull request that makes a release, by the rules under [Changelog](#changelog). No other pull request changes it.
 - Before pushing, build and test locally with the format check on:
 
@@ -24,44 +24,63 @@ On a pull request, CI counts the instructions per iteration of every benchmark u
 
 ## Changelog
 
-`CHANGELOG.md` records what each release changes for someone who uses the library. Its entries are written in the pull request that makes the release. The format is [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) with one more section, for breaking changes:
+`CHANGELOG.md` records what each release changes for someone who uses the library. Its entries are written in the pull request that makes the release. The format is [Common Changelog](https://common-changelog.org):
 
 - A release is a `## [X.Y.Z] - YYYY-MM-DD` heading, newest first, with a compare link at the foot of the file.
-- Under the heading come `###` sections from Breaking changes, Added, Changed, Deprecated, Removed, Fixed and Security, in that order, and nothing else. A release has no introductory paragraph.
-- Breaking changes holds every change that can stop a caller's code compiling or alter a result it had: a removal, a rename, a changed signature, a changed match.
+- Under the heading come `###` sections from Changed, Added, Removed and Fixed, in that order. A release may carry one notice, a single line in italics directly under its heading, and has no other introductory text.
 - An entry is one line: a phrase of at most 20 words with no closing full stop.
-- An entry says what changed for the user. The reason, the mechanism and the measurements are in the pull request; end the entry with its number, `(#123)`.
+- An entry opens with a verb in the imperative, such as Add, Change, Fix or Remove. The verbs that the check accepts are listed under [Changelog format](https://github.com/jamiebullock/vale-style#changelog-format) in the vale-style README.
+- An entry ends with a link to its pull request, in parentheses: `([#123](https://github.com/jamiebullock/oscpm/pull/123))`.
+- A change that can stop a caller's code compiling or alter a result it had opens with `**Breaking:**` and a lower-case verb, and comes first in its section: a removal, a rename, a changed signature, a changed match.
+- An entry says what changed for the user. The reason, the mechanism and the measurements are in the pull request.
 - Record only what a user can observe: the API, behaviour, results, speed and memory use, the build and install, the licence. Leave out CI, tests, tooling, documentation and refactoring.
 - List a new type or function by name. Its contract is documented in the header.
-- Start an entry about one function with the function name.
-- Fixed holds crashes, memory errors and build failures. A fix that changes what a call returned when it already worked goes under Breaking changes.
+- Fixed holds crashes, memory errors and build failures. A fix that changes what a call returned when it already worked goes under Changed and opens with `**Breaking:**`.
+- A deprecation goes under Changed and opens with Deprecate.
 - Correct or narrow an entry that is inaccurate. Do not add exceptions and qualifications to it.
 
 An entry that explains the mechanism and the measurements:
 
 ```
-- `Pattern::parse` and `Address::parse` validate eight bytes at a time. A word holding only plain bytes is accepted with word-wide bit tests, and any other word is checked byte by byte. On Apple M4 with AppleClang 21, `Pattern::parse` takes 0.55x of its previous time.
+- Speed up `Pattern::parse` and `Address::parse`, which validate eight bytes at a time. A word holding only plain bytes is accepted with word-wide bit tests, and any other word is checked byte by byte. On Apple M4 with AppleClang 21, `Pattern::parse` takes 0.55x of its previous time.
 ```
 
 The same change as it belongs in the file:
 
 ```
-- Faster `Pattern::parse`, `Address::parse` and `match` (#77)
+- Speed up `Pattern::parse`, `Address::parse` and `match` ([#77](https://github.com/jamiebullock/oscpm/pull/77))
 ```
 
 An entry that restates the header:
 
 ```
-- `AddressSpace::find`: a pointer to the value registered under an address, or null when there is none. The pointer is valid until the next `add` or `remove`.
+- Add `AddressSpace::find`, which returns a pointer to the value registered under an address, or null when there is none. The pointer is valid until the next `add` or `remove`.
 ```
 
 The same change as it belongs in the file:
 
 ```
-- `AddressSpace::find` (#37)
+- Add `AddressSpace::find` ([#37](https://github.com/jamiebullock/oscpm/pull/37))
 ```
 
-The `check-changelog` target tests the rules that a script can test, and CI runs it on every pull request.
+The `check-prose` target tests the rules that a script can test, and CI runs it on every pull request.
+
+## Prose checks
+
+[Vale](https://vale.sh) checks the prose in the tree: the Markdown files, the changelog, the comments in the sources and the licence headers. The rules come from the [vale-style](https://github.com/jamiebullock/vale-style) package, at the release that `.vale.ini` names, and the package's README describes them. `.vale.ini` adds the project's own settings to them:
+
+- `.vale/styles/config/vocabularies/oscpm/accept.txt` holds the names and terms that the dictionary does not. Add a word there when Vale reports a correct spelling.
+- `.vale/styles/oscpm/` holds the rules that apply to this project only.
+
+The `check-prose` target downloads the package and checks every file that git tracks:
+
+```sh
+cmake --build --preset release --target check-prose
+```
+
+An error fails the check, and CI rejects a pull request that it fails on. A warning is reported and does not fail it. CI runs Vale 3.26.0. `cmake -DVALE=<path> -P cmake/CheckProse.cmake` runs the check with a chosen binary.
+
+CI also checks the title and the description of a pull request: the title as the subject of a commit message, and the description against the template. To run the same check before opening the pull request, write the title to a file named `COMMIT_EDITMSG` and the description to a file named `PR_BODY.md`, both outside the working tree, and pass the two paths to `vale` from the repository root.
 
 ## Releases
 

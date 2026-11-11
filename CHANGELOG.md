@@ -4,145 +4,139 @@
 
 ### Changed
 
-- Faster `Pattern::parse`, `Address::parse` and `match` (#77)
+- Speed up `Pattern::parse`, `Address::parse` and `match` ([#77](https://github.com/jamiebullock/oscpm/pull/77))
 
 ## [0.10.0] - 2026-10-16
 
-### Breaking changes
+### Changed
 
-- `Pattern::parse` rejects a null or a byte above 0x7F as `PatternError::IllegalByte` (#69)
+- **Breaking:** reject a null or a byte above 0x7F in `Pattern::parse` as `PatternError::IllegalByte` ([#69](https://github.com/jamiebullock/oscpm/pull/69))
+- Speed up `Pattern::matches`, `match` and `Pattern::parse` ([#73](https://github.com/jamiebullock/oscpm/pull/73))
 
 ### Added
 
-- `Address` and `Pattern` constructors taking text (#65)
-
-### Changed
-
-- Faster `Pattern::matches`, `match` and `Pattern::parse` (#73)
+- Add `Address` and `Pattern` constructors taking text ([#65](https://github.com/jamiebullock/oscpm/pull/65))
 
 ## [0.9.8] - 2026-10-13
 
-### Breaking changes
+### Changed
 
-- `AddressSpace`: `invoke` is renamed `dispatch`, `dispatch` and `forEach` are renamed `visit`, and `DispatchResult` is renamed `MatchResult` (#49)
-- `Pattern::parse` and `Address::parse` return `Expected`; `ParseResult` and the default constructors of `Pattern` and `Address` are removed (#51)
-- `Error` is replaced by `PatternError` and `AddressError`, and `MatchResult::error` is a `std::optional<PatternError>` (#51)
-- `Pattern::matches` takes an `Address`, and `match` returns false for a malformed address (#53)
-- A pattern ending in a single `/` matches no address (#53)
-- Releases are the tags on `main`, and pushes to `develop` are no longer tagged (#61)
+- **Breaking:** rename `AddressSpace::invoke` to `dispatch`, `dispatch` and `forEach` to `visit`, and `DispatchResult` to `MatchResult` ([#49](https://github.com/jamiebullock/oscpm/pull/49))
+- **Breaking:** return `Expected` from `Pattern::parse` and `Address::parse` ([#51](https://github.com/jamiebullock/oscpm/pull/51))
+- **Breaking:** replace `Error` with `PatternError` and `AddressError`, and make `MatchResult::error` a `std::optional<PatternError>` ([#51](https://github.com/jamiebullock/oscpm/pull/51))
+- **Breaking:** take an `Address` in `Pattern::matches`, and return false from `match` for a malformed address ([#53](https://github.com/jamiebullock/oscpm/pull/53))
+- **Breaking:** treat a pattern ending in a single `/` as matching no address ([#53](https://github.com/jamiebullock/oscpm/pull/53))
+- **Breaking:** tag releases on `main`, and stop tagging pushes to `develop` ([#61](https://github.com/jamiebullock/oscpm/pull/61))
+- Speed up address validation in `match` ([#59](https://github.com/jamiebullock/oscpm/pull/59))
+- Reduce the stack `AddressSpace<T, false>` uses in a wildcard visit ([#46](https://github.com/jamiebullock/oscpm/pull/46))
 
 ### Added
 
-- `Expected<T, E>` in `oscpm/expected.h` (#51)
-- `AddressSpace::dispatch` accepts pointers to member functions as values (#48)
-- Compile-time checks of the `AddressSpace` value type and of visitor and handler signatures (#47, #50)
-- The headers compile with libstdc++ 7, as shipped by the GCC 7 Arduino cores (#54)
+- Add `Expected<T, E>` in `oscpm/expected.h` ([#51](https://github.com/jamiebullock/oscpm/pull/51))
+- Support pointers to member functions as values in `AddressSpace::dispatch` ([#48](https://github.com/jamiebullock/oscpm/pull/48))
+- Add compile-time checks of the `AddressSpace` value type and of visitor and handler signatures ([#47](https://github.com/jamiebullock/oscpm/pull/47), [#50](https://github.com/jamiebullock/oscpm/pull/50))
+- Support libstdc++ 7, as supplied with the GCC 7 Arduino cores ([#54](https://github.com/jamiebullock/oscpm/pull/54))
 
-### Changed
+### Removed
 
-- Faster address validation in `match` (#59)
-- `AddressSpace<T, false>` uses less stack in a wildcard visit (#46)
+- **Breaking:** remove `ParseResult` and the default constructors of `Pattern` and `Address` ([#51](https://github.com/jamiebullock/oscpm/pull/51))
 
 ### Fixed
 
-- `AddressSpace::add`: null pointer read when passed the `Address` from a failed `Address::parse` (#51)
-- `oscpm/expected.h` compiles where `assert` expands to a static definition, such as the ESP8266 Arduino core (#55)
+- Fix a null pointer read in `AddressSpace::add` when passed the `Address` from a failed `Address::parse` ([#51](https://github.com/jamiebullock/oscpm/pull/51))
+- Fix compiling `oscpm/expected.h` where `assert` expands to a static definition, such as the ESP8266 Arduino core ([#55](https://github.com/jamiebullock/oscpm/pull/55))
 
 ## [0.6.1] - 2026-10-04
 
-### Breaking changes
+### Changed
 
-- `AddressSpace::add` and `remove` take an `Address` and return whether the set changed (#44)
-- `Error::Duplicate` and `Error::NotFound` are removed (#44)
-- `ParseResult` is renamed `Pattern::ParseResult` (#44)
+- **Breaking:** take an `Address` in `AddressSpace::add` and `remove`, and return whether the set changed ([#44](https://github.com/jamiebullock/oscpm/pull/44))
+- **Breaking:** rename `ParseResult` to `Pattern::ParseResult` ([#44](https://github.com/jamiebullock/oscpm/pull/44))
+- Include `oscpm/address.h` from `oscpm/oscpm.h` ([#44](https://github.com/jamiebullock/oscpm/pull/44))
 
 ### Added
 
-- `Address` and `Address::parse` in `oscpm/address.h` (#44)
-- Debug-build assertion in `AddressSpace::add` and `remove` when the bytes an `Address` views no longer parse (#44)
+- Add `Address` and `Address::parse` in `oscpm/address.h` ([#44](https://github.com/jamiebullock/oscpm/pull/44))
+- Add a debug-build assertion in `AddressSpace::add` and `remove` when the bytes an `Address` views no longer parse ([#44](https://github.com/jamiebullock/oscpm/pull/44))
 
-### Changed
+### Removed
 
-- `oscpm/oscpm.h` includes `oscpm/address.h` (#44)
+- **Breaking:** remove `Error::Duplicate` and `Error::NotFound` ([#44](https://github.com/jamiebullock/oscpm/pull/44))
 
 ## [0.5.6] - 2026-10-04
 
-### Breaking changes
+### Changed
 
-- `ParseError` is removed, and no fault carries a byte offset (#33)
-- `ParseResult::error` returns an `Error`, and `DispatchResult::error` is a `std::optional<Error>` (#33)
-- `validatePattern` and `validateAddress` are no longer public (#33)
-- `AddressSpace::lookup` is removed; call `dispatch` with `pattern.text()` (#37)
+- **Breaking:** return an `Error` from `ParseResult::error`, and make `DispatchResult::error` a `std::optional<Error>` ([#33](https://github.com/jamiebullock/oscpm/pull/33))
+- Include `oscpm/error.h`, `oscpm/pattern.h` and `oscpm/address_space.h` from `oscpm/oscpm.h` ([#26](https://github.com/jamiebullock/oscpm/pull/26))
 
 ### Added
 
-- `AddressSpace::find` (#37)
-- `AddressSpace::invoke` (#40)
-- `oscpm/pattern.h` and `oscpm/error.h` (#26)
-- Debug-build assertion when a visitor modifies the `AddressSpace` that called it (#32)
+- Add `AddressSpace::find` ([#37](https://github.com/jamiebullock/oscpm/pull/37))
+- Add `AddressSpace::invoke` ([#40](https://github.com/jamiebullock/oscpm/pull/40))
+- Add `oscpm/pattern.h` and `oscpm/error.h` ([#26](https://github.com/jamiebullock/oscpm/pull/26))
+- Add a debug-build assertion when a visitor modifies the `AddressSpace` that called it ([#32](https://github.com/jamiebullock/oscpm/pull/32))
 
-### Changed
+### Removed
 
-- `oscpm/oscpm.h` includes `oscpm/error.h`, `oscpm/pattern.h` and `oscpm/address_space.h` (#26)
+- **Breaking:** remove `ParseError` and the byte offset it carried ([#33](https://github.com/jamiebullock/oscpm/pull/33))
+- **Breaking:** remove `validatePattern` and `validateAddress` from the public API ([#33](https://github.com/jamiebullock/oscpm/pull/33))
+- **Breaking:** remove `AddressSpace::lookup` in favour of `dispatch` with `pattern.text()` ([#37](https://github.com/jamiebullock/oscpm/pull/37))
 
 ### Fixed
 
-- Configuring as a subproject of a project that has a `ProjectVersion` or `CheckFormat` CMake module (#31)
-- `AddressSpace::dispatch`: wrong or missing visits when a visitor dispatched on the same space (#21)
+- Fix configuring as a subproject of a project that has a `ProjectVersion` or `CheckFormat` CMake module ([#31](https://github.com/jamiebullock/oscpm/pull/31))
+- Fix wrong or missing visits in `AddressSpace::dispatch` when a visitor dispatched on the same space ([#21](https://github.com/jamiebullock/oscpm/pull/21))
 
 ## [0.3.0] - 2026-09-23
 
-### Breaking changes
+### Changed
 
-- A pattern over 1024 bytes that contains `*`, `?`, `[`, `{` or `//` is rejected as `PatternTooLong` (#15)
-- `Error::PatternTooLong` follows `Error::UnterminatedBraces`, moving the later enumerators by one (#15)
+- **Breaking:** reject a pattern over 1024 bytes that contains `*`, `?`, `[`, `{` or `//` as `PatternTooLong` ([#15](https://github.com/jamiebullock/oscpm/pull/15))
 
 ### Added
 
-- `kMaxPatternLength` (#15)
+- **Breaking:** add `Error::PatternTooLong` after `Error::UnterminatedBraces`, moving the later enumerators by one ([#15](https://github.com/jamiebullock/oscpm/pull/15))
+- Add `kMaxPatternLength` ([#15](https://github.com/jamiebullock/oscpm/pull/15))
 
 ## [0.2.10] - 2026-09-23
 
 ### Changed
 
-- `AddressSpace` memoises a lookup of up to 1024 methods by default, up from 64 (#14)
-- The default `AddressSpace` memo takes more memory (#14)
+- Raise the default `AddressSpace` memo from 64 to 1024 methods, which takes more memory ([#14](https://github.com/jamiebullock/oscpm/pull/14))
 
 ## [0.2.7] - 2026-09-21
 
 ### Added
 
-- `AddressSpace::dispatch` and `DispatchResult` (#11)
+- Add `AddressSpace::dispatch` and `DispatchResult` ([#11](https://github.com/jamiebullock/oscpm/pull/11))
 
 ## [0.2.6] - 2026-09-21
 
-### Breaking changes
+### Changed
 
-- `isValidAddress` and `isValidPattern` are replaced by `validateAddress` and `validatePattern`, which return `std::optional<ParseError>` (#4)
-- `match` returns false for a pattern or an address without a leading `/` (#4)
-- `match` returns false for a pattern with a `[` or `{` left unclosed within its part (#4)
-- A trailing run of two or more slashes is the `//` operator, so `/a//` matches `/a` and its descendants (#4)
-- A `{` inside a brace list is a literal byte, and the first `}` closes the list (#4)
-- `validatePattern` accepts a byte outside printable ASCII, a `#` or a space, which `isValidPattern` rejected (#4)
-- `find_package(oscpm)` accepts only the same minor version while the major version is 0 (#3)
+- **Breaking:** replace `isValidAddress` and `isValidPattern` with `validateAddress` and `validatePattern`, which return `std::optional<ParseError>` ([#4](https://github.com/jamiebullock/oscpm/pull/4))
+- **Breaking:** return false from `match` for a pattern or an address without a leading `/` ([#4](https://github.com/jamiebullock/oscpm/pull/4))
+- **Breaking:** return false from `match` for a pattern with a `[` or `{` left unclosed within its part ([#4](https://github.com/jamiebullock/oscpm/pull/4))
+- **Breaking:** treat two or more trailing slashes as the `//` operator, as in `/a//` matching `/a` and its descendants ([#4](https://github.com/jamiebullock/oscpm/pull/4))
+- **Breaking:** treat a `{` inside a brace list as a literal byte, and close the list at the first `}` ([#4](https://github.com/jamiebullock/oscpm/pull/4))
+- **Breaking:** accept a byte outside printable ASCII, a `#` or a space in `validatePattern`, which `isValidPattern` rejected ([#4](https://github.com/jamiebullock/oscpm/pull/4))
+- **Breaking:** accept only the same minor version in `find_package(oscpm)` while the major version is 0 ([#3](https://github.com/jamiebullock/oscpm/pull/3))
+- Speed up matching of literal patterns and literal parts ([#6](https://github.com/jamiebullock/oscpm/pull/6))
 
 ### Added
 
-- `Error`, `ParseError` and `toString` (#4)
-- `Pattern` and `ParseResult`, with `Pattern::parse`, `matches`, `text` and `isLiteral` (#5)
-- `AddressSpace` in `oscpm/address_space.h`, with `add`, `remove`, `lookup` and `forEach` (#8)
-- `OSCPM_BUILD_FUZZERS` and `OSCPM_SANITIZE` build options (#7, #8)
-- `examples/dispatch.cpp`, built with `OSCPM_BUILD_EXAMPLES` (#9)
-
-### Changed
-
-- Faster matching of literal patterns and literal parts (#6)
+- Add `Error`, `ParseError` and `toString` ([#4](https://github.com/jamiebullock/oscpm/pull/4))
+- Add `Pattern` and `ParseResult`, with `Pattern::parse`, `matches`, `text` and `isLiteral` ([#5](https://github.com/jamiebullock/oscpm/pull/5))
+- Add `AddressSpace` in `oscpm/address_space.h`, with `add`, `remove`, `lookup` and `forEach` ([#8](https://github.com/jamiebullock/oscpm/pull/8))
+- Add the `OSCPM_BUILD_FUZZERS` and `OSCPM_SANITIZE` build options ([#7](https://github.com/jamiebullock/oscpm/pull/7), [#8](https://github.com/jamiebullock/oscpm/pull/8))
+- Add `examples/dispatch.cpp`, built with `OSCPM_BUILD_EXAMPLES` ([#9](https://github.com/jamiebullock/oscpm/pull/9))
 
 ## [0.1.0] - 2026-09-19
 
 ### Added
 
-- `match`, `isValidAddress`, `isValidPattern` and `kMaxAddressPartLength` (#2)
+- Add `match`, `isValidAddress`, `isValidPattern` and `kMaxAddressPartLength` ([#2](https://github.com/jamiebullock/oscpm/pull/2))
 
 [0.10.1]: https://github.com/jamiebullock/oscpm/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/jamiebullock/oscpm/compare/v0.9.8...v0.10.0

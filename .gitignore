@@ -1,3 +1,16 @@
 /build/
 .DS_Store
 CMakeUserPresets.json
+.vale/styles/.vale-config/
+.vale/styles/Changelog/
+.vale/styles/Comments/
+.vale/styles/Commit/
+.vale/styles/Licence/
+.vale/styles/Plain/
+.vale/styles/PullRequest/
+.vale/styles/ai-tells/
+.vale/styles/config/dictionaries/
+.vale/styles/config/scripts/
+.vale/styles/config/templates/
+.vale/styles/config/views/
+.vale/styles/config/vocabularies/Programming/

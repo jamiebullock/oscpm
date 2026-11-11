@@ -77,12 +77,12 @@ if(OSCPM_CHECK_FORMAT)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL)
-    add_custom_target(check-changelog
-        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckChangelog.cmake
-        COMMENT "Checking CHANGELOG.md against the rules in CONTRIBUTING.md"
+    add_custom_target(check-prose
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckProse.cmake
+        COMMENT "Checking prose with Vale"
         VERBATIM
     )
-    set_target_properties(check-changelog PROPERTIES FOLDER utilities)
+    set_target_properties(check-prose PROPERTIES FOLDER utilities)
 endif()
 
 if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
