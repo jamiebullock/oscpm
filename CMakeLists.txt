@@ -76,6 +76,15 @@ if(OSCPM_CHECK_FORMAT)
     add_clang_format_check(SOURCES ${OSCPM_FORMATTED_SOURCES})
 endif()
 
+if(PROJECT_IS_TOP_LEVEL)
+    add_custom_target(check-prose
+        COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckProse.cmake
+        COMMENT "Checking prose with Vale"
+        VERBATIM
+    )
+    set_target_properties(check-prose PROPERTIES FOLDER utilities)
+endif()
+
 if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)

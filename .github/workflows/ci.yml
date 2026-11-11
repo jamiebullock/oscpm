@@ -104,6 +104,20 @@ jobs:
         run: |
           git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'tests/*.ino' 'fuzz/*.cpp' 'examples/*.cpp' 'bench/*.h' 'bench/*.cpp' | xargs clang-format --style=file --dry-run --Werror
 
+  prose:
+    name: Prose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/install-vale
+
+      - name: Check the prose
+        run: cmake -P cmake/CheckProse.cmake
+
   fuzz:
     name: Fuzz under ASan and UBSan
     runs-on: ubuntu-latest

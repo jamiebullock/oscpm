@@ -14,14 +14,31 @@ reviews:
   path_instructions:
     - path: '**/*.cpp'
       instructions: |
-        A .cpp file carries no comments. The bar is a hidden constraint that
-        no rename, refactor or test name could carry, and it is almost never
-        met - flag a comment that restates what the code already says.
+        Comments are used sparingly. A comment states something that is not
+        obvious from the code and that no rename, refactor or test name
+        could carry. Flag a comment that restates what the code already
+        says, and do not ask for one to be added.
 
-        Contracts are documented on the header instead, where the declaration
-        is.
-  # The project keeps comments to header contracts and none in .cpp files,
-  # so a docstring coverage threshold would fail every pull request.
+        Contracts are documented on the header, where the declaration is.
+    - path: 'CHANGELOG.md'
+      instructions: |
+        The rules are in the Changelog section of CONTRIBUTING.md, and the
+        check-prose target enforces the format, so do not comment on the
+        format. The one exception is the link that ends an entry: the check
+        accepts a link to an issue or a commit, and the rules ask for the
+        pull request, so flag any other link.
+
+        Check each entry against the code and the pull request it cites.
+        When an entry is inaccurate, ask for it to be corrected or narrowed
+        within one line. Do not ask for exceptions, qualifications or
+        explanations to be added to an entry.
+
+        Flag an entry that gives a reason, a mechanism or a measurement, one
+        that restates a contract the header documents, and one that records
+        a change no user of the library can observe (CI, tests, tooling,
+        documentation, refactoring).
+  # The project documents contracts on the headers and keeps other comments
+  # sparse, so a docstring coverage threshold would fail every pull request.
   pre_merge_checks:
     docstrings:
       mode: off
@@ -30,6 +47,13 @@ reviews:
     drafts: false
     base_branches:
       - develop
+
+# The changelog rules are in CONTRIBUTING.md.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - 'CONTRIBUTING.md'
 
 chat:
   auto_reply: true
