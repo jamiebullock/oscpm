@@ -2,6 +2,8 @@ Adafruit
 Arduino
 Cachegrind
 Giga
+Kersten
+Kirilov
 Nucleo
 bytewise
 doctest
