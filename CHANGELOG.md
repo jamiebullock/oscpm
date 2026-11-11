@@ -14,7 +14,7 @@
 
 ### Added
 
-- `Address` and `Pattern` constructors taking text, which call `std::abort` on malformed text (#65)
+- `Address` and `Pattern` constructors taking text (#65)
 
 ### Changed
 
@@ -106,7 +106,7 @@
 ### Changed
 
 - `AddressSpace` memoises a lookup of up to 1024 methods by default, up from 64 (#14)
-- The default `AddressSpace` memo takes about 1.1 MiB, allocated at construction (#14)
+- The default `AddressSpace` memo takes more memory (#14)
 
 ## [0.2.7] - 2026-09-21
 
@@ -124,20 +124,19 @@
 - A trailing run of two or more slashes is the `//` operator, so `/a//` matches `/a` and its descendants (#4)
 - A `{` inside a brace list is a literal byte, and the first `}` closes the list (#4)
 - `validatePattern` accepts a byte outside printable ASCII, a `#` or a space, which `isValidPattern` rejected (#4)
+- `find_package(oscpm)` accepts only the same minor version while the major version is 0 (#3)
 
 ### Added
 
 - `Error`, `ParseError` and `toString` (#4)
 - `Pattern` and `ParseResult`, with `Pattern::parse`, `matches`, `text` and `isLiteral` (#5)
 - `AddressSpace` in `oscpm/address_space.h`, with `add`, `remove`, `lookup` and `forEach` (#8)
-- `corpus/matching.txt`, the conformance corpus (#4)
 - `OSCPM_BUILD_FUZZERS` and `OSCPM_SANITIZE` build options (#7, #8)
 - `examples/dispatch.cpp`, built with `OSCPM_BUILD_EXAMPLES` (#9)
 
 ### Changed
 
 - Faster matching of literal patterns and literal parts (#6)
-- `find_package(oscpm)` accepts only the same minor version while the major version is 0 (#3)
 
 ## [0.1.0] - 2026-09-19
 
