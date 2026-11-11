@@ -31,7 +31,7 @@ The components below are fetched from source at configure time with CMake's Fetc
 - Source: [kaoskorobase/oscpp](https://github.com/kaoskorobase/oscpp), declared in `examples/CMakeLists.txt`
 - Version: 1.0.0
 - Revision: tag `1.0.0`, commit `a62fe7690ce3563c997d7c9915d8cb54ff8f79b0`
-- Licence: BSL-1.0
+- Licence: the terms in upstream `LICENSE`, which are the text of the Boost Software License 1.0 without its exemption for compiled object code
 - Copyright: Copyright (c) 2004-2018 Stefan Kersten
 - Used for: the example, built when `OSCPM_BUILD_EXAMPLES` is on
 - Platforms: all
@@ -40,4 +40,4 @@ The components below are fetched from source at configure time with CMake's Fetc
 
 - **The library.** None. The headers under `include/` use none of these components, and an installed copy of oscpm contains none of them.
 - **doctest (MIT) and Google Benchmark (Apache-2.0).** A test or benchmark executable contains the component it links. A copy of that executable given to someone else carries the component's licence and copyright notice.
-- **oscpp (BSL-1.0).** The licence asks for its notice in copies of the source and exempts compiled object code.
+- **oscpp.** The example executable contains oscpp code. The licence asks for its copyright notices and its full text in every copy and every derivative work, compiled ones included, so a copy of that executable given to someone else carries them.
