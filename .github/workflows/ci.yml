@@ -104,6 +104,10 @@ jobs:
         run: |
           git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'tests/*.ino' 'fuzz/*.cpp' 'examples/*.cpp' 'bench/*.h' 'bench/*.cpp' | xargs clang-format --style=file --dry-run --Werror
 
+      - name: Check the changelog
+        if: ${{ !cancelled() }}
+        run: cmake -P cmake/CheckChangelog.cmake
+
   fuzz:
     name: Fuzz under ASan and UBSan
     runs-on: ubuntu-latest

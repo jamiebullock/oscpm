@@ -20,6 +20,21 @@ reviews:
 
         Contracts are documented on the header instead, where the declaration
         is.
+    - path: 'CHANGELOG.md'
+      instructions: |
+        The rules are in the Changelog section of CONTRIBUTING.md, and the
+        check-changelog target enforces the format, so do not comment on
+        the format.
+
+        Check each entry against the code and the pull request it cites.
+        When an entry is inaccurate, ask for it to be corrected or narrowed
+        within one line. Do not ask for exceptions, qualifications or
+        explanations to be added to an entry.
+
+        Flag an entry that gives a reason, a mechanism or a measurement, one
+        that restates a contract the header documents, and one that records
+        a change no user of the library can observe (CI, tests, tooling,
+        documentation, refactoring).
   # The project keeps comments to header contracts and none in .cpp files,
   # so a docstring coverage threshold would fail every pull request.
   pre_merge_checks:
@@ -30,6 +45,13 @@ reviews:
     drafts: false
     base_branches:
       - develop
+
+# The changelog rules are in CONTRIBUTING.md.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - 'CONTRIBUTING.md'
 
 chat:
   auto_reply: true
