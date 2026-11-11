@@ -95,7 +95,7 @@ constexpr bool hasFirstByte(Word bytes) noexcept
     return (bytes & k::firstByteHighBit) != 0;
 }
 
-/// The number of bytes after the last byte marked in `bytes`, a nonzero
+/// The number of bytes after the last byte marked in `bytes`, a non-zero
 /// result of `bytesEqualTo`.
 constexpr std::size_t numBytesAfterLast(Word bytes) noexcept
 {

@@ -10,7 +10,7 @@ Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 
 - **Compliant:** full [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) pattern syntax (`?`, `*`, `[...]`, `{a,b}`) plus the [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html) `//` operator
 - **Address space:** register handlers or values, then `visit` or `dispatch` every match of a received pattern, with repeated patterns served from a memo
-- **Allocation-free, non-throwing** matching and dispatch, usable on a realtime thread
+- **Allocation-free, non-throwing** matching and dispatch, usable on a real-time thread
 - **Bounded time:** at most pattern length x address length whatever the pattern; no backtracking, no recursion
 - **Fixed stack:** every buffer sized at compile time, independent of the pattern, the address and the number of registered addresses
 - **Strict validation:** a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
@@ -91,7 +91,7 @@ else
 In the common form:
 - The caller registers a callback for each OSC address
 - An OSC message is dispatched to the address space
-- Every callback whose address matches the message's address pattern is called with the message as an argument
+- Each callback whose address matches the message's address pattern is called with the message as an argument
 
 The mixer example below shows this:
 
@@ -158,7 +158,7 @@ int main()
 In the alternative form, the address space stores the parameters directly.
 
 This suits applications where:
-- Every address holds the same kind of value
+- Each address has a value of the same kind
 - Only the latest value is needed, not every intermediate one
 
 Used as follows:
@@ -229,7 +229,7 @@ int main()
 Each entry point suits a different shape of program:
 - `oscpm::match` for a pattern and an address that are each used once. It validates both and parses the pattern on every call, which is most of its cost on short patterns, and it answers `false` for a malformed input as for a miss
 - `Pattern` for a pattern matched against many addresses, and `Address` for an address matched against many patterns. Validation and parsing are paid once
-- `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern the memo holds, costs one lookup; any other pattern is matched against every registered address. The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, so a repeating stream pays the match once per change to the space
+- `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern in the memo, costs one lookup. Any other pattern is matched against every registered address. The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, and a repeating stream is matched once per change to the space
 
 ## Integration Examples
 
@@ -284,7 +284,7 @@ class Listener : public osc::OscPacketListener
 
 ### tinyosc
 
-[tinyosc](https://github.com/mhroth/tinyosc) is a C library that parses a datagram in place. A `tosc_message` is a read cursor over the arguments, so each method takes its own copy and reads from the first argument. `Handler` is a `std::function<void(tosc_message)>`.
+[tinyosc](https://github.com/mhroth/tinyosc) is a C library that parses a datagram in place. Because a `tosc_message` is a read cursor over the arguments, each method takes its own copy and reads from the first argument. `Handler` is a `std::function<void(tosc_message)>`.
 
 ```cpp
 #include <tinyosc.h>
@@ -304,7 +304,7 @@ if (tosc_parseMessage(&message, buffer, length) == 0)
 
 ### MicroOsc
 
-[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, a `MicroOscMessage` is a read cursor, so each method takes a copy. `Handler` is a function pointer, `void (*)(MicroOscMessage)`.
+[MicroOsc](https://github.com/thomasfredericks/MicroOsc) is an Arduino library that receives over UDP or SLIP serial and calls a plain function for each message. As with tinyosc, each method takes a copy because a `MicroOscMessage` is a read cursor. `Handler` is a function pointer, `void (*)(MicroOscMessage)`.
 
 
 ```cpp
@@ -360,11 +360,11 @@ Where the [OSC 1.0 specification](https://opensoundcontrol.stanford.edu/spec-1_0
   | `/a//` | `/a` and every address below it |
   | `//` | every address |
 
-- A pattern ending in a single `/` matches nothing, since an address ending in `/` is [malformed](#malformed-addresses). `/a/` and `/` therefore match no address.
+- A pattern ending in a single `/` matches no address, since an address ending in `/` is [malformed](#malformed-addresses). `/a/` and `/` are two such patterns.
 
 ### Classes
 
-A `-` between two characters is a range; first or last it is a member. Only a leading `!` negates.
+A `-` between two characters is a range. First or last, it is a member. Only a leading `!` negates.
 
 | Class | Matches |
 | --- | --- |
@@ -394,8 +394,8 @@ The following are treated as literals:
 - `]`, `}`, and `,` outside a class or brace list
 
 None of the above bytes are valid in a well-formed address, so they never match:
-- `/a b` matches nothing
-- `/a}` matches nothing
+- `/a b` matches no address
+- `/a}` matches no address
   
 Inside a class or brace list, only the member containing the byte is excluded:
 - `/{a b,c}` matches `/c`
@@ -466,7 +466,7 @@ With CMake 3.26 or later, any of these provides the target `oscpm::oscpm`:
   target_link_libraries(app PRIVATE oscpm::oscpm)
   ```
 
-- **`find_package`** after `cmake --install`, which installs the headers and a package config
+- **`find_package`** after `cmake --install`, which installs the headers and a package configuration file
 - **`add_subdirectory`** on a checkout or a vendored copy
 
 A version passed to `find_package` is satisfied only by an install of the same minor version while the major version is 0, and by one of the same major version from 1.0.
@@ -495,7 +495,7 @@ oscpm supports the following platforms:
 
 The rows marked CI are built on every push and pull request to `develop`.
 
-Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length; the sketch shows one way to write that.
+Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length. The sketch shows one way to write that.
 
 ## Performance
 
@@ -567,13 +567,13 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-`debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and `bench` is `release` with the benchmarks. `mutation` is `release` with the tests compiled under clang-18 with the [Mull](https://github.com/mull-project/mull) plugin, and its build runs them once per mutant; it needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists what is fetched at configure time and why.
+`debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and `bench` is `release` with the benchmarks. `mutation` is `release` with the tests compiled under clang-18 with the [Mull](https://github.com/mull-project/mull) plugin, and its build runs them once per mutant. It needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists what is fetched at configure time and why.
 
 The version is read from the most recent git tag. A source archive has no git history, so pass `-DOSCPM_VERSION=<version>` when configuring.
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `BUILD_TESTING` | `ON` | builds the tests and fetches doctest; `OFF` registers nothing with CTest. Ignored when oscpm is a subproject, which never builds the tests |
+| `BUILD_TESTING` | `ON` | builds the tests and fetches doctest. `OFF` registers nothing with CTest. Ignored when oscpm is a subproject, which never builds the tests |
 | `OSCPM_BUILD_EXAMPLES` | `ON` at the top level, `OFF` as a subproject | builds the example and fetches oscpp |
 | `OSCPM_CHECK_FORMAT` | `ON` at the top level, `OFF` as a subproject | fails the build on a clang-format violation; needs clang-format |
 | `OSCPM_BUILD_BENCHMARKS` | `OFF` | builds the benchmarks and fetches Google Benchmark; the `bench` preset sets it |
@@ -583,7 +583,7 @@ The version is read from the most recent git tag. A source archive has no git hi
 
 ## Versioning
 
-oscpm follows [Semantic Versioning](https://semver.org/). Each release is a `vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags) on `main`; changes land on `develop` between releases. `CHANGELOG.md` lists what each release changed, and [CONTRIBUTING.md](CONTRIBUTING.md) describes how one is made.
+oscpm follows [Semantic Versioning](https://semver.org/). Each release is a `vX.Y.Z` [tag](https://github.com/jamiebullock/oscpm/tags) on `main`, and `develop` receives changes between releases. `CHANGELOG.md` lists what each release changed, and [CONTRIBUTING.md](CONTRIBUTING.md) describes how one is made.
 
 ## Licence
 

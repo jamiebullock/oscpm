@@ -61,8 +61,8 @@ public:
 
     /// Registers `value` under `address`; allocates. Returns false, and
     /// registers nothing, when the address is already registered. A build
-    /// without `NDEBUG` asserts when the bytes the address views no longer
-    /// parse as an address.
+    /// without `NDEBUG` asserts when the bytes the address views do not parse
+    /// as an address.
     bool add(const Address& address, T value)
     {
         assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
@@ -70,7 +70,7 @@ public:
         return m_table.insert(address.text(), std::move(value));
     }
 
-    /// Unregisters `address`; allocates. Returns false when the address is
+    /// Removes `address`; allocates. Returns false when the address is
     /// not registered, and asserts as `add` does.
     bool remove(const Address& address)
     {
