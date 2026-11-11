@@ -32,7 +32,7 @@ struct CorpusCase
 };
 
 /// Every case in the corpus file at `path`, read as bytes; fails the running
-/// test on an unreadable file, an unparseable line or an empty corpus.
+/// test on an unreadable file, a line that does not parse or an empty corpus.
 std::vector<CorpusCase> loadCorpus(const char* path);
 
 }

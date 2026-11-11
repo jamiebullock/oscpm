@@ -4,10 +4,10 @@ about: Report something that does not behave as intended
 labels: bug
 ---
 
-## Expected or Desired Behavior
+## Expected or Desired Behaviour
 
 
-## Actual Behavior (if applicable)
+## Actual Behaviour (if applicable)
 
 
 ## Steps to Reproduce the Problem (if applicable)

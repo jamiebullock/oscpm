@@ -2,9 +2,9 @@
 
 ## Branches
 
-- `develop` is where changes land. Every pull request targets it, and it is always buildable.
+- `develop` is the integration branch. Every pull request targets it, and it is always buildable.
 - `main` holds releases. It is only ever fast-forwarded to a commit on `develop`, so every commit on `main` is also on `develop`.
-- A change starts on a branch from `develop` named `<type>/<short-description>` (`feat/`, `fix/`, `perf/`, `docs/`, `ci/`, `chore/`) and is squash-merged by a pull request. A branch is merged once; further work starts a new branch from `develop`.
+- A change starts on a branch from `develop` named `<type>/<short-description>` (`feat/`, `fix/`, `perf/`, `docs/`, `ci/`, `chore/`) and is squash-merged by a pull request. A branch is merged once. Further work starts a new branch from `develop`.
 
 ## Commits and pull requests
 
@@ -84,7 +84,7 @@ CI also checks the title and the description of a pull request: the title as the
 
 ## Releases
 
-Nothing in the tree records the version. A release is a `vX.Y.Z` tag on `main`, created by `.github/workflows/tag-on-main.yml` on each push to `main`, and CMake reads the latest tag back with `git describe`. The version is the last tag plus one patch, or the next minor or major when a commit subject since the last tag carries `(MINOR)` or `(MAJOR)`; several such commits still move it once.
+Nothing in the tree records the version. A release is a `vX.Y.Z` tag on `main`, created by `.github/workflows/tag-on-main.yml` on each push to `main`, and CMake reads the latest tag back with `git describe`. The version is the last tag plus one patch, or the next minor or major when a commit subject since the last tag carries `(MINOR)` or `(MAJOR)`. Several such commits still move it once.
 
 To make a release:
 
