@@ -49,7 +49,7 @@ TEST_CASE("parse yields an address for a well-formed address")
     static_assert(Address::parse("/!\"$%&'()+-.0123456789:;<=>@ABCXYZ\\^_`abcxyz|~"));
 }
 
-TEST_CASE("parse reports the first fault")
+TEST_CASE("parse reports the first fault of an address")
 {
     static_assert(faults(Address::parse(""), AddressError::MissingLeadingSlash));
     static_assert(faults(Address::parse("synth"), AddressError::MissingLeadingSlash));
@@ -88,7 +88,7 @@ TEST_CASE("parse reports the first fault of an address longer than a word")
     static_assert(faults(Address::parse("/abcdefg//jklmn*"), AddressError::EmptyPart));
 }
 
-TEST_CASE("parse judges a byte the same at every offset of a word")
+TEST_CASE("parse judges a byte of an address the same at every offset of a word")
 {
     constexpr std::string_view legal = "/abcdefghijklmnopqrstuvw";
     constexpr std::string_view reserved = "#*,?[]{}";
@@ -122,7 +122,7 @@ TEST_CASE("parse judges a byte the same at every offset of a word")
     }
 }
 
-TEST_CASE("parse reads no byte beyond the text")
+TEST_CASE("parse reads no byte beyond the text of an address")
 {
     constexpr std::string_view buffer = "/abcdefghijklmnopq//*";
     constexpr std::string_view text = buffer.substr(0, 18);
@@ -132,6 +132,7 @@ TEST_CASE("parse reads no byte beyond the text")
 
 TEST_CASE("parse rejects a part longer than the supported length")
 {
+    CHECK(oscpm::kMaxAddressPartLength == 4095);
     const std::string longest(oscpm::kMaxAddressPartLength, 'a');
     const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
     CHECK(Address::parse("/" + longest + "/" + longest));

@@ -57,7 +57,7 @@ TEST_CASE("parse yields a pattern for a well-formed pattern")
     static_assert(Pattern::parse("/\x01\x1f\x7f"));
 }
 
-TEST_CASE("parse reports the first fault")
+TEST_CASE("parse reports the first fault of a pattern")
 {
     static_assert(faults(Pattern::parse(""), PatternError::MissingLeadingSlash));
     static_assert(faults(Pattern::parse("a/b"), PatternError::MissingLeadingSlash));
@@ -99,7 +99,7 @@ TEST_CASE("a pattern longer than a word is literal unless a wildcard or a slash 
     static_assert(Pattern::parse("/abcdefgh{ij,kl}mnop")->matches(*Address::parse("/abcdefghklmnop")));
 }
 
-TEST_CASE("parse reads no byte beyond the text")
+TEST_CASE("parse reads no byte beyond the text of a pattern")
 {
     constexpr std::string_view buffer = "/abcdefghijklmnopq//*";
     constexpr std::string_view text = buffer.substr(0, 18);
@@ -108,7 +108,7 @@ TEST_CASE("parse reads no byte beyond the text")
     static_assert(!Pattern::parse(buffer.substr(0, 20))->isLiteral());
 }
 
-TEST_CASE("parse judges a byte the same at every offset of a word")
+TEST_CASE("parse judges a byte of a pattern the same at every offset of a word")
 {
     constexpr std::string_view plain = "/abcdefghijklmnopqrstuvw";
     for (std::size_t offset = 1; offset < plain.size(); ++offset)

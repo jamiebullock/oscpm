@@ -781,6 +781,7 @@ TEST_CASE("a visitor may visit the same space while a memoised result is deliver
 
 TEST_CASE("a result larger than the inline limit and a pattern longer than the memo limit are still delivered in full")
 {
+    CHECK(oscpm::kMaxMemoPatternLength == 256);
     AddressSpace<int, true, 2, 2> space;
     populate(space, { "/a/1", "/a/2", "/a/3", "/a/4" });
     for (int round = 0; round < 2; ++round)
