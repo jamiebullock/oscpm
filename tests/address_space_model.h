@@ -322,7 +322,7 @@ private:
     void add()
     {
         const std::string text = address();
-        const int number = static_cast<int>(m_numOperations);
+        const int number = m_nextNumber++;
         const bool added = m_model.emplace(text, number).second;
         forEachSpace([&](auto& space, std::size_t index)
             { expect(space.add(oscpm::Address(text), valueOf(space, number)) == added && space.size() == m_model.size(), index, "add of " + text); });
@@ -372,16 +372,16 @@ private:
 
     void changeValuesAndVisitWithin()
     {
-        const std::string outer = pattern();
+        const std::string outer = m_choices.below(2) == 0 ? m_recentPattern : pattern();
         const std::string inner = pattern();
-        const int increase = 1 + static_cast<int>(m_choices.below(8));
         const Visit expectedOuter = expectedVisit(m_model, outer);
         const Visit expectedInner = expectedVisit(m_model, inner);
+        const int firstNumber = m_nextNumber;
         forEachSpace([&](auto& space, std::size_t index)
-            { expect(visitWithin(space, outer, inner, increase, expectedInner) == expectedOuter, index, "visit of " + inner + " within a visit of " + outer); });
+            { expect(visitWithinAgrees(space, outer, inner, firstNumber, expectedOuter, expectedInner), index, "visit of " + inner + " within a visit of " + outer); });
         for (const auto& entry : expectedOuter.entries)
         {
-            m_model[entry.first] += increase;
+            m_model[entry.first] = m_nextNumber++;
         }
     }
 
@@ -443,12 +443,11 @@ private:
         }
     }
 
-    /// Visits `outer`, adding `increase` to each value it reaches, and visits
-    /// `inner` from inside the first call. Returns what the outer visit
-    /// reached, or an empty visit when the inner one differed from
-    /// `expectedInner`.
+    /// Visits `outer`, giving each value it reaches the next number from
+    /// `firstNumber`, and visits `inner` from inside the first call. Returns
+    /// whether both visits reached what was expected.
     template <typename Space>
-    static Visit visitWithin(Space& space, std::string_view outer, std::string_view inner, int increase, const Visit& expectedInner)
+    static bool visitWithinAgrees(Space& space, std::string_view outer, std::string_view inner, int firstNumber, const Visit& expectedOuter, const Visit& expectedInner)
     {
         Visit visit;
         bool innerAgrees = true;
@@ -456,10 +455,10 @@ private:
             {
                 innerAgrees = innerAgrees && (!visit.entries.empty() || visitOf(space, inner) == expectedInner);
                 visit.entries.emplace_back(std::string(address), numberOf(value));
-                numberIn(value) += increase; });
+                numberIn(value) = firstNumber + static_cast<int>(visit.entries.size()) - 1; });
         visit.matched = result.matched;
         visit.error = result.error;
-        return innerAgrees ? visit : Visit { };
+        return innerAgrees && visit == expectedOuter;
     }
 
     template <typename Space>
@@ -487,6 +486,8 @@ private:
     Model m_model;
     Spaces m_spaces;
     std::size_t m_numOperations = 0;
+    // No two values share a number, so the numbers a dispatch collects identify the handlers it called.
+    int m_nextNumber = 0;
     std::string m_recentPattern = "//";
     std::string m_difference;
 };
