@@ -11,7 +11,7 @@ Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 - **Compliant:** full [OSC 1.0](https://opensoundcontrol.stanford.edu/spec-1_0.html) pattern syntax (`?`, `*`, `[...]`, `{a,b}`) plus the [OSC 1.1](https://opensoundcontrol.stanford.edu/spec-1_1.html) `//` operator
 - **Address space:** register handlers or values, then `visit` or `dispatch` every match of a received pattern, with repeated patterns served from a memo
 - **Allocation-free, non-throwing** matching and dispatch, usable on a real-time thread
-- **Bounded time:** at most pattern length x address length whatever the pattern; no backtracking, no recursion
+- **Bounded time:** at most pattern length x address length whatever the pattern; no backtracking within a part, no recursion
 - **Fixed stack:** every buffer sized at compile time, independent of the pattern, the address and the number of registered addresses
 - **Strict validation:** a malformed pattern or address is reported as a `PatternError` or `AddressError`, never matched by accident
 - **`constexpr` parsing and matching:** a literal that does not parse is a compile error
@@ -20,7 +20,7 @@ Header-only C++17 OpenSoundControl (OSC) pattern matching and address space.
 oscpm pairs well with any packet library that leaves matching to the caller: [oscpp](https://github.com/kaoskorobase/oscpp), [oscpack](https://github.com/RossBencina/oscpack), [tinyosc](https://github.com/mhroth/tinyosc), and [MicroOsc](https://github.com/thomasfredericks/MicroOsc). See [Integration Examples](#integration-examples).
 
 ## Matching
-In the simple case a match can be checked by comparing two `std::string_view`:
+In the simple case a match can be checked by passing the pattern and the address as two `std::string_view`:
 
 ```cpp
 #include <oscpm/pattern.h>
@@ -62,6 +62,7 @@ Similar to `Pattern`, `Address` is a validated OSC address:
 
 ```cpp
 #include <oscpm/address.h>
+#include <oscpm/pattern.h>
 #include <oscpp/client.hpp>
 
 constexpr oscpm::Address address("/synth/1/freq"); // a malformed literal fails to compile
@@ -227,17 +228,18 @@ int main()
 ## Choosing a Call
 
 Each entry point suits a different shape of program:
-- `oscpm::match` for a pattern and an address that are each used once. It validates both and parses the pattern on every call, which is most of its cost on short patterns, and it answers `false` for a malformed input as for a miss
+- `oscpm::match` for a pattern and an address that are each used once. It validates both and parses the pattern on every call, and it answers `false` for a malformed input as for a miss
 - `Pattern` for a pattern matched against many addresses, and `Address` for an address matched against many patterns. Validation and parsing are paid once
-- `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern in the memo, costs one lookup. Any other pattern is matched against every registered address. The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, and a repeating stream is matched once per change to the space
+- `AddressSpace` for a receiver that routes messages to registered addresses:
+    * A literal address, or a pattern in the memo, is looked up without being matched against the registered addresses
+    * Any other pattern is matched against every registered address
+    * The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, and a repeating stream of patterns that fit in it is matched once per change to the space
 
 An `AddressSpace` allocates its memo when it is constructed: 1,122,304 bytes with the default template arguments on a 64-bit target. A target without that much memory can use either:
 - `AddressSpace<T, false>`, which has no memo and allocates nothing until the first `add`. It matches a wildcard pattern against every registered address each time
 - `Pattern::matches`, for a device that tests each message against a few patterns or addresses of its own
 
 ## Integration Examples
-
-The following examples show how to integrate oscpm with common OSC packet libraries.
 
 ### oscpp
 
@@ -407,7 +409,7 @@ Inside a class or brace list, only the member containing the byte is excluded:
 
 ### Malformed Patterns
 
-The following patterns are considered malformed and will be rejected by `Pattern::parse()` and cause the `Pattern` constructor to abort:
+`Pattern::parse()` rejects these patterns, and the `Pattern` constructor aborts on them:
 
 | Fault | `PatternError` |
 | --- | --- |
@@ -419,7 +421,7 @@ The following patterns are considered malformed and will be rejected by `Pattern
 
 ### Malformed Addresses
 
-The following addresses are considered malformed and will be rejected by `Address::parse()` and cause the `Address` constructor to abort:
+`Address::parse()` rejects these addresses, and the `Address` constructor aborts on them:
 
 | Fault | `AddressError` |
 | --- | --- |
@@ -431,29 +433,40 @@ The following addresses are considered malformed and will be rejected by `Addres
 
 ### Conformance Corpus
 
-[`corpus/matching.txt`](corpus/matching.txt) is the executable record of every rule in this section. It's structured one case per line and replayed by the test suite. It is in a plain-text format other implementations can reuse.
+[`corpus/matching.txt`](corpus/matching.txt) is the executable record of the rules in this section:
+- It has one case per line, in a plain-text format other implementations can reuse
+- The test suite replays it
+- It has no case for the two length limits, or for a null or a control character in a pattern. The unit tests cover those
 
 ## Guarantees
 
 Nothing in the library allocates except `AddressSpace` construction, copying, `add` and `remove`.
 
-Nothing in the library calls `std::abort` except the `Address` and `Pattern` constructors on malformed text, and `Expected` dereferenced while holding an error or `Expected::error` called while holding a value.
+Nothing in the library calls `std::abort` except:
+- the `Address` and `Pattern` constructors on malformed text
+- `Expected` dereferenced while holding an error, or `Expected::error` called while holding a value
+- in a build without `NDEBUG`, the assertions in `AddressSpace::add` and `AddressSpace::remove`
 
-`match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find`:
+`match`, `Pattern::parse`, `Pattern::matches` and `Address::parse`:
 - never throw, and are declared `noexcept`
 - have execution time bounded by the product of the pattern and address lengths
 - have stack size fixed at compile time
-- are `constexpr` outside the address space, so a fixed pattern can be parsed or matched at compile time
+- are `constexpr`, so a fixed pattern can be parsed or matched at compile time
+
+`AddressSpace::find`:
+- never throws, and is declared `noexcept`
+- has execution time bounded by the address length multiplied by the number of registered addresses
+- has stack size fixed at compile time
 
 `AddressSpace::visit` and `AddressSpace::dispatch`:
 - only propagate exceptions thrown by the visitor or handler they call
 - have execution time bounded by the pattern match time multiplied by the number of registered addresses
-- have a stack size fixed at compile time
-- use only a single lookup for literal and memoised patterns
+- have stack size fixed at compile time
+- look up a literal or memoised pattern without matching it against the registered addresses
 
-Every code change can only merge after the test suite and [conformance corpus](#conformance-corpus) have run under `AddressSanitizer` and `UndefinedBehaviorSanitizer`. This guarantees the following for the tested code paths:
-- no out-of-bounds or use-after-free memory access
-- no undefined behaviour
+CI runs the test suite and [conformance corpus](#conformance-corpus) under `AddressSanitizer` and `UndefinedBehaviorSanitizer` on every pull request to `develop` and every push to it. A passing run means the sanitizers reported none of the following on the tested code paths:
+- an out-of-bounds or use-after-free memory access
+- undefined behaviour of a kind `UndefinedBehaviorSanitizer` checks
 
 ## CMake Setup
 
@@ -479,13 +492,11 @@ Without CMake, put `include/` on the include path. `oscpm/oscpm.h` includes ever
 
 ## Supported Platforms
 
-oscpm supports the following platforms:
-
 | Platform | Toolchain | Checked |
 | --- | --- | --- |
 | Linux | GCC, Clang | CI |
 | macOS | AppleClang | CI |
-| Windows | MSVC, Visual Studio 2022 | CI |
+| Windows | MSVC | CI |
 | Arduino UNO R4 Minima | `arduino:renesas_uno` core, GCC 7.2.1 with libstdc++ 7 | CI |
 | ESP8266 | `esp8266:esp8266` core | CI |
 | Raspberry Pi Pico | `rp2040:rp2040` core | CI |
@@ -571,7 +582,13 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-`debug` and `release` use Ninja, `windows` uses Visual Studio 2022 and `bench` is `release` with the benchmarks. `mutation` is `release` with the tests compiled under clang-18 with the [Mull](https://github.com/mull-project/mull) plugin, and its build runs them once per mutant. It needs Mull for LLVM 18 on Linux. `DEPENDENCIES.md` lists what is fetched at configure time and why.
+The presets are:
+- `debug` and `release`, which use Ninja
+- `windows`, which uses Visual Studio 2022
+- `bench`, which is `release` with the benchmarks
+- `mutation`, which is `release` with the tests compiled under clang-18 with the [Mull](https://github.com/mull-project/mull) plugin. Its build runs them once per mutant, and it needs Mull for LLVM 18 on Linux
+
+`DEPENDENCIES.md` lists what is fetched at configure time and why.
 
 The version is read from the most recent git tag. A source archive has no git history, so pass `-DOSCPM_VERSION=<version>` when configuring.
 
