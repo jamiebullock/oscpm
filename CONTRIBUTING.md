@@ -23,7 +23,7 @@
 On a pull request, CI counts the instructions per iteration of every benchmark under Cachegrind for the change and for `develop`, and fails when a benchmark rises by more than 2% and 4 instructions. A change that accepts such a rise names the benchmark and its new ceiling, in instructions per iteration as the job's summary reports them, in `bench/accepted.json`. For a benchmark with an entry, the check:
 
 - passes while the benchmark stays at or below the ceiling
-- fails again when it rises above the ceiling
+- fails when a rise past the threshold takes it above the ceiling
 - reports the entry once it covers no rise past the threshold against `develop`, which is the case after the change has merged, so that the entry can be removed
 
 ## Changelog
