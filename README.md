@@ -233,7 +233,7 @@ Each entry point suits a different shape of program:
 - `AddressSpace` for a receiver that routes messages to registered addresses:
     * A literal address, or a pattern in the memo, is looked up without being matched against the registered addresses
     * Any other pattern is matched against every registered address
-    * The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, and a repeating stream is matched once per change to the space
+    * The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, and a repeating stream of patterns that fit in it is matched once per change to the space
 
 An `AddressSpace` allocates its memo when it is constructed: 1,122,304 bytes with the default template arguments on a 64-bit target. A target without that much memory can use either:
 - `AddressSpace<T, false>`, which has no memo and allocates nothing until the first `add`. It matches a wildcard pattern against every registered address each time
