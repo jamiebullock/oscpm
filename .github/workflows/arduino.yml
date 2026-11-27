@@ -22,11 +22,10 @@ jobs:
       fail-fast: false
       matrix:
         board:
-          # GCC 7.2.1 with libstdc++ 7, at the core's default flags.
-          - name: Arduino UNO R4 Minima
-            fqbn: arduino:renesas_uno:minima
-            core: arduino:renesas_uno@1.6.0
-            url: ""
+          - name: ESP32
+            fqbn: esp32:esp32:esp32
+            core: esp32:esp32@3.3.12
+            url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
           # The core's assert expands to a static definition.
           - name: ESP8266
             fqbn: esp8266:esp8266:generic

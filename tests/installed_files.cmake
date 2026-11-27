@@ -17,7 +17,6 @@ set(expected
     ${INCLUDE_DIR}/oscpm/detail/method_table.h
     ${INCLUDE_DIR}/oscpm/detail/prepared.h
     ${INCLUDE_DIR}/oscpm/detail/reach.h
-    ${INCLUDE_DIR}/oscpm/detail/string_view.h
     ${INCLUDE_DIR}/oscpm/detail/syntax.h
     ${INCLUDE_DIR}/oscpm/detail/validate.h
     ${INCLUDE_DIR}/oscpm/detail/word.h
