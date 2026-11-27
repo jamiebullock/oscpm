@@ -94,8 +94,7 @@ constexpr Expected<Pattern, PatternError> Pattern::parse(std::string_view text) 
     return Pattern(Validated { }, text, scan.isLiteral);
 }
 
-/// @return true if @p address matches @p pattern; false when either is
-/// malformed
+/// Whether `pattern` matches `address`; false when either is malformed.
 constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
     const Expected<Pattern, PatternError> parsedPattern = Pattern::parse(pattern);

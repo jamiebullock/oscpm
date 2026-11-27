@@ -57,7 +57,7 @@ endif()
 option(OSCPM_BUILD_EXAMPLES "Build the example, which fetches oscpp" ${PROJECT_IS_TOP_LEVEL})
 option(OSCPM_CHECK_FORMAT "Fail the build on clang-format violations" ${PROJECT_IS_TOP_LEVEL})
 option(OSCPM_BUILD_BENCHMARKS "Build the benchmarks, which fetch Google Benchmark" OFF)
-option(OSCPM_BUILD_FUZZERS "Build the libFuzzer target under sanitizers; needs a compiler that ships libFuzzer" OFF)
+option(OSCPM_BUILD_FUZZERS "Build the libFuzzer target under sanitizers; needs a compiler that provides libFuzzer" OFF)
 option(OSCPM_SANITIZE "Build the tests under AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 set(OSCPM_MULL_PLUGIN "" CACHE FILEPATH "Mull IR plugin to compile the tests with; adds the mutation target")
 

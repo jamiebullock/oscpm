@@ -5,8 +5,8 @@
 
 # The project version from the most recent v* tag of the repository whose root
 # is oscpm's source directory, or OSCPM_VERSION when the caller sets it for a
-# build from an archive. Its own name, because a parent project() call has
-# already set PROJECT_VERSION when oscpm is a subproject.
+# build from an archive. The variable is OSCPM_VERSION because a parent
+# project() call has already set PROJECT_VERSION when oscpm is a subproject.
 
 if(NOT DEFINED OSCPM_VERSION)
     find_package(Git QUIET)

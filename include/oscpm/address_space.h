@@ -38,7 +38,7 @@ struct MatchResult
 
 /// Values of type `T` registered under well-formed addresses, which a pattern
 /// selects for `visit` and `dispatch`. When `T` is callable, each value is an
-/// OSC method and `dispatch` dispatches to the methods a pattern matches. No
+/// OSC method and `dispatch` calls the methods a pattern matches. No
 /// member function allocates unless its documentation says so; copying the
 /// space allocates. Not safe for concurrent use.
 /// @tparam T an object type that is move-constructible and move-assignable;
@@ -75,8 +75,10 @@ public:
         return m_table.insert(address.text(), std::move(value));
     }
 
-    /// Removes `address`; allocates. Returns false when the address is
-    /// not registered, and asserts as `add` does.
+    /// Removes `address`. Returns false when the address is not registered,
+    /// and asserts as `add` does. Apart from what moving a `T` does, it
+    /// allocates only when an earlier `add` threw while it grew the index of
+    /// addresses.
     bool remove(const Address& address)
     {
         assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
@@ -122,8 +124,8 @@ public:
     }
 
     /// Calls `visitor(std::string_view address, T& value)` for every
-    /// registered address, in bytewise address order, under the same visitor
-    /// rule as the pattern overload.
+    /// registered address, in bytewise address order. The visitor is limited
+    /// as in the pattern overload.
     template <typename Visitor>
     void visit(Visitor&& visitor)
     {
@@ -142,12 +144,12 @@ public:
     }
 
     /// Parses `pattern` and calls `std::invoke(value, args...)` on the value
-    /// of every registered address it matches, in bytewise address order,
-    /// under the same visitor rule as `visit`. A value that is a pointer to a
-    /// member takes its object as the first of `args`. A malformed pattern
-    /// calls nothing and is returned as the result's `error`. Every call
-    /// receives the same `args` objects; `dispatch` itself does not move from
-    /// them.
+    /// of every registered address it matches, in bytewise address order. A
+    /// value it calls is limited as a visitor is in `visit`. A value that is
+    /// a pointer to a member takes its object as the first of `args`. A
+    /// malformed pattern calls nothing and is returned as the result's
+    /// `error`. Every call receives the same `args` objects; `dispatch`
+    /// itself does not move from them.
     template <typename... Args>
     MatchResult dispatch(std::string_view pattern, Args&&... args)
     {
