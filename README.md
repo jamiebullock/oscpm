@@ -598,7 +598,7 @@ The version is read from the most recent git tag. A source archive has no git hi
 | `OSCPM_BUILD_EXAMPLES` | `ON` at the top level, `OFF` as a subproject | builds the example and fetches oscpp |
 | `OSCPM_CHECK_FORMAT` | `ON` at the top level, `OFF` as a subproject | fails the build on a clang-format violation; needs clang-format |
 | `OSCPM_BUILD_BENCHMARKS` | `OFF` | builds the benchmarks and fetches Google Benchmark; the `bench` preset sets it |
-| `OSCPM_BUILD_FUZZERS` | `OFF` | builds a libFuzzer target under AddressSanitizer and UndefinedBehaviorSanitizer, seeded from the corpus; needs an LLVM clang |
+| `OSCPM_BUILD_FUZZERS` | `OFF` | builds two libFuzzer targets under AddressSanitizer and UndefinedBehaviorSanitizer: one for the matcher, seeded from the corpus, and one that compares address spaces with a `std::map`. Needs an LLVM clang |
 | `OSCPM_SANITIZE` | `OFF` | builds the tests under the same sanitizers |
 | `OSCPM_MULL_PLUGIN` | empty | the Mull IR plugin to compile the tests with; adds the `mutation` target, which fails when the mutation score is below `OSCPM_MUTATION_THRESHOLD`. The `mutation` preset sets it |
 

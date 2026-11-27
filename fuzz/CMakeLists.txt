@@ -33,7 +33,7 @@ add_custom_command(
 add_custom_target(oscpm_fuzz_seeds ALL DEPENDS ${OSCPM_FUZZ_SEEDS_STAMP})
 
 # Not every compiler links libFuzzer with these flags, so a link probe decides
-# whether the fuzz target is built.
+# whether the fuzz targets are built.
 set(OSCPM_FUZZ_SANITIZE -fsanitize=fuzzer,address,undefined)
 
 include(CheckCXXSourceCompiles)
@@ -49,7 +49,7 @@ unset(CMAKE_REQUIRED_LINK_OPTIONS)
 if(NOT OSCPM_HAVE_LIBFUZZER)
     message(WARNING
         "OSCPM_BUILD_FUZZERS is ON but ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} "
-        "cannot link libFuzzer with the sanitizers, so the fuzz target is skipped. Use an LLVM "
+        "cannot link libFuzzer with the sanitizers, so the fuzz targets are skipped. Use an LLVM "
         "clang; on macOS, -DCMAKE_CXX_COMPILER=$(brew --prefix llvm)/bin/clang++."
     )
     return()
