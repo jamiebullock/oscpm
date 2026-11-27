@@ -32,8 +32,8 @@ add_custom_command(
 
 add_custom_target(oscpm_fuzz_seeds ALL DEPENDS ${OSCPM_FUZZ_SEEDS_STAMP})
 
-# Only LLVM clang provides libFuzzer, so a link probe decides whether the
-# fuzz target is built.
+# Not every compiler links libFuzzer with these flags, so a link probe decides
+# whether the fuzz target is built.
 set(OSCPM_FUZZ_SANITIZE -fsanitize=fuzzer,address,undefined)
 
 include(CheckCXXSourceCompiles)

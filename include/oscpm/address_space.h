@@ -76,8 +76,9 @@ public:
     }
 
     /// Removes `address`. Returns false when the address is not registered,
-    /// and asserts as `add` does. It allocates only when an earlier `add`
-    /// threw while it grew the index of addresses.
+    /// and asserts as `add` does. Apart from what moving a `T` does, it
+    /// allocates only when an earlier `add` threw while it grew the index of
+    /// addresses.
     bool remove(const Address& address)
     {
         assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
