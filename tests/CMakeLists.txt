@@ -47,11 +47,6 @@ target_compile_options(oscpm_tests PRIVATE
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
 )
 
-if(OSCPM_SANITIZE)
-    target_compile_options(oscpm_tests PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
-    target_link_options(oscpm_tests PRIVATE -fsanitize=address,undefined)
-endif()
-
 if(OSCPM_MULL_PLUGIN)
     set(OSCPM_MULL_RUNNER mull-runner CACHE STRING "Mull runner of the same LLVM version as OSCPM_MULL_PLUGIN")
     set(OSCPM_MUTATION_THRESHOLD 89 CACHE STRING "Lowest mutation score, out of 100, the mutation target accepts")
@@ -120,7 +115,7 @@ target_compile_options(oscpm_visitor_rule PRIVATE
 )
 add_test(NAME "a visitor that removes an address trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule)
 set_tests_properties("a visitor that removes an address trips an assertion in a build without NDEBUG" PROPERTIES
-    PASS_REGULAR_EXPRESSION "must not add to or remove from|assertions are compiled out")
+    PASS_REGULAR_EXPRESSION "must not add to or remove from")
 
 function(oscpm_add_compile_failure target source definition testName expectedMessage)
     add_executable(${target} EXCLUDE_FROM_ALL ${source})
@@ -190,7 +185,7 @@ target_compile_options(oscpm_address_rule PRIVATE
 )
 add_test(NAME "an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" COMMAND oscpm_address_rule)
 set_tests_properties("an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" PROPERTIES
-    PASS_REGULAR_EXPRESSION "must stay unchanged after it is parsed|assertions are compiled out")
+    PASS_REGULAR_EXPRESSION "must stay unchanged after it is parsed")
 
 add_executable(oscpm_expected_rule expected_rule.cpp)
 target_link_libraries(oscpm_expected_rule PRIVATE oscpm::oscpm)
@@ -220,3 +215,10 @@ foreach(caseName IN LISTS OSCPM_CONSTRUCTOR_CASES)
     oscpm_add_compile_failure(oscpm_constructor_constant_${caseNumber} constructor_constant.cpp OSCPM_CONSTRUCTOR_CASE=${caseNumber}
         "${caseName} constructed from malformed text in a constant expression fails to compile" "constant expression|evaluate to a constant")
 endforeach()
+
+if(OSCPM_SANITIZE)
+    foreach(target oscpm_tests oscpm_visitor_rule oscpm_address_rule oscpm_expected_rule oscpm_constructor_rule)
+        target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+    endforeach()
+endif()

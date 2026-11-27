@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Zlib
  */
 
+#undef NDEBUG
+
 #include <oscpm/address.h>
 #include <oscpm/address_space.h>
 
@@ -30,10 +32,6 @@ extern "C" void exitAfterAssertion(int)
 
 int main()
 {
-#ifdef NDEBUG
-    std::puts("assertions are compiled out of this build, so the address rule is not checked");
-    return 0;
-#else
 #ifdef _MSC_VER
     _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
     _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
@@ -47,5 +45,4 @@ int main()
     space.add(address, 1);
     std::puts("the address's bytes were changed and nothing asserted");
     return 1;
-#endif
 }
