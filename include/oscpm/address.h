@@ -18,8 +18,9 @@ namespace oscpm
 {
 
 /// A validated address. Holds a view of the caller's bytes, which must
-/// outlive every use and stay unchanged, including through `AddressSpace::add`;
-/// copying the value copies the view.
+/// outlive every use of the address and stay unchanged. `AddressSpace::add`
+/// copies them, so a space does not need them once `add` has returned.
+/// Copying the value copies the view.
 class Address
 {
 public:

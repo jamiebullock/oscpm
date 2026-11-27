@@ -42,11 +42,13 @@ class Expected
     static_assert(!std::is_convertible_v<E, T> && !std::is_convertible_v<T, E>, "Expected needs a T and an E that do not convert to each other");
 
 public:
+    /// Constructs an `Expected` that holds `value`.
     constexpr Expected(T value)
         : m_storage(std::in_place_index<kValue>, std::move(value))
     {
     }
 
+    /// Constructs an `Expected` that holds `error`.
     constexpr Expected(E error)
         : m_storage(std::in_place_index<kError>, error)
     {
