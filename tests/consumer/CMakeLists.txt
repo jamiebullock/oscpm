@@ -10,7 +10,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ProjectVersion)
 project(oscpm_consumer VERSION ${CONSUMER_VERSION} LANGUAGES CXX)
 
-add_subdirectory(${OSCPM_SOURCE_DIR} oscpm)
+if(DEFINED OSCPM_SOURCE_DIR)
+    add_subdirectory(${OSCPM_SOURCE_DIR} oscpm)
+else()
+    find_package(oscpm REQUIRED)
+endif()
 
 add_executable(oscpm_consumer main.cpp)
 target_compile_features(oscpm_consumer PRIVATE cxx_std_17)

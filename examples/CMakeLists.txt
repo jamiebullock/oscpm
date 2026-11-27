@@ -15,6 +15,9 @@ FetchContent_Declare(
     SYSTEM
 )
 FetchContent_MakeAvailable(oscpp)
+# Leaves oscpp's install rules out of oscpm's install; oscpp has no option
+# that does.
+set_property(DIRECTORY ${oscpp_SOURCE_DIR} PROPERTY EXCLUDE_FROM_ALL ON)
 
 add_executable(oscpm_dispatch dispatch.cpp)
 
