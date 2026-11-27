@@ -16,4 +16,17 @@ namespace oscpm_test
 /// not allocate.
 std::size_t allocationCount() noexcept;
 
+/// While one is alive, one call to the global allocation functions fails:
+/// the call that follows `numAllowed` others throws `std::bad_alloc`, or
+/// returns null in its `std::nothrow` form.
+class FailedAllocation
+{
+public:
+    explicit FailedAllocation(std::size_t numAllowed) noexcept;
+    ~FailedAllocation();
+
+    FailedAllocation(const FailedAllocation&) = delete;
+    FailedAllocation& operator=(const FailedAllocation&) = delete;
+};
+
 }

@@ -7,16 +7,23 @@
 #include "allocation_counter.h"
 
 #include <cstdlib>
+#include <limits>
 #include <new>
 
 namespace
 {
 
+constexpr std::size_t kNever = std::numeric_limits<std::size_t>::max();
+
 std::size_t g_numAllocations = 0;
+std::size_t g_failingAllocation = kNever;
 
 void* countedMalloc(std::size_t size) noexcept
 {
-    ++g_numAllocations;
+    if (g_numAllocations++ == g_failingAllocation)
+    {
+        return nullptr;
+    }
     return std::malloc(size == 0 ? 1 : size);
 }
 
@@ -37,6 +44,16 @@ namespace oscpm_test
 std::size_t allocationCount() noexcept
 {
     return g_numAllocations;
+}
+
+FailedAllocation::FailedAllocation(std::size_t numAllowed) noexcept
+{
+    g_failingAllocation = g_numAllocations + numAllowed;
+}
+
+FailedAllocation::~FailedAllocation()
+{
+    g_failingAllocation = kNever;
 }
 
 }
