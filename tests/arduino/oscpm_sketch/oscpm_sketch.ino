@@ -9,6 +9,11 @@
 #include <cstddef>
 #include <string_view>
 
+// Declares `Serial` on a core that uses the Adafruit TinyUSB stack.
+#ifdef USE_TINYUSB
+#include <Adafruit_TinyUSB.h>
+#endif
+
 namespace k
 {
 constexpr unsigned long baudRate = 115200;
@@ -27,7 +32,8 @@ constexpr std::string_view literal(const char (&text)[N]) noexcept
 static_assert(oscpm::match(literal("/synth/*/freq"), literal("/synth/1/freq")), "a wildcard pattern matches at compile time");
 static_assert(!oscpm::match(literal("/synth/*/freq"), literal("/synth/1/amp")), "a wildcard pattern rejects at compile time");
 
-oscpm::AddressSpace<float> parameters;
+// A space without a memo: the default memo takes 1.1 MB when the space is constructed.
+oscpm::AddressSpace<float, false> parameters;
 
 void setup()
 {

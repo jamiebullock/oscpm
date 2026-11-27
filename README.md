@@ -231,6 +231,10 @@ Each entry point suits a different shape of program:
 - `Pattern` for a pattern matched against many addresses, and `Address` for an address matched against many patterns. Validation and parsing are paid once
 - `AddressSpace` for a receiver that routes messages to registered addresses. A literal address, or a pattern in the memo, costs one lookup. Any other pattern is matched against every registered address. The memo keeps the matches of a bounded number of patterns until the next `add` or `remove`, and a repeating stream is matched once per change to the space
 
+An `AddressSpace` allocates its memo when it is constructed: 1,122,304 bytes with the default template arguments on a 64-bit target. A target without that much memory can use either:
+- `AddressSpace<T, false>`, which has no memo and allocates nothing until the first `add`. It matches a wildcard pattern against every registered address each time
+- `Pattern::matches`, for a device that tests each message against a few patterns or addresses of its own
+
 ## Integration Examples
 
 The following examples show how to integrate oscpm with common OSC packet libraries.
@@ -495,7 +499,7 @@ oscpm supports the following platforms:
 
 The rows marked CI are built on every push and pull request to `develop`.
 
-Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length. The sketch shows one way to write that.
+Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The sketch's address space is an `AddressSpace<float, false>`, which has no memo. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length. The sketch shows one way to write that.
 
 ## Performance
 

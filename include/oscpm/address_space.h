@@ -56,6 +56,9 @@ class AddressSpace
     static_assert(CacheBits < std::numeric_limits<std::size_t>::digits, "AddressSpace needs a CacheBits smaller than the number of bits in std::size_t");
 
 public:
+    /// Constructs an empty space. With `Memo` true it allocates the memo,
+    /// about `(1 << CacheBits) * (kMaxMemoPatternLength + 4 * InlineResults +
+    /// 32)` bytes: 1,122,304 at the defaults on a 64-bit target.
     AddressSpace()
         : m_table(Memo)
     {
