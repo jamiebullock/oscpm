@@ -6,7 +6,6 @@
 
 #include <oscpm/oscpm.h>
 
-#include <cstddef>
 #include <string_view>
 
 // Declares `Serial` on a core that uses the Adafruit TinyUSB stack.
@@ -21,16 +20,8 @@ constexpr unsigned long millisecondsBetweenMessages = 1000;
 constexpr float frequency = 440.0f;
 }
 
-/// A view of a string literal with its length taken from the array type,
-/// because libstdc++ 7 cannot measure a literal in a constant expression.
-template <std::size_t N>
-constexpr std::string_view literal(const char (&text)[N]) noexcept
-{
-    return std::string_view(text, N - 1);
-}
-
-static_assert(oscpm::match(literal("/synth/*/freq"), literal("/synth/1/freq")), "a wildcard pattern matches at compile time");
-static_assert(!oscpm::match(literal("/synth/*/freq"), literal("/synth/1/amp")), "a wildcard pattern rejects at compile time");
+static_assert(oscpm::match("/synth/*/freq", "/synth/1/freq"), "a wildcard pattern matches at compile time");
+static_assert(!oscpm::match("/synth/*/freq", "/synth/1/amp"), "a wildcard pattern rejects at compile time");
 
 // A space without a memo: the default memo takes 1.1 MB when the space is constructed.
 oscpm::AddressSpace<float, false> parameters;

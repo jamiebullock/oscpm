@@ -497,20 +497,20 @@ Without CMake, put `include/` on the include path. `oscpm/oscpm.h` includes ever
 | Linux | GCC, Clang | CI |
 | macOS | AppleClang | CI |
 | Windows | MSVC | CI |
-| Arduino UNO R4 Minima | `arduino:renesas_uno` core, GCC 7.2.1 with libstdc++ 7 | CI |
 | ESP8266 | `esp8266:esp8266` core | CI |
 | Raspberry Pi Pico | `rp2040:rp2040` core | CI |
 | Raspberry Pi Pico 2 | `rp2040:rp2040` core | `arduino-cli`, 2026-10-10 |
-| ESP32 | `esp32:esp32` core | `arduino-cli`, 2026-10-10 |
+| ESP32 | `esp32:esp32` core | CI |
 | STM32 Nucleo F401RE | `STMicroelectronics:stm32` core | `arduino-cli`, 2026-10-10 |
 | Teensy LC, Teensy 4.1 | `teensy:avr` core | `arduino-cli`, 2026-10-10 |
 | Arduino Giga R1, Arduino UNO Q | `arduino:zephyr_main` and `arduino:zephyr` cores | `arduino-cli`, 2026-10-10 |
-| Arduino MKR Zero | `arduino:samd` core, with `-std=gnu++17` | `arduino-cli`, 2026-10-10 |
 | Adafruit Feather nRF52840 | `adafruit:nrf52` core, with `-std=gnu++17` and `-lstdc++` | `arduino-cli`, 2026-10-10 |
 
 The rows marked CI are built on every push and pull request to `develop`.
 
-Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the two whose cores default to an earlier C++ standard. The sketch's address space is an `AddressSpace<float, false>`, which has no memo. On the UNO R4, whose libstdc++ 7 cannot measure a string literal in a constant expression, a compile-time call takes a `std::string_view` built with an explicit length. The sketch shows one way to write that.
+Each Arduino row compiles the sketch in `tests/arduino` at the core's default flags, apart from the one whose core defaults to an earlier C++ standard. The sketch's address space is an `AddressSpace<float, false>`, which has no memo.
+
+With GCC's standard library, oscpm needs libstdc++ 8 or later. The Arduino cores built on GCC 7 (`arduino:renesas_uno` and `arduino:samd`) do not compile it.
 
 ## Performance
 

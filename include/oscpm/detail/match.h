@@ -8,16 +8,16 @@
 
 #include <oscpm/detail/compiler.h>
 #include <oscpm/detail/reach.h>
-#include <oscpm/detail/string_view.h>
 #include <oscpm/detail/syntax.h>
 #include <oscpm/error.h>
 
 #include <cstddef>
+#include <string_view>
 
 namespace oscpm::detail
 {
 
-constexpr bool setContains(StringView members, char byte) noexcept
+constexpr bool setContains(std::string_view members, char byte) noexcept
 {
     const auto value = static_cast<unsigned char>(byte);
     std::size_t i = 0;
@@ -47,7 +47,7 @@ constexpr bool setContains(StringView members, char byte) noexcept
 }
 
 template <std::size_t NumWords, typename Predicate>
-constexpr Reach<NumWords> advanceWhere(const Reach<NumWords>& reach, StringView part, Predicate matches) noexcept
+constexpr Reach<NumWords> advanceWhere(const Reach<NumWords>& reach, std::string_view part, Predicate matches) noexcept
 {
     Reach<NumWords> next(part.size());
     for (std::size_t position = 0; position < part.size(); ++position)
@@ -61,15 +61,15 @@ constexpr Reach<NumWords> advanceWhere(const Reach<NumWords>& reach, StringView 
 }
 
 template <std::size_t NumWords>
-constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, StringView part, StringView list) noexcept
+constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, std::string_view part, std::string_view list) noexcept
 {
     Reach<NumWords> next(part.size());
-    StringView remaining = list;
+    std::string_view remaining = list;
     bool moreAlternatives = true;
     while (moreAlternatives)
     {
         const std::size_t comma = remaining.find(k::listSeparator);
-        const StringView alternative = remaining.substr(0, comma);
+        const std::string_view alternative = remaining.substr(0, comma);
         for (std::size_t position = 0; position <= part.size(); ++position)
         {
             if (reach.test(position) && startsWith(part.substr(position), alternative))
@@ -87,7 +87,7 @@ constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, St
 }
 
 template <std::size_t NumWords>
-constexpr bool matchPartWithin(StringView pattern, StringView part) noexcept
+constexpr bool matchPartWithin(std::string_view pattern, std::string_view part) noexcept
 {
     Reach<NumWords> reach(part.size());
     reach.set(0);
@@ -119,7 +119,7 @@ constexpr bool matchPartWithin(StringView pattern, StringView part) noexcept
             {
                 return false;
             }
-            const StringView members = pattern.substr(start, close - start);
+            const std::string_view members = pattern.substr(start, close - start);
             reach = advanceWhere(reach, part, [members, negate](char candidate)
                 { return setContains(members, candidate) != negate; });
             i = close + 1;
@@ -153,7 +153,7 @@ struct PartShape
     std::size_t numTokensAfterStar = 0;
 };
 
-constexpr PartShape shapeOf(StringView pattern, std::size_t firstOpener, std::size_t maxTokens) noexcept
+constexpr PartShape shapeOf(std::string_view pattern, std::size_t firstOpener, std::size_t maxTokens) noexcept
 {
     PartShape shape;
     shape.numTokensBeforeStar = firstOpener;
@@ -202,7 +202,7 @@ constexpr PartShape shapeOf(StringView pattern, std::size_t firstOpener, std::si
     return shape;
 }
 
-constexpr bool matchTokens(StringView tokens, StringView text) noexcept
+constexpr bool matchTokens(std::string_view tokens, std::string_view text) noexcept
 {
     std::size_t i = 0;
     for (const char candidate : text)
@@ -235,20 +235,20 @@ constexpr bool matchTokens(StringView tokens, StringView text) noexcept
     return true;
 }
 
-constexpr bool matchPartDirect(StringView pattern, StringView part, const PartShape& shape) noexcept
+constexpr bool matchPartDirect(std::string_view pattern, std::string_view part, const PartShape& shape) noexcept
 {
     const std::size_t numFixed = shape.numTokensBeforeStar + shape.numTokensAfterStar;
     if (shape.star == npos ? part.size() != numFixed : part.size() < numFixed)
     {
         return false;
     }
-    const StringView prefix = pattern.substr(0, shape.star);
-    const StringView suffix = shape.star == npos ? StringView() : pattern.substr(shape.star + 1);
+    const std::string_view prefix = pattern.substr(0, shape.star);
+    const std::string_view suffix = shape.star == npos ? std::string_view() : pattern.substr(shape.star + 1);
     return matchTokens(prefix, part.substr(0, shape.numTokensBeforeStar))
         && matchTokens(suffix, part.substr(part.size() - shape.numTokensAfterStar));
 }
 
-OSCPM_NOINLINE constexpr bool matchPart(StringView pattern, StringView part) noexcept
+OSCPM_NOINLINE constexpr bool matchPart(std::string_view pattern, std::string_view part) noexcept
 {
     if (part.size() > kMaxAddressPartLength)
     {
@@ -278,7 +278,7 @@ OSCPM_NOINLINE constexpr bool matchPart(StringView pattern, StringView part) noe
 class PatternCursor
 {
 public:
-    constexpr explicit PatternCursor(StringView text) noexcept
+    constexpr explicit PatternCursor(std::string_view text) noexcept
         : m_text(text)
     {
         readToken();
@@ -294,12 +294,12 @@ public:
         return m_isOperator;
     }
 
-    constexpr StringView part() const noexcept
+    constexpr std::string_view part() const noexcept
     {
         return m_text.substr(m_partStart, m_partEnd - m_partStart);
     }
 
-    constexpr bool matches(StringView addressPart) const noexcept
+    constexpr bool matches(std::string_view addressPart) const noexcept
     {
         return matchPart(part(), addressPart);
     }
@@ -340,7 +340,7 @@ private:
         m_next = m_partEnd;
     }
 
-    StringView m_text;
+    std::string_view m_text;
     std::size_t m_position = 0;
     std::size_t m_next = 0;
     std::size_t m_partStart = 0;
@@ -352,7 +352,7 @@ private:
 class AddressCursor
 {
 public:
-    constexpr explicit AddressCursor(StringView text) noexcept
+    constexpr explicit AddressCursor(std::string_view text) noexcept
         : m_text(text)
     {
         readPart();
@@ -363,7 +363,7 @@ public:
         return m_partStart > m_text.size();
     }
 
-    constexpr StringView part() const noexcept
+    constexpr std::string_view part() const noexcept
     {
         return m_text.substr(m_partStart, m_partEnd - m_partStart);
     }
@@ -385,7 +385,7 @@ private:
         m_partEnd = separator == npos ? m_text.size() : separator;
     }
 
-    StringView m_text;
+    std::string_view m_text;
     std::size_t m_partStart = 1;
     std::size_t m_partEnd = 0;
 };
@@ -429,13 +429,13 @@ struct PartSpan
     std::size_t addressEnd = 0;
 };
 
-constexpr std::size_t partEnd(StringView text, std::size_t from) noexcept
+constexpr std::size_t partEnd(std::string_view text, std::size_t from) noexcept
 {
     const std::size_t separator = text.find(k::partSeparator, from);
     return separator == npos ? text.size() : separator;
 }
 
-constexpr bool matchPartAt(StringView pattern, std::size_t patternStart, StringView address, std::size_t addressStart, PartSpan& span) noexcept
+constexpr bool matchPartAt(std::string_view pattern, std::size_t patternStart, std::string_view address, std::size_t addressStart, PartSpan& span) noexcept
 {
     std::size_t i = patternStart;
     std::size_t j = addressStart;
@@ -463,7 +463,7 @@ constexpr bool matchPartAt(StringView pattern, std::size_t patternStart, StringV
     return false;
 }
 
-constexpr bool matchParsed(StringView pattern, StringView address) noexcept
+constexpr bool matchParsed(std::string_view pattern, std::string_view address) noexcept
 {
     if (!hasLeadingSlash(address))
     {
@@ -511,7 +511,7 @@ constexpr bool matchParsed(StringView pattern, StringView address) noexcept
     return true;
 }
 
-constexpr bool matchWithCursors(StringView pattern, StringView address) noexcept
+constexpr bool matchWithCursors(std::string_view pattern, std::string_view address) noexcept
 {
     return hasLeadingSlash(address) && matchParts(PatternCursor(pattern), AddressCursor(address));
 }

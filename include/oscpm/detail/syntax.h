@@ -6,11 +6,15 @@
 
 #pragma once
 
-#include <oscpm/detail/string_view.h>
 #include <oscpm/error.h>
 
 #include <array>
 #include <cstddef>
+#include <string_view>
+
+#if defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE < 8
+#error "oscpm needs libstdc++ 8 or later: its std::string_view must be usable in constant expressions"
+#endif
 
 namespace oscpm::detail
 {
@@ -28,19 +32,19 @@ namespace k
     constexpr char listOpen = '{';
     constexpr char listClose = '}';
     constexpr char listSeparator = ',';
-    constexpr StringView reservedInAddress = "#*,?[]{}";
+    constexpr std::string_view reservedInAddress = "#*,?[]{}";
     constexpr char nul = '\0';
     constexpr unsigned char firstPrintableAscii = 0x21;
     constexpr unsigned char lastPrintableAscii = 0x7E;
     constexpr unsigned char lastAscii = 0x7F;
     constexpr std::size_t operatorRunLength = 2;
-    constexpr StringView descendantOperator = "//";
+    constexpr std::string_view descendantOperator = "//";
     constexpr std::size_t numByteValues = 256;
 }
 
-constexpr std::size_t npos = StringView::npos;
+constexpr std::size_t npos = std::string_view::npos;
 
-constexpr bool startsWith(StringView text, StringView prefix) noexcept
+constexpr bool startsWith(std::string_view text, std::string_view prefix) noexcept
 {
     return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
 }
@@ -50,7 +54,7 @@ constexpr bool isOpener(char byte) noexcept
     return byte == k::anyBytes || byte == k::anyByte || byte == k::setOpen || byte == k::listOpen;
 }
 
-constexpr std::size_t firstOpener(StringView text) noexcept
+constexpr std::size_t firstOpener(std::string_view text) noexcept
 {
     for (std::size_t i = 0; i < text.size(); ++i)
     {
@@ -62,7 +66,7 @@ constexpr std::size_t firstOpener(StringView text) noexcept
     return npos;
 }
 
-constexpr bool hasOpener(StringView text) noexcept
+constexpr bool hasOpener(std::string_view text) noexcept
 {
     return firstOpener(text) != npos;
 }
@@ -144,17 +148,17 @@ constexpr bool isLegalInAddressPart(char byte) noexcept
     return k::legalInAddressPart[static_cast<unsigned char>(byte)];
 }
 
-constexpr bool hasLeadingSlash(StringView text) noexcept
+constexpr bool hasLeadingSlash(std::string_view text) noexcept
 {
     return !text.empty() && text[0] == k::partSeparator;
 }
 
-constexpr bool hasWildcard(StringView pattern) noexcept
+constexpr bool hasWildcard(std::string_view pattern) noexcept
 {
     return hasOpener(pattern) || pattern.find(k::descendantOperator) != npos;
 }
 
-constexpr bool hasPartLongerThan(StringView text, std::size_t limit) noexcept
+constexpr bool hasPartLongerThan(std::string_view text, std::size_t limit) noexcept
 {
     std::size_t partLength = 0;
     for (const char byte : text)
