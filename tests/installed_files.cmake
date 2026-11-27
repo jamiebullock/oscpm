@@ -31,7 +31,8 @@ set(expected
 
 file(REMOVE_RECURSE "${PREFIX}")
 execute_process(
-    COMMAND "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix "${PREFIX}" --config "${CONFIG}"
+    COMMAND "${CMAKE_COMMAND}" -E env --unset=DESTDIR
+        "${CMAKE_COMMAND}" --install "${BUILD_DIR}" --prefix "${PREFIX}" --config "${CONFIG}"
     OUTPUT_QUIET
     RESULT_VARIABLE result
 )

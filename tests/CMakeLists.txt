@@ -87,26 +87,30 @@ add_test(NAME "oscpm builds as a subproject of a project with a CMake module of 
         --build-options -DOSCPM_SOURCE_DIR=${PROJECT_SOURCE_DIR} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
         --test-command oscpm_consumer)
 
-add_test(NAME "an install contains oscpm's headers and package files and nothing else"
-    COMMAND ${CMAKE_COMMAND}
-        -DBUILD_DIR=${CMAKE_BINARY_DIR}
-        -DPREFIX=${CMAKE_CURRENT_BINARY_DIR}/installed
-        -DCONFIG=$<CONFIG>
-        -DINCLUDE_DIR=${CMAKE_INSTALL_INCLUDEDIR}
-        -DLIBRARY_DIR=${CMAKE_INSTALL_LIBDIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/installed_files.cmake)
-set_tests_properties("an install contains oscpm's headers and package files and nothing else" PROPERTIES
-    FIXTURES_SETUP oscpm_installed)
+# An absolute install directory is used as it stands, whatever the prefix, so
+# an install to one would write outside the build tree.
+if(NOT IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}" AND NOT IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}")
+    add_test(NAME "an install contains oscpm's headers and package files and nothing else"
+        COMMAND ${CMAKE_COMMAND}
+            -DBUILD_DIR=${CMAKE_BINARY_DIR}
+            -DPREFIX=${CMAKE_CURRENT_BINARY_DIR}/installed
+            -DCONFIG=$<CONFIG>
+            -DINCLUDE_DIR=${CMAKE_INSTALL_INCLUDEDIR}
+            -DLIBRARY_DIR=${CMAKE_INSTALL_LIBDIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/installed_files.cmake)
+    set_tests_properties("an install contains oscpm's headers and package files and nothing else" PROPERTIES
+        FIXTURES_SETUP oscpm_installed)
 
-add_test(NAME "a project that finds an installed oscpm with find_package builds against it"
-    COMMAND ${CMAKE_CTEST_COMMAND} --build-and-test
-        ${CMAKE_CURRENT_SOURCE_DIR}/consumer ${CMAKE_CURRENT_BINARY_DIR}/consumer_of_install
-        --build-generator ${CMAKE_GENERATOR}
-        --build-config $<CONFIG>
-        --build-options -Doscpm_DIR=${CMAKE_CURRENT_BINARY_DIR}/installed/${CMAKE_INSTALL_LIBDIR}/cmake/oscpm -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-        --test-command oscpm_consumer)
-set_tests_properties("a project that finds an installed oscpm with find_package builds against it" PROPERTIES
-    FIXTURES_REQUIRED oscpm_installed)
+    add_test(NAME "a project that finds an installed oscpm with find_package builds against it"
+        COMMAND ${CMAKE_CTEST_COMMAND} --build-and-test
+            ${CMAKE_CURRENT_SOURCE_DIR}/consumer ${CMAKE_CURRENT_BINARY_DIR}/consumer_of_install
+            --build-generator ${CMAKE_GENERATOR}
+            --build-config $<CONFIG>
+            --build-options -Doscpm_DIR=${CMAKE_CURRENT_BINARY_DIR}/installed/${CMAKE_INSTALL_LIBDIR}/cmake/oscpm -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+            --test-command oscpm_consumer)
+    set_tests_properties("a project that finds an installed oscpm with find_package builds against it" PROPERTIES
+        FIXTURES_REQUIRED oscpm_installed)
+endif()
 
 add_executable(oscpm_visitor_rule visitor_rule.cpp)
 target_link_libraries(oscpm_visitor_rule PRIVATE oscpm::oscpm)
