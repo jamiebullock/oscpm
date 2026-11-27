@@ -135,6 +135,7 @@ TEST_CASE("the general matcher and the cursor matcher agree at the edges of malf
 
 TEST_CASE("a wildcard pattern longer than the supported length is reported and matches nothing")
 {
+    CHECK(oscpm::kMaxPatternLength == 1024);
     const std::string longest = "/*" + std::string(oscpm::kMaxPatternLength - 2, 'a');
     const std::string tooLong = "/*" + std::string(oscpm::kMaxPatternLength - 1, 'a');
     const std::string address = "/" + std::string(oscpm::kMaxPatternLength, 'a');
@@ -222,15 +223,16 @@ TEST_CASE("a pattern with many brace lists completes in bounded time")
     CHECK(seconds < kGenerousSeconds);
 }
 
-TEST_CASE("a brace list with thousands of empty members completes in bounded time")
+TEST_CASE("a brace list with a thousand empty members completes in bounded time")
 {
     const std::string address = "/" + std::string(200, 'a') + "c";
     std::string pattern = "/{";
-    for (int i = 0; i < 2000; ++i)
+    for (int i = 0; i < 1000; ++i)
     {
         pattern += ",";
     }
     pattern += "}b";
+    REQUIRE(Pattern::parse(pattern));
 
     bool result = true;
     const double seconds = secondsTaken([&]
