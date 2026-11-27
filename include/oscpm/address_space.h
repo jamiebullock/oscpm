@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -52,6 +53,7 @@ template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t Inli
 class AddressSpace
 {
     static_assert(std::is_object_v<T> && std::is_move_constructible_v<T> && std::is_move_assignable_v<T>, "AddressSpace needs a T that is an object type, move-constructible and move-assignable");
+    static_assert(CacheBits < std::numeric_limits<std::size_t>::digits, "AddressSpace needs a CacheBits smaller than the number of bits in std::size_t");
 
 public:
     AddressSpace()

@@ -136,6 +136,10 @@ foreach(caseName IN LISTS OSCPM_VALUE_TYPE_CASES)
         "an address space of ${caseName} fails to compile" "AddressSpace needs a T that is an object type, move-constructible and move-assignable")
 endforeach()
 
+oscpm_add_compile_failure(oscpm_cache_bits cache_bits.cpp ""
+    "an address space with as many cache bits as std::size_t has bits fails to compile"
+    "AddressSpace needs a CacheBits smaller than the number of bits in std::size_t")
+
 set(OSCPM_EXPECTED_TYPE_CASES
     "an error type that is not an enumeration|Expected needs an E that is a scoped enumeration"
     "an error type that is an unscoped enumeration|Expected needs an E that is a scoped enumeration"
