@@ -12,11 +12,15 @@ if(NOT DEFINED OSCPM_VERSION)
     find_package(Git QUIET)
 
     if(Git_FOUND)
+        # GIT_DIR and GIT_WORK_TREE select a repository whatever the working
+        # directory, so git runs without them.
+        set(OSCPM_GIT "${CMAKE_COMMAND}" -E env --unset=GIT_DIR --unset=GIT_WORK_TREE "${GIT_EXECUTABLE}")
+
         # The path from the repository's root to oscpm's source directory. It
         # is empty in a clone and is not when an archive of oscpm has been
         # unpacked inside another repository, whose tags are not oscpm's.
         execute_process(
-            COMMAND "${GIT_EXECUTABLE}" rev-parse --show-prefix
+            COMMAND ${OSCPM_GIT} rev-parse --show-prefix
             WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/.."
             OUTPUT_VARIABLE OSCPM_GIT_PREFIX
             RESULT_VARIABLE OSCPM_GIT_RESULT
@@ -26,15 +30,12 @@ if(NOT DEFINED OSCPM_VERSION)
 
         if(OSCPM_GIT_RESULT EQUAL 0 AND OSCPM_GIT_PREFIX STREQUAL "")
             execute_process(
-                COMMAND "${GIT_EXECUTABLE}" describe --tags --abbrev=0 --match "v[0-9]*"
+                COMMAND ${OSCPM_GIT} describe --tags --abbrev=0 --match "v[0-9]*"
                 WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/.."
                 OUTPUT_VARIABLE OSCPM_GIT_TAG
                 OUTPUT_STRIP_TRAILING_WHITESPACE
                 ERROR_QUIET
             )
-        endif()
-
-        if(OSCPM_GIT_TAG)
             string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" OSCPM_VERSION "${OSCPM_GIT_TAG}")
         endif()
     endif()
