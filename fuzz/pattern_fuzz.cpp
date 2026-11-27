@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Zlib
  */
 
+#include "cursor_matcher.h"
+
 #include <oscpm/address_space.h>
 #include <oscpm/pattern.h>
 
@@ -52,7 +54,7 @@ void checkPattern(std::string_view pattern, std::string_view address)
     const bool byValue = parsed->matches(*parsedAddress);
     require(byValue == convenience);
     require(byValue == oscpm::detail::matchParsed(pattern, address));
-    require(byValue == oscpm::detail::matchWithCursors(pattern, address));
+    require(byValue == oscpm_test::matchWithCursors(pattern, address));
 }
 
 void checkAddress(std::string_view address)

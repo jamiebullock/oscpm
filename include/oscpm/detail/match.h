@@ -299,11 +299,6 @@ public:
         return m_text.substr(m_partStart, m_partEnd - m_partStart);
     }
 
-    constexpr bool matches(std::string_view addressPart) const noexcept
-    {
-        return matchPart(part(), addressPart);
-    }
-
     constexpr void advance() noexcept
     {
         m_position = m_next;
@@ -347,47 +342,6 @@ private:
     std::size_t m_partEnd = 0;
     bool m_isOperator = false;
     bool m_exhausted = false;
-};
-
-class AddressCursor
-{
-public:
-    constexpr explicit AddressCursor(std::string_view text) noexcept
-        : m_text(text)
-    {
-        readPart();
-    }
-
-    constexpr bool exhausted() const noexcept
-    {
-        return m_partStart > m_text.size();
-    }
-
-    constexpr std::string_view part() const noexcept
-    {
-        return m_text.substr(m_partStart, m_partEnd - m_partStart);
-    }
-
-    constexpr void advance() noexcept
-    {
-        m_partStart = m_partEnd + 1;
-        readPart();
-    }
-
-private:
-    constexpr void readPart() noexcept
-    {
-        if (exhausted())
-        {
-            return;
-        }
-        const std::size_t separator = m_text.find(k::partSeparator, m_partStart);
-        m_partEnd = separator == npos ? m_text.size() : separator;
-    }
-
-    std::string_view m_text;
-    std::size_t m_partStart = 1;
-    std::size_t m_partEnd = 0;
 };
 
 template <typename PatternParts, typename AddressParts>
@@ -509,11 +463,6 @@ constexpr bool matchParsed(std::string_view pattern, std::string_view address) n
         addressStart = retryAddress;
     }
     return true;
-}
-
-constexpr bool matchWithCursors(std::string_view pattern, std::string_view address) noexcept
-{
-    return hasLeadingSlash(address) && matchParts(PatternCursor(pattern), AddressCursor(address));
 }
 
 }
