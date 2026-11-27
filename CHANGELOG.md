@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.2] - 2026-11-27
+
+### Fixed
+
+- Fix invalid memory reads in a visit of an `AddressSpace` after `add`, `remove` or copy assignment threw ([#89](https://github.com/jamiebullock/oscpm/pull/89))
+- Fix `cmake --install` also installing doctest, oscpp and files under `include/` that are not headers ([#90](https://github.com/jamiebullock/oscpm/pull/90))
+- Fix a source archive inside another git repository taking its version from that repository's tags ([#91](https://github.com/jamiebullock/oscpm/pull/91))
+- Fix `AddressSpace` accepting a `CacheBits` too large for `std::size_t` until one was constructed ([#92](https://github.com/jamiebullock/oscpm/pull/92))
+
 ## [0.10.1] - 2026-10-17
 
 ### Changed
@@ -137,6 +146,7 @@
 
 - Add `match`, `isValidAddress`, `isValidPattern` and `kMaxAddressPartLength` ([#2](https://github.com/jamiebullock/oscpm/pull/2))
 
+[0.10.2]: https://github.com/jamiebullock/oscpm/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/jamiebullock/oscpm/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/jamiebullock/oscpm/compare/v0.9.8...v0.10.0
 [0.9.8]: https://github.com/jamiebullock/oscpm/compare/v0.6.1...v0.9.8
