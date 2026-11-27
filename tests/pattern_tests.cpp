@@ -148,6 +148,16 @@ TEST_CASE("a literal pattern longer than the wildcard limit is still checked for
     CHECK(faults(Pattern::parse("/" + longest + "\xc3"), PatternError::IllegalByte));
 }
 
+TEST_CASE("parse accepts 0x7F and rejects 0x80 inside a class or a brace list")
+{
+    const std::string del("\x7f");
+    const std::string high("\x80");
+    CHECK(Pattern::parse("/[" + del + "]"));
+    CHECK(Pattern::parse("/{a," + del + "}"));
+    CHECK(faults(Pattern::parse("/[" + high + "]"), PatternError::IllegalByte));
+    CHECK(faults(Pattern::parse("/{a," + high + "}"), PatternError::IllegalByte));
+}
+
 TEST_CASE("a pattern keeps a view of the text it was parsed from")
 {
     constexpr std::string_view text = "/synth/*/freq";
