@@ -97,12 +97,14 @@ jobs:
 
       # clang-format's output changes between releases; the tree is formatted
       # with this one.
-      - name: Install clang-format
-        run: pip install clang-format==22.1.0
+      - name: Install clang-format and Ninja
+        run: pip install clang-format==22.1.0 ninja
 
+      # The build's own target, so CMakeLists.txt alone lists the files.
       - name: Check formatting
         run: |
-          git ls-files 'include/*.h' 'tests/*.h' 'tests/*.cpp' 'tests/*.ino' 'fuzz/*.cpp' 'examples/*.cpp' 'bench/*.h' 'bench/*.cpp' | xargs clang-format --style=file --dry-run --Werror
+          cmake --preset release -DBUILD_TESTING=OFF -DOSCPM_BUILD_EXAMPLES=OFF
+          cmake --build --preset release --target check-format
 
   prose:
     name: Prose
@@ -134,8 +136,8 @@ jobs:
         run: cmake --preset release -DCMAKE_CXX_COMPILER=clang++ -DOSCPM_BUILD_FUZZERS=ON -DOSCPM_SANITIZE=ON -DOSCPM_CHECK_FORMAT=OFF
 
       # Naming the fuzz target fails the build if the libFuzzer probe skipped it.
-      - name: Build the tests, the example and the fuzz target
-        run: cmake --build --preset release --target oscpm_tests oscpm_visitor_rule oscpm_address_rule oscpm_expected_rule oscpm_constructor_rule oscpm_dispatch oscpm_pattern_fuzz
+      - name: Build everything and the fuzz target
+        run: cmake --build --preset release --target all oscpm_pattern_fuzz
 
       - name: Run the tests under the sanitizers and every seed once
         run: ctest --preset release
