@@ -58,17 +58,24 @@ endif()
 set(OSCPM_FUZZ_CORPUS_DIR ${CMAKE_CURRENT_BINARY_DIR}/corpus)
 file(MAKE_DIRECTORY ${OSCPM_FUZZ_CORPUS_DIR})
 
-add_executable(oscpm_pattern_fuzz pattern_fuzz.cpp)
-target_link_libraries(oscpm_pattern_fuzz PRIVATE oscpm::oscpm)
-target_compile_options(oscpm_pattern_fuzz PRIVATE
-    ${OSCPM_FUZZ_SANITIZE}
-    -fno-sanitize-recover=all
-    -fno-omit-frame-pointer
-    -g
-    -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror
-)
-target_link_options(oscpm_pattern_fuzz PRIVATE ${OSCPM_FUZZ_SANITIZE})
+function(oscpm_add_fuzz_target target source)
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE oscpm::oscpm)
+    target_compile_options(${target} PRIVATE
+        ${OSCPM_FUZZ_SANITIZE}
+        -fno-sanitize-recover=all
+        -fno-omit-frame-pointer
+        -g
+        -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror
+    )
+    target_link_options(${target} PRIVATE ${OSCPM_FUZZ_SANITIZE})
+endfunction()
+
+oscpm_add_fuzz_target(oscpm_pattern_fuzz pattern_fuzz.cpp)
 add_dependencies(oscpm_pattern_fuzz oscpm_fuzz_seeds)
+
+oscpm_add_fuzz_target(oscpm_address_space_fuzz address_space_fuzz.cpp)
+target_include_directories(oscpm_address_space_fuzz PRIVATE ${PROJECT_SOURCE_DIR}/tests)
 
 add_test(NAME oscpm_pattern_fuzz_seeds
     COMMAND oscpm_pattern_fuzz -runs=0 ${OSCPM_FUZZ_SEEDS_DIR}

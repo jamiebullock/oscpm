@@ -843,40 +843,6 @@ TEST_CASE("visit sees every add and remove after a pattern has been visited")
     CHECK(visitAddresses(space, "/*", result) == Addresses { "/b" });
 }
 
-TEST_CASE("every registered address matches itself alone through interleaved adds and removes")
-{
-    AddressSpace<int> space;
-    std::set<std::string> registered;
-    std::mt19937 generator(3);
-    for (int step = 0; step < 4000; ++step)
-    {
-        const std::string address = "/m/" + std::to_string(generator() % 600);
-        if (generator() % 3 != 0)
-        {
-            space.add(parsedAddress(address), 0);
-            registered.insert(address);
-        }
-        else
-        {
-            space.remove(parsedAddress(address));
-            registered.erase(address);
-        }
-        if (step % 50 != 0)
-        {
-            continue;
-        }
-        for (const std::string& expected : registered)
-        {
-            oscpm::MatchResult result { };
-            REQUIRE(visitAddresses(space, expected, result) == Addresses { expected });
-            REQUIRE(space.find(expected) != nullptr);
-        }
-        oscpm::MatchResult absent { };
-        CHECK(visitAddresses(space, "/m/600", absent).empty());
-        CHECK(space.find("/m/600") == nullptr);
-    }
-}
-
 TEST_CASE("the address index finds every address it holds and none it has erased through interleaved inserts and erases")
 {
     oscpm::detail::AddressIndex index;
@@ -1338,64 +1304,5 @@ TEST_CASE("every well-formed corpus pattern is delivered exactly as matches says
         CHECK(result.matched == 0);
         REQUIRE(result.error.has_value());
         CHECK(std::string(oscpm::toString(*result.error)) == corpusCase.errorName);
-    }
-}
-
-TEST_CASE("random adds, removes and visits agree with the standalone matcher")
-{
-    AddressSpace<int, true, 2, 4> space;
-    std::set<std::string> model;
-    std::mt19937 random(20260920);
-    const char* const parts[] = { "a", "b", "ab", "1", "12" };
-    const char* const patternParts[] = { "a", "b", "*", "?", "[ab]", "{a,b}", "a*", "*1", "?b" };
-    const auto pick = [&](const auto& items)
-    {
-        return items[random() % (sizeof(items) / sizeof(items[0]))];
-    };
-    const auto randomAddress = [&]
-    {
-        std::string address;
-        const std::size_t numParts = 1 + random() % 3;
-        for (std::size_t i = 0; i < numParts; ++i)
-        {
-            address += "/";
-            address += pick(parts);
-        }
-        return address;
-    };
-    const auto randomPattern = [&]
-    {
-        std::string pattern;
-        const std::size_t numParts = 1 + random() % 3;
-        for (std::size_t i = 0; i < numParts; ++i)
-        {
-            pattern += random() % 4 == 0 ? "//" : "/";
-            pattern += pick(patternParts);
-        }
-        return pattern;
-    };
-
-    for (int step = 0; step < 3000; ++step)
-    {
-        const std::size_t operation = random() % 4;
-        if (operation == 0)
-        {
-            const std::string address = randomAddress();
-            const bool fresh = model.insert(address).second;
-            CHECK(space.add(parsedAddress(address), step) == fresh);
-        }
-        else if (operation == 1)
-        {
-            const std::string address = randomAddress();
-            const bool present = model.erase(address) > 0;
-            CHECK(space.remove(parsedAddress(address)) == present);
-        }
-        else
-        {
-            const std::string pattern = randomPattern();
-            INFO("step " << step << " pattern " << pattern);
-            CHECK(matchingAddresses(space, pattern) == expectedMatches(model, pattern));
-        }
-        CHECK(allAddresses(space) == Addresses(model.begin(), model.end()));
     }
 }
