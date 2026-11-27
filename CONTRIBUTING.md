@@ -20,7 +20,11 @@
 
 ## Benchmark gate
 
-On a pull request, CI counts the instructions per iteration of every benchmark under Cachegrind for the change and for `develop`, and fails when a benchmark rises by more than 2% and 4 instructions. A change that accepts such a rise names the benchmark and its new ceiling, in instructions per iteration as the job's summary reports them, in `bench/accepted.json`. The check passes that benchmark while it stays at or below the ceiling and fails it again above, and it reports an entry that covers no rise past the threshold against `develop`, which is the case once the change has merged, so the entry can be removed.
+On a pull request, CI counts the instructions per iteration of every benchmark under Cachegrind for the change and for `develop`, and fails when a benchmark rises by more than 2% and 4 instructions. A change that accepts such a rise names the benchmark and its new ceiling, in instructions per iteration as the job's summary reports them, in `bench/accepted.json`. For a benchmark with an entry, the check:
+
+- passes while the benchmark stays at or below the ceiling
+- fails again when it rises above the ceiling
+- reports the entry once it covers no rise past the threshold against `develop`, which is the case after the change has merged, so that the entry can be removed
 
 ## Changelog
 
@@ -72,7 +76,7 @@ The `check-prose` target tests the rules that a script can test, and CI runs it 
 - `.vale/styles/config/vocabularies/oscpm/accept.txt` holds the names and terms that the dictionary does not. Add a word there when Vale reports a correct spelling.
 - `.vale/styles/oscpm/` holds the rules that apply to this project only.
 
-The `check-prose` target downloads the package and checks every file that git tracks:
+The `check-prose` target downloads the package and checks every tracked file that `.vale.ini` has rules for:
 
 ```sh
 cmake --build --preset release --target check-prose
@@ -84,7 +88,7 @@ CI also checks the title and the description of a pull request: the title as the
 
 ## Releases
 
-Nothing in the tree records the version. A release is a `vX.Y.Z` tag on `main`, created by `.github/workflows/tag-on-main.yml` on each push to `main`, and CMake reads the latest tag back with `git describe`. The version is the last tag plus one patch, or the next minor or major when a commit subject since the last tag carries `(MINOR)` or `(MAJOR)`. Several such commits still move it once.
+The version is not set anywhere in the tree. A release is a `vX.Y.Z` tag on `main`, created by `.github/workflows/tag-on-main.yml` on each push to `main`, and CMake reads the latest tag back with `git describe`. The version is the last tag plus one patch, or the next minor or major when a commit subject since the last tag carries `(MINOR)` or `(MAJOR)`. Several such commits still move it once.
 
 To make a release:
 
