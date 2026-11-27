@@ -54,6 +54,9 @@ class AddressSpace
     static_assert(std::is_object_v<T> && std::is_move_constructible_v<T> && std::is_move_assignable_v<T>, "AddressSpace needs a T that is an object type, move-constructible and move-assignable");
 
 public:
+    /// Constructs an empty space. With `Memo` true it allocates the memo,
+    /// about `(1 << CacheBits) * (kMaxMemoPatternLength + 4 * InlineResults +
+    /// 32)` bytes: 1,122,304 at the defaults on a 64-bit target.
     AddressSpace()
         : m_table(Memo)
     {
