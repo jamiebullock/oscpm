@@ -21,6 +21,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(doctest)
 
 add_executable(oscpm_tests
+    address_space_model_tests.cpp
     address_space_tests.cpp
     allocation_counter.cpp
     corpus.cpp
