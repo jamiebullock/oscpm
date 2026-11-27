@@ -16,8 +16,10 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
+#include <new>
 #include <optional>
 #include <ostream>
 #include <random>
@@ -138,6 +140,325 @@ Addresses expectedMatches(const std::set<std::string>& registered, std::string_v
         }
     }
     return expected;
+}
+
+struct ValueFailure
+{
+};
+
+constexpr std::size_t kNever = std::numeric_limits<std::size_t>::max();
+std::size_t g_numValueOperationsAllowed = kNever;
+
+void countValueOperation()
+{
+    if (g_numValueOperationsAllowed == kNever)
+    {
+        return;
+    }
+    if (g_numValueOperationsAllowed == 0)
+    {
+        g_numValueOperationsAllowed = kNever;
+        throw ValueFailure();
+    }
+    --g_numValueOperationsAllowed;
+}
+
+struct FailingValue
+{
+    explicit FailingValue(int initial)
+        : number(initial)
+    {
+    }
+
+    FailingValue(const FailingValue& other)
+        : number(other.number)
+    {
+        countValueOperation();
+    }
+
+    FailingValue& operator=(const FailingValue& other)
+    {
+        countValueOperation();
+        number = other.number;
+        return *this;
+    }
+
+    FailingValue(FailingValue&& other) noexcept(false)
+        : number(other.number)
+    {
+        countValueOperation();
+    }
+
+    FailingValue& operator=(FailingValue&& other) noexcept(false)
+    {
+        countValueOperation();
+        number = other.number;
+        return *this;
+    }
+
+    int number;
+};
+
+/// While one is alive, one copy or move of a `FailingValue` throws
+/// `ValueFailure`: the one that follows `numAllowed` others.
+class FailedValueOperation
+{
+public:
+    explicit FailedValueOperation(std::size_t numAllowed) noexcept
+    {
+        g_numValueOperationsAllowed = numAllowed;
+    }
+
+    ~FailedValueOperation()
+    {
+        g_numValueOperationsAllowed = kNever;
+    }
+
+    FailedValueOperation(const FailedValueOperation&) = delete;
+    FailedValueOperation& operator=(const FailedValueOperation&) = delete;
+};
+
+template <typename T>
+using SmallMemoSpace = AddressSpace<T, true, 4, 64>;
+
+using Contents = std::vector<std::pair<std::string, std::string>>;
+
+template <typename T>
+T valueNumbered(int number)
+{
+    if constexpr (std::is_same_v<T, std::string>)
+    {
+        return "a value too long for the small-string buffer, number " + std::to_string(number);
+    }
+    else
+    {
+        return T(number);
+    }
+}
+
+std::string textOf(const std::string& value)
+{
+    return value;
+}
+
+std::string textOf(const FailingValue& value)
+{
+    return std::to_string(value.number);
+}
+
+template <typename Space>
+Contents contentsOf(const Space& space)
+{
+    Contents contents;
+    space.visit([&](std::string_view address, const auto& value)
+        { contents.emplace_back(std::string(address), textOf(value)); });
+    return contents;
+}
+
+Addresses matchesAmong(const Addresses& held, std::string_view pattern)
+{
+    Addresses expected;
+    const Pattern value = parsed(pattern);
+    for (const std::string& text : held)
+    {
+        // A move of a value that throws inside std::vector can leave an entry whose address is empty.
+        const oscpm::Expected<Address, oscpm::AddressError> address = Address::parse(text);
+        if (address && value.matches(*address))
+        {
+            expected.push_back(text);
+        }
+    }
+    return expected;
+}
+
+template <typename Space>
+void requireVisitsWhatItHolds(Space& space)
+{
+    const Addresses held = allAddresses(space);
+    REQUIRE(held.size() == space.size());
+    for (const std::string_view pattern : { "/m/1?", "/?/*/*", "//" })
+    {
+        INFO("pattern " << pattern);
+        const Addresses expected = matchesAmong(held, pattern);
+        std::size_t numVisited = 0;
+        space.visit(pattern, [&](std::string_view, const auto&)
+            { ++numVisited; });
+        REQUIRE(numVisited == expected.size());
+        REQUIRE(matchingAddresses(space, pattern) == expected);
+    }
+}
+
+template <typename Space>
+void requireFindsWhatItHolds(Space& space)
+{
+    for (const std::string& address : allAddresses(space))
+    {
+        INFO("address " << address);
+        REQUIRE(space.find(address) != nullptr);
+        REQUIRE(matchingAddresses(space, address) == Addresses { address });
+    }
+}
+
+/// Runs `operation` on a copy of `start` once for each point at which a
+/// `Fault` can fail it, and calls `afterFailure` with each copy it failed on.
+template <typename Fault, typename Space, typename Operation, typename AfterFailure>
+void failAtEachPoint(const Space& start, Operation operation, AfterFailure afterFailure)
+{
+    bool failed = true;
+    for (std::size_t numAllowed = 0; failed; ++numAllowed)
+    {
+        INFO("failure after " << numAllowed << " allocations or value operations");
+        Space space(start);
+        failed = false;
+        try
+        {
+            const Fault fault(numAllowed);
+            operation(space);
+        }
+        catch (const std::bad_alloc&)
+        {
+            failed = true;
+        }
+        catch (const ValueFailure&)
+        {
+            failed = true;
+        }
+        if (failed)
+        {
+            afterFailure(space);
+        }
+    }
+}
+
+struct Step
+{
+    bool adds;
+    std::string address;
+};
+
+std::vector<Step> addsAndRemoves()
+{
+    const std::string longPart = "/a-part-too-long-for-the-small-string-buffer";
+    std::vector<Step> steps;
+    for (int i = 0; i < 12; ++i)
+    {
+        steps.push_back({ true, "/m/" + std::to_string(10 + 2 * i) + longPart });
+    }
+    for (int i = 0; i < 12; ++i)
+    {
+        steps.push_back({ true, "/m/" + std::to_string(11 + 2 * i) });
+    }
+    for (int i = 0; i < 20; ++i)
+    {
+        steps.push_back({ true, "/a/" + std::to_string(i) });
+    }
+    steps.push_back({ false, "/a/0" });
+    steps.push_back({ false, "/m/21" });
+    steps.push_back({ false, "/m/32" + longPart });
+    steps.push_back({ true, "/m/21" });
+    steps.push_back({ false, "/m/10" + longPart });
+    return steps;
+}
+
+using Model = std::map<std::string, std::string>;
+
+Contents contentsOf(const Model& model)
+{
+    return Contents(model.begin(), model.end());
+}
+
+template <typename T>
+void apply(const Step& step, int number, SmallMemoSpace<T>& space)
+{
+    if (step.adds)
+    {
+        space.add(Address(step.address), valueNumbered<T>(number));
+    }
+    else
+    {
+        space.remove(Address(step.address));
+    }
+}
+
+template <typename T>
+void apply(const Step& step, int number, Model& model)
+{
+    if (step.adds)
+    {
+        model.emplace(step.address, textOf(valueNumbered<T>(number)));
+    }
+    else
+    {
+        model.erase(step.address);
+    }
+}
+
+template <typename T>
+void requireUsableAfterFailedStep(SmallMemoSpace<T>& space, const Model& before, const Model& after)
+{
+    requireVisitsWhatItHolds(space);
+    if constexpr (std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>)
+    {
+        // add registers the address before its index grows, so a failure there leaves the address registered.
+        const Contents left = contentsOf(space);
+        const bool asBeforeOrAfter = left == contentsOf(before) || left == contentsOf(after);
+        REQUIRE(asBeforeOrAfter);
+        requireFindsWhatItHolds(space);
+    }
+}
+
+template <typename Fault, typename T>
+void failEachAddAndRemove()
+{
+    SmallMemoSpace<T> start;
+    Model before;
+    int number = 0;
+    for (const Step& step : addsAndRemoves())
+    {
+        INFO(std::string_view(step.adds ? "add " : "remove ") << step.address);
+        ++number;
+        Model after = before;
+        apply<T>(step, number, after);
+        requireVisitsWhatItHolds(start);
+        failAtEachPoint<Fault>(
+            start, [&](SmallMemoSpace<T>& space)
+            { apply(step, number, space); }, [&](SmallMemoSpace<T>& space)
+            { requireUsableAfterFailedStep(space, before, after); });
+        apply(step, number, start);
+        REQUIRE(contentsOf(start) == contentsOf(after));
+        before = after;
+    }
+}
+
+template <typename Fault, typename T>
+void failCopyAssignment()
+{
+    const std::string longPart = "/a-part-too-long-for-the-small-string-buffer";
+    SmallMemoSpace<T> target;
+    SmallMemoSpace<T> source;
+    for (int i = 0; i < 4; ++i)
+    {
+        REQUIRE(target.add(parsedAddress("/m/" + std::to_string(10 + i) + longPart), valueNumbered<T>(i)));
+    }
+    for (int i = 0; i < 20; ++i)
+    {
+        REQUIRE(source.add(parsedAddress("/s/" + std::to_string(10 + i) + longPart), valueNumbered<T>(100 + i)));
+    }
+    requireVisitsWhatItHolds(target);
+    requireVisitsWhatItHolds(source);
+    const Contents before = contentsOf(target);
+
+    failAtEachPoint<Fault>(target, [&](SmallMemoSpace<T>& space)
+        { space = source; }, [&](SmallMemoSpace<T>& space)
+        {
+            REQUIRE(contentsOf(space) == before);
+            requireVisitsWhatItHolds(space);
+            requireFindsWhatItHolds(space); });
+
+    target = source;
+    CHECK(contentsOf(target) == contentsOf(source));
+    requireVisitsWhatItHolds(target);
+    requireFindsWhatItHolds(target);
 }
 
 }
@@ -732,6 +1053,41 @@ TEST_CASE("a moved address space keeps its values and the moved-from one stays u
     REQUIRE(constructed.add(parsedAddress("/c"), 0));
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
+}
+
+TEST_CASE("a space that add or remove failed on visits exactly the addresses it holds")
+{
+// MSVC's debug containers allocate in their `noexcept` move constructors, so an allocation that fails inside `add` ends the process.
+#if !defined(_ITERATOR_DEBUG_LEVEL) || _ITERATOR_DEBUG_LEVEL == 0
+    SUBCASE("an allocation fails with values that move without throwing")
+    {
+        failEachAddAndRemove<oscpm_test::FailedAllocation, std::string>();
+    }
+    SUBCASE("an allocation fails with values whose move may throw")
+    {
+        failEachAddAndRemove<oscpm_test::FailedAllocation, FailingValue>();
+    }
+#endif
+    SUBCASE("a copy or move of a value throws")
+    {
+        failEachAddAndRemove<FailedValueOperation, FailingValue>();
+    }
+}
+
+TEST_CASE("a space that copy assignment failed on keeps the addresses and values it had")
+{
+    SUBCASE("an allocation fails with values that move without throwing")
+    {
+        failCopyAssignment<oscpm_test::FailedAllocation, std::string>();
+    }
+    SUBCASE("an allocation fails with values whose move may throw")
+    {
+        failCopyAssignment<oscpm_test::FailedAllocation, FailingValue>();
+    }
+    SUBCASE("a copy of a value throws")
+    {
+        failCopyAssignment<FailedValueOperation, FailingValue>();
+    }
 }
 
 TEST_CASE("a move-only value type is stored and reached through visit")

@@ -36,6 +36,16 @@ public:
     {
     }
 
+    MethodTable(const MethodTable&) = default;
+    MethodTable(MethodTable&&) = default;
+
+    MethodTable& operator=(const MethodTable& other)
+    {
+        return *this = MethodTable(other);
+    }
+
+    MethodTable& operator=(MethodTable&&) = default;
+
     bool insert(std::string_view address, T value)
     {
         const auto position = lowerBound(m_methods, address);
@@ -54,8 +64,8 @@ public:
             m_index.reserveForInsert();
         }
         [[maybe_unused]] const auto offset = position - m_methods.begin();
-        m_methods.insert(position, Method { std::string(address), std::move(value) });
         m_memo.forget();
+        m_methods.insert(position, Method { std::string(address), std::move(value) });
         if constexpr (kMethodMovesCannotThrow)
         {
             m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
@@ -72,8 +82,8 @@ public:
             return false;
         }
         [[maybe_unused]] const auto offset = position - m_methods.begin();
-        m_methods.erase(position);
         m_memo.forget();
+        m_methods.erase(position);
         if constexpr (kMethodMovesCannotThrow)
         {
             m_partEnds.erase(m_partEnds.begin() + offset);
