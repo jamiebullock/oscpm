@@ -46,7 +46,7 @@ enum class AddressError
 /// The outcome of `AddressSpace::visit` and `AddressSpace::dispatch`.
 struct MatchResult
 {
-    std::size_t matched; ///< the number of values visited or called
+    std::size_t matched = 0; ///< the number of values visited or called; 0 when `error` is set
     std::optional<PatternError> error; ///< the parse fault when the pattern was malformed and no value was reached
 };
 

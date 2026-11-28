@@ -13,3 +13,11 @@
 #else
 #define OSCPM_NOINLINE
 #endif
+
+#define OSCPM_LIFETIMEBOUND
+#if defined(__clang__)
+#if __has_cpp_attribute(clang::lifetimebound)
+#undef OSCPM_LIFETIMEBOUND
+#define OSCPM_LIFETIMEBOUND [[clang::lifetimebound]]
+#endif
+#endif

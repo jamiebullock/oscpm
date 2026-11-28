@@ -222,6 +222,34 @@ foreach(caseName IN LISTS OSCPM_CONSTRUCTOR_CASES)
         "${caseName} constructed from malformed text in a constant expression fails to compile" "constant expression|evaluate to a constant")
 endforeach()
 
+# Clang before 20 accepts the attribute and reports nothing for a view of a
+# temporary held through it, so the compiler is asked.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    try_compile(OSCPM_DANGLING_VIEW_PROBE_COMPILES
+        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/dangling_view_probe.cpp
+        COMPILE_DEFINITIONS -Werror=dangling-gsl
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        NO_CACHE
+        OUTPUT_VARIABLE OSCPM_DANGLING_VIEW_PROBE_OUTPUT)
+    if(NOT OSCPM_DANGLING_VIEW_PROBE_COMPILES AND OSCPM_DANGLING_VIEW_PROBE_OUTPUT MATCHES "Wdangling-gsl\\]")
+        set(OSCPM_DANGLING_VIEW_CASES
+            "an address constructed from a temporary string"
+            "a pattern constructed from a temporary string"
+            "an address parsed from a temporary string and kept after it"
+            "a pattern parsed from a temporary string and kept after it"
+        )
+        set(caseNumber 0)
+        foreach(caseName IN LISTS OSCPM_DANGLING_VIEW_CASES)
+            math(EXPR caseNumber "${caseNumber} + 1")
+            oscpm_add_compile_failure(oscpm_dangling_view_${caseNumber} dangling_view.cpp OSCPM_DANGLING_VIEW_CASE=${caseNumber}
+                "${caseName} fails to compile" "object backing the pointer will be destroyed at the end of the full-expression")
+            target_compile_options(oscpm_dangling_view_${caseNumber} PRIVATE -Werror=dangling-gsl)
+        endforeach()
+    endif()
+endif()
+
 if(OSCPM_SANITIZE)
     foreach(target oscpm_tests oscpm_visitor_rule oscpm_address_rule oscpm_expected_rule oscpm_constructor_rule)
         target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)

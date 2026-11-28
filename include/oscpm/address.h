@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <oscpm/detail/compiler.h>
 #include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
 #include <oscpm/expected.h>
@@ -25,12 +26,12 @@ class Address
 {
 public:
     /// Parses `text`, yielding the address or the first fault.
-    static constexpr Expected<Address, AddressError> parse(std::string_view text) noexcept;
+    [[nodiscard]] static constexpr Expected<Address, AddressError> parse(std::string_view text OSCPM_LIFETIMEBOUND) noexcept;
 
     /// Parses `text`, calling `std::abort` on the first fault; in a constant
     /// expression a fault is a compile error. For text the program controls;
     /// `parse` is for text it does not.
-    constexpr explicit Address(std::string_view text) noexcept
+    constexpr explicit Address(std::string_view text OSCPM_LIFETIMEBOUND) noexcept
         : m_text(text)
     {
         if (detail::validateAddress(text).has_value())

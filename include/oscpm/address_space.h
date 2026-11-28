@@ -80,13 +80,13 @@ public:
 
     /// The value registered under `address`, or null when there is none. The
     /// pointer is valid until the next `add` or `remove`.
-    T* find(std::string_view address) noexcept
+    [[nodiscard]] T* find(std::string_view address) noexcept
     {
         return m_table.find(address);
     }
 
     /// The `const` overload; returns `const T*`.
-    const T* find(std::string_view address) const noexcept
+    [[nodiscard]] const T* find(std::string_view address) const noexcept
     {
         return m_table.find(address);
     }
