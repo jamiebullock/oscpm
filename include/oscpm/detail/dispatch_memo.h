@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <oscpm/error.h>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -16,7 +18,7 @@
 namespace oscpm::detail
 {
 
-template <unsigned CacheBits, std::size_t InlineResults, std::size_t MaxPatternLength>
+template <unsigned CacheBits, std::size_t InlineResults>
 class DispatchMemo
 {
 public:
@@ -24,8 +26,8 @@ public:
 
     static constexpr std::size_t kInlineResults = InlineResults;
 
-    explicit DispatchMemo(bool enabled)
-        : m_buckets(enabled ? kNumBuckets : 0)
+    DispatchMemo()
+        : m_buckets(kNumBuckets)
     {
     }
 
@@ -54,7 +56,7 @@ public:
 
     bool accepts(std::string_view text) const noexcept
     {
-        return !m_buckets.empty() && text.size() <= MaxPatternLength;
+        return !m_buckets.empty() && text.size() <= kMaxMemoPatternLength;
     }
 
     template <typename Methods, typename Visitor>
@@ -111,7 +113,7 @@ private:
         std::size_t patternLength = 0;
         std::size_t numResults = 0;
         std::size_t numReaders = 0;
-        std::array<char, MaxPatternLength> pattern { };
+        std::array<char, kMaxMemoPatternLength> pattern { };
         Results results { };
     };
 
@@ -164,6 +166,37 @@ private:
 
     std::vector<Bucket> m_buckets;
     std::uint64_t m_generation = kNeverStored + 1;
+};
+
+class NoDispatchMemo
+{
+public:
+    using Results = std::array<std::uint32_t, 0>;
+
+    static constexpr std::size_t kInlineResults = 0;
+
+    constexpr bool accepts(std::string_view) const noexcept
+    {
+        return false;
+    }
+
+    template <typename Methods, typename Visitor>
+    constexpr bool visit(std::string_view, std::size_t, Methods&, Visitor&, std::size_t&) const noexcept
+    {
+        return false;
+    }
+
+    constexpr void store(std::string_view, std::size_t, const Results&, std::size_t) const noexcept
+    {
+    }
+
+    constexpr void rememberNoMatch(std::string_view, std::size_t) const noexcept
+    {
+    }
+
+    constexpr void forget() const noexcept
+    {
+    }
 };
 
 }

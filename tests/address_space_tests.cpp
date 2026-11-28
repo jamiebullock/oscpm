@@ -781,6 +781,22 @@ TEST_CASE("a default space serves a result of 1024 matches from its memo unchang
     }
 }
 
+TEST_CASE("a memo that keeps no list of matches still delivers every match")
+{
+    AddressSpace<int, true, 2, 0> space;
+    populate(space, { "/a/1", "/a/2", "/b/1" });
+    for (int round = 0; round < 2; ++round)
+    {
+        CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
+        CHECK(matchingAddresses(space, "/c/*").empty());
+        CHECK(matchingAddresses(space, "/c/1").empty());
+        CHECK(matchingAddresses(space, "/b/1") == Addresses { "/b/1" });
+    }
+    REQUIRE(space.add(parsedAddress("/c/1"), 0));
+    CHECK(matchingAddresses(space, "/c/*") == Addresses { "/c/1" });
+    CHECK(matchingAddresses(space, "/c/1") == Addresses { "/c/1" });
+}
+
 TEST_CASE("an address space without a memo behaves the same")
 {
     AddressSpace<int, false> space;
@@ -907,14 +923,14 @@ TEST_CASE("a space copied or moved during a visit starts outside any visit")
 
 TEST_CASE("a memo copied while it is being read accepts a new result afterwards")
 {
-    using Memo = oscpm::detail::DispatchMemo<0, 4, 64>;
+    using Memo = oscpm::detail::DispatchMemo<0, 4>;
     struct Method
     {
         std::string address;
         int value;
     };
     std::vector<Method> methods { { "/a", 1 }, { "/b", 2 } };
-    Memo memo(true);
+    Memo memo;
     const Memo::Results first { 0 };
     memo.store("/a", oscpm::detail::hashOf("/a"), first, 1);
 
@@ -936,14 +952,14 @@ TEST_CASE("a memo copied while it is being read accepts a new result afterwards"
 
 TEST_CASE("a memo assigned to itself while it is being read is left as it was")
 {
-    using Memo = oscpm::detail::DispatchMemo<0, 4, 64>;
+    using Memo = oscpm::detail::DispatchMemo<0, 4>;
     struct Method
     {
         std::string address;
         int value;
     };
     std::vector<Method> methods { { "/a", 1 }, { "/b", 2 } };
-    Memo memo(true);
+    Memo memo;
     const Memo::Results first { 0 };
     memo.store("/a", oscpm::detail::hashOf("/a"), first, 1);
 
