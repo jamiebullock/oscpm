@@ -12,7 +12,7 @@ namespace oscpm
 {
 
 /// The maximum length, in bytes, of one part of an address.
-constexpr std::size_t kMaxAddressPartLength = 4095;
+constexpr std::size_t kMaxAddressPartLength = 255;
 
 /// The maximum length, in bytes, of a pattern containing a wildcard, class,
 /// brace list or "//". A literal pattern has no limit.

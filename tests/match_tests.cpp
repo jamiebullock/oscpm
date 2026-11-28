@@ -122,9 +122,11 @@ TEST_CASE("the general matcher and the cursor matcher agree at the edges of malf
 TEST_CASE("a wildcard pattern longer than the supported length is reported and matches nothing")
 {
     CHECK(oscpm::kMaxPatternLength == 1024);
-    const std::string longest = "/*" + std::string(oscpm::kMaxPatternLength - 2, 'a');
-    const std::string tooLong = "/*" + std::string(oscpm::kMaxPatternLength - 1, 'a');
-    const std::string address = "/" + std::string(oscpm::kMaxPatternLength, 'a');
+    const std::string part = "/" + std::string(oscpm::kMaxAddressPartLength, 'a');
+    const std::string address = part + part + part + part;
+    const std::string longest = "/*" + address.substr(2);
+    const std::string tooLong = longest + "a";
+    REQUIRE(longest.size() == oscpm::kMaxPatternLength);
     CHECK(Pattern::parse(longest));
     CHECK(match(longest, address));
     CHECK(faults(Pattern::parse(tooLong), PatternError::PatternTooLong));
@@ -139,7 +141,11 @@ TEST_CASE("a wildcard pattern longer than the supported length is reported and m
 
 TEST_CASE("a literal pattern longer than the wildcard limit parses and matches")
 {
-    const std::string literal = "/" + std::string(2000, 'a') + "/" + std::string(2000, 'b');
+    std::string literal;
+    while (literal.size() <= oscpm::kMaxPatternLength)
+    {
+        literal += "/" + std::string(200, 'a');
+    }
     CHECK(Pattern::parse(literal));
     CHECK(match(literal, literal));
     CHECK_FALSE(match(literal, literal + "c"));
@@ -153,9 +159,9 @@ TEST_CASE("a fault before the length limit is reported ahead of the length")
     CHECK(faults(Pattern::parse("/" + std::string(1100, 'a') + "["), PatternError::PatternTooLong));
 }
 
-TEST_CASE("every construct matches a part either side of 64 bytes")
+TEST_CASE("every construct matches a part either side of each multiple of 64 bytes up to the limit")
 {
-    const std::size_t lengths[] = { 62, 63, 64, 65, 127, 128 };
+    const std::size_t lengths[] = { 62, 63, 64, 65, 127, 128, 191, 192, 254, 255 };
     for (const std::size_t length : lengths)
     {
         INFO("part length " << length);

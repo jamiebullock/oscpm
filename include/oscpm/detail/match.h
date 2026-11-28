@@ -46,10 +46,10 @@ constexpr bool setContains(std::string_view members, char byte) noexcept
     return false;
 }
 
-template <std::size_t NumWords, typename Predicate>
-constexpr Reach<NumWords> advanceWhere(const Reach<NumWords>& reach, std::string_view part, Predicate matches) noexcept
+template <typename Predicate>
+constexpr Reach advanceWhere(const Reach& reach, std::string_view part, Predicate matches) noexcept
 {
-    Reach<NumWords> next(part.size());
+    Reach next(part.size());
     for (std::size_t position = 0; position < part.size(); ++position)
     {
         if (reach.test(position) && matches(part[position]))
@@ -60,10 +60,9 @@ constexpr Reach<NumWords> advanceWhere(const Reach<NumWords>& reach, std::string
     return next;
 }
 
-template <std::size_t NumWords>
-constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, std::string_view part, std::string_view list) noexcept
+constexpr Reach advanceByAlternatives(const Reach& reach, std::string_view part, std::string_view list) noexcept
 {
-    Reach<NumWords> next(part.size());
+    Reach next(part.size());
     std::string_view remaining = list;
     bool moreAlternatives = true;
     while (moreAlternatives)
@@ -86,10 +85,9 @@ constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, st
     return next;
 }
 
-template <std::size_t NumWords>
 constexpr bool matchPartWithin(std::string_view pattern, std::string_view part) noexcept
 {
-    Reach<NumWords> reach(part.size());
+    Reach reach(part.size());
     reach.set(0);
     std::size_t i = 0;
     while (i < pattern.size() && !reach.empty())
@@ -250,11 +248,7 @@ OSCPM_NOINLINE constexpr bool matchPart(std::string_view pattern, std::string_vi
     {
         return matchPartDirect(pattern, part, shape);
     }
-    if (part.size() < k::bitsPerWord)
-    {
-        return matchPartWithin<k::smallReachWords>(pattern, part);
-    }
-    return matchPartWithin<k::reachWords>(pattern, part);
+    return matchPartWithin(pattern, part);
 }
 
 class PatternCursor

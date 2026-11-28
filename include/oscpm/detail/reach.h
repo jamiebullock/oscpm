@@ -20,10 +20,8 @@ namespace k
 {
     constexpr std::size_t bitsPerWord = 64;
     constexpr std::size_t reachWords = kMaxAddressPartLength / bitsPerWord + 1;
-    constexpr std::size_t smallReachWords = 1;
 }
 
-template <std::size_t NumWords>
 class Reach
 {
 public:
@@ -80,7 +78,7 @@ public:
     }
 
 private:
-    std::array<std::uint64_t, NumWords> m_words { };
+    std::array<std::uint64_t, k::reachWords> m_words { };
     std::size_t m_numWords;
 };
 
