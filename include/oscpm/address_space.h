@@ -60,7 +60,8 @@ public:
     /// throws, the space is unchanged. A build without `NDEBUG` asserts when
     /// the bytes the address views do not parse as an address. An `add` or
     /// `remove` that changes the space takes time at least proportional to
-    /// the number of registered addresses.
+    /// the number of registered addresses. The first `add` to a moved-from
+    /// space allocates its memo again.
     bool add(const Address& address, T value)
     {
         assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");

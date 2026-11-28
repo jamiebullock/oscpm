@@ -426,6 +426,27 @@ void failCopyAssignment()
     requireHolds(target, contentsOf(source));
 }
 
+void failAddToMovedFromSpace()
+{
+    SmallMemoSpace<std::string> source;
+    REQUIRE(source.add(parsedAddress("/m/10"), valueNumbered<std::string>(0)));
+    const SmallMemoSpace<std::string> taken(std::move(source));
+    const Address address = parsedAddress("/m/11/a-part-too-long-for-the-small-string-buffer");
+    const std::string value = valueNumbered<std::string>(1);
+    const Contents after { { std::string(address.text()), value } };
+    std::size_t numFailures = 0;
+
+    failAtEachPoint<oscpm_test::FailedAllocation>(
+        source, [&](SmallMemoSpace<std::string>& space)
+        { space.add(address, value); }, [&](SmallMemoSpace<std::string>& space)
+        {
+            ++numFailures;
+            requireHolds(space, { });
+            REQUIRE(space.add(address, value));
+            requireHolds(space, after); });
+    CHECK(numFailures > 0);
+}
+
 }
 
 TEST_CASE("add registers an address once")
@@ -1002,6 +1023,99 @@ TEST_CASE("a moved address space keeps its values and the moved-from one stays u
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
 }
 
+TEST_CASE("a moved-from memo that has its buckets again keeps a result and serves it")
+{
+    using Memo = oscpm::detail::DispatchMemo<0, 4>;
+    struct Method
+    {
+        std::string address;
+        int value;
+    };
+    std::vector<Method> methods { { "/a", 1 }, { "/b", 2 } };
+    const Memo::Results stale { 0 };
+    const Memo::Results fresh { 1 };
+    Addresses served;
+    std::size_t numVisited = 0;
+    const auto record = [&](std::string_view address, int&)
+    { served.emplace_back(address); };
+    const auto requireServesAfterEnsuring = [&](Memo& memo)
+    {
+        REQUIRE_FALSE(memo.accepts("/*"));
+        memo.ensureBuckets();
+        REQUIRE(memo.accepts("/*"));
+        CHECK_FALSE(memo.visit("", oscpm::detail::hashOf(""), methods, record, numVisited));
+        CHECK_FALSE(memo.visit("/*", oscpm::detail::hashOf("/*"), methods, record, numVisited));
+        memo.store("/*", oscpm::detail::hashOf("/*"), fresh, 1);
+        CHECK(memo.visit("/*", oscpm::detail::hashOf("/*"), methods, record, numVisited));
+        CHECK(numVisited == 1);
+        CHECK(served == Addresses { "/b" });
+    };
+
+    Memo source;
+    source.store("/*", oscpm::detail::hashOf("/*"), stale, 1);
+
+    SUBCASE("after move construction")
+    {
+        const Memo taken(std::move(source));
+        requireServesAfterEnsuring(source);
+    }
+    SUBCASE("after move assignment")
+    {
+        Memo taken;
+        taken = std::move(source);
+        requireServesAfterEnsuring(source);
+    }
+    SUBCASE("a memo that has its buckets keeps its results")
+    {
+        source.ensureBuckets();
+        CHECK(source.visit("/*", oscpm::detail::hashOf("/*"), methods, record, numVisited));
+        CHECK(served == Addresses { "/a" });
+    }
+}
+
+TEST_CASE("a moved-from space that is given addresses again visits what it holds through every change")
+{
+    SmallMemoSpace<int> source;
+    populate(source, { "/m/10", "/m/11", "/a/b/c" });
+    requireVisitsWhatItHolds(source);
+    const auto requireUsable = [](SmallMemoSpace<int>& space)
+    {
+        requireVisitsWhatItHolds(space);
+        REQUIRE(space.size() == 0);
+        REQUIRE(space.add(parsedAddress("/m/12"), 0));
+        REQUIRE_FALSE(space.add(parsedAddress("/m/12"), 0));
+        for (int round = 0; round < 2; ++round)
+        {
+            CHECK(matchingAddresses(space, "/m/1?") == Addresses { "/m/12" });
+            CHECK(matchingAddresses(space, "/m/2?").empty());
+        }
+        REQUIRE(space.add(parsedAddress("/m/13"), 0));
+        for (int round = 0; round < 2; ++round)
+        {
+            CHECK(matchingAddresses(space, "/m/1?") == Addresses { "/m/12", "/m/13" });
+        }
+        REQUIRE(space.remove(parsedAddress("/m/12")));
+        for (int round = 0; round < 2; ++round)
+        {
+            CHECK(matchingAddresses(space, "/m/1?") == Addresses { "/m/13" });
+        }
+    };
+
+    SUBCASE("after move construction")
+    {
+        const SmallMemoSpace<int> taken(std::move(source));
+        requireUsable(source);
+        CHECK(allAddresses(taken) == Addresses { "/a/b/c", "/m/10", "/m/11" });
+    }
+    SUBCASE("after move assignment")
+    {
+        SmallMemoSpace<int> taken;
+        taken = std::move(source);
+        requireUsable(source);
+        CHECK(allAddresses(taken) == Addresses { "/a/b/c", "/m/10", "/m/11" });
+    }
+}
+
 TEST_CASE("a space that add failed on is as it was and takes the same add afterwards")
 {
 // MSVC's debug containers allocate in their `noexcept` move constructors, so an allocation that fails inside `add` ends the process.
@@ -1013,6 +1127,10 @@ TEST_CASE("a space that add failed on is as it was and takes the same add afterw
     SUBCASE("an allocation fails with values that allocate nothing")
     {
         failEachAdd<oscpm_test::FailedAllocation, FailingValue>();
+    }
+    SUBCASE("an allocation fails in the first add to a moved-from space")
+    {
+        failAddToMovedFromSpace();
     }
 #endif
     SUBCASE("the copy of the value throws")
