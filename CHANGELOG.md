@@ -10,7 +10,7 @@
 - **Breaking:** treat a pattern without a wildcard as literal in `Pattern::isLiteral` whatever the length of its parts ([#107](https://github.com/jamiebullock/oscpm/pull/107))
 - Keep an `AddressSpace` unchanged when `add` throws ([#110](https://github.com/jamiebullock/oscpm/pull/110))
 - Make `AddressSpace::remove` `noexcept` ([#110](https://github.com/jamiebullock/oscpm/pull/110))
-- Make `AddressSpace::add` allocate the memo of a moved-from space again ([#112](https://github.com/jamiebullock/oscpm/pull/112))
+- Speed up repeated visits of a pattern through an `AddressSpace` that was moved from and then added to ([#112](https://github.com/jamiebullock/oscpm/pull/112))
 - Make `match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find` `[[nodiscard]]` ([#114](https://github.com/jamiebullock/oscpm/pull/114))
 - Report an `Address` or `Pattern` that outlives a temporary string, under Clang 20 or later ([#114](https://github.com/jamiebullock/oscpm/pull/114))
 - Reduce the stack `match` uses for a part with a brace list or two or more `*` ([#109](https://github.com/jamiebullock/oscpm/pull/109))
