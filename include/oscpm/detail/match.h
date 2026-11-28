@@ -11,6 +11,7 @@
 #include <oscpm/detail/syntax.h>
 #include <oscpm/error.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <string_view>
 
@@ -69,10 +70,10 @@ constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, st
     while (moreAlternatives)
     {
         const std::size_t comma = remaining.find(k::listSeparator);
-        const std::string_view alternative = remaining.substr(0, comma);
+        const std::string_view alternative = slice(remaining, 0, std::min(comma, remaining.size()));
         for (std::size_t position = 0; position <= part.size(); ++position)
         {
-            if (reach.test(position) && startsWith(part.substr(position), alternative))
+            if (reach.test(position) && startsWith(sliceFrom(part, position), alternative))
             {
                 next.set(position + alternative.size());
             }
@@ -80,7 +81,7 @@ constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, st
         moreAlternatives = comma != npos;
         if (moreAlternatives)
         {
-            remaining = remaining.substr(comma + 1);
+            remaining = sliceFrom(remaining, comma + 1);
         }
     }
     return next;
@@ -119,7 +120,7 @@ constexpr bool matchPartWithin(std::string_view pattern, std::string_view part) 
             {
                 return false;
             }
-            const std::string_view members = pattern.substr(start, close - start);
+            const std::string_view members = slice(pattern, start, close - start);
             reach = advanceWhere(reach, part, [members, negate](char candidate)
                 { return setContains(members, candidate) != negate; });
             i = close + 1;
@@ -131,7 +132,7 @@ constexpr bool matchPartWithin(std::string_view pattern, std::string_view part) 
             {
                 return false;
             }
-            reach = advanceByAlternatives(reach, part, pattern.substr(i + 1, close - i - 1));
+            reach = advanceByAlternatives(reach, part, slice(pattern, i + 1, close - i - 1));
             i = close + 1;
         }
         else
@@ -217,7 +218,7 @@ constexpr bool matchTokens(std::string_view tokens, std::string_view text) noexc
                 ++start;
             }
             const std::size_t close = tokens.find(k::setClose, start);
-            if (setContains(tokens.substr(start, close - start), candidate) == negate)
+            if (setContains(slice(tokens, start, close - start), candidate) == negate)
             {
                 return false;
             }
@@ -242,10 +243,10 @@ constexpr bool matchPartDirect(std::string_view pattern, std::string_view part, 
     {
         return false;
     }
-    const std::string_view prefix = pattern.substr(0, shape.star);
-    const std::string_view suffix = shape.star == npos ? std::string_view() : pattern.substr(shape.star + 1);
-    return matchTokens(prefix, part.substr(0, shape.numTokensBeforeStar))
-        && matchTokens(suffix, part.substr(part.size() - shape.numTokensAfterStar));
+    const std::string_view prefix = slice(pattern, 0, std::min(shape.star, pattern.size()));
+    const std::string_view suffix = shape.star == npos ? std::string_view() : sliceFrom(pattern, shape.star + 1);
+    return matchTokens(prefix, slice(part, 0, shape.numTokensBeforeStar))
+        && matchTokens(suffix, sliceFrom(part, part.size() - shape.numTokensAfterStar));
 }
 
 OSCPM_NOINLINE constexpr bool matchPart(std::string_view pattern, std::string_view part) noexcept
@@ -296,7 +297,7 @@ public:
 
     constexpr std::string_view part() const noexcept
     {
-        return m_text.substr(m_partStart, m_partEnd - m_partStart);
+        return slice(m_text, m_partStart, m_partEnd - m_partStart);
     }
 
     constexpr void advance() noexcept
@@ -399,7 +400,7 @@ constexpr bool matchPartAt(std::string_view pattern, std::size_t patternStart, s
         if (isOpener(patternByte))
         {
             span = { partEnd(pattern, i), partEnd(address, j) };
-            return matchPart(pattern.substr(patternStart, span.patternEnd - patternStart), address.substr(addressStart, span.addressEnd - addressStart));
+            return matchPart(slice(pattern, patternStart, span.patternEnd - patternStart), slice(address, addressStart, span.addressEnd - addressStart));
         }
         const char addressByte = j < address.size() ? address[j] : k::partSeparator;
         if (patternByte == k::partSeparator)
