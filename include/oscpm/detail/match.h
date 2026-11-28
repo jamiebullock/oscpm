@@ -275,6 +275,11 @@ public:
         return slice(m_text, m_partStart, m_partEnd - m_partStart);
     }
 
+    constexpr bool matches(std::string_view addressPart) const noexcept
+    {
+        return matchPart(part(), addressPart);
+    }
+
     constexpr void advance() noexcept
     {
         m_position = m_next;

@@ -684,6 +684,25 @@ TEST_CASE("a pattern of up to 64 parts and one of more are both matched in full"
     CHECK(matchingAddresses(space, "/a" + repeated("//a", 69)) == Addresses { deep });
 }
 
+TEST_CASE("a space without a memo and a copy of it match parts of up to the greatest length")
+{
+    const std::string longest = "/" + std::string(oscpm::kMaxAddressPartLength, 'a');
+    const std::string shorter = "/" + std::string(oscpm::kMaxAddressPartLength - 1, 'a');
+    const std::string overHalf = "/" + std::string(oscpm::kMaxAddressPartLength / 2 + 1, 'a');
+    AddressSpace<int, false> space;
+    populate(space, { longest + "/b", shorter + "/b", overHalf + "/c", longest + longest + "/b", "/b" + longest, "/b" });
+    const AddressSpace<int, false> copy(space);
+    for (const AddressSpace<int, false>* held : { &std::as_const(space), &copy })
+    {
+        CHECK(matchingAddresses(*held, "/*/b") == Addresses { shorter + "/b", longest + "/b" });
+        CHECK(matchingAddresses(*held, "/*/*/b") == Addresses { longest + longest + "/b" });
+        CHECK(matchingAddresses(*held, "//b") == Addresses { shorter + "/b", longest + longest + "/b", longest + "/b", "/b" });
+        CHECK(matchingAddresses(*held, "/b/*") == Addresses { "/b" + longest });
+        CHECK(matchingAddresses(*held, "/*/c") == Addresses { overHalf + "/c" });
+        CHECK(matchingAddresses(*held, "/" + std::string(oscpm::kMaxAddressPartLength, '?') + "/*") == Addresses { longest + "/b" });
+    }
+}
+
 TEST_CASE("visit reports a pattern longer than the supported length and visits nothing")
 {
     AddressSpace<int> space;
