@@ -108,13 +108,13 @@ if(NOT IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}" AND NOT IS_ABSOLUTE "${CMAKE_IN
         FIXTURES_REQUIRED oscpm_installed)
 endif()
 
-add_executable(oscpm_visitor_rule visitor_rule.cpp)
-target_link_libraries(oscpm_visitor_rule PRIVATE oscpm::oscpm)
-target_compile_options(oscpm_visitor_rule PRIVATE
+add_executable(oscpm_rules rules.cpp)
+target_link_libraries(oscpm_rules PRIVATE oscpm::oscpm)
+target_compile_options(oscpm_rules PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
 )
-add_test(NAME "a visitor that removes an address trips an assertion in a build without NDEBUG" COMMAND oscpm_visitor_rule)
+add_test(NAME "a visitor that removes an address trips an assertion in a build without NDEBUG" COMMAND oscpm_rules remove-from-visitor)
 set_tests_properties("a visitor that removes an address trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must not add to or remove from")
 
@@ -144,6 +144,18 @@ foreach(visitorCase IN LISTS OSCPM_VISITOR_CASES)
     list(GET visitorCase 1 expectedMessage)
     oscpm_add_compile_failure(oscpm_visitor_signature_${caseNumber} visitor_signature.cpp OSCPM_VISITOR_CASE=${caseNumber}
         "${caseName} fails to compile with a visitor of the wrong signature" "${expectedMessage}")
+endforeach()
+
+set(OSCPM_DISPATCH_CASES
+    "dispatch on a space"
+    "dispatch on a const space"
+)
+set(caseNumber 0)
+foreach(caseName IN LISTS OSCPM_DISPATCH_CASES)
+    math(EXPR caseNumber "${caseNumber} + 1")
+    oscpm_add_compile_failure(oscpm_dispatch_signature_${caseNumber} dispatch_signature.cpp OSCPM_DISPATCH_CASE=${caseNumber}
+        "${caseName} fails to compile with a value not callable with the arguments given"
+        "dispatch needs a T that is callable with these arguments. use visit for other values")
 endforeach()
 
 set(OSCPM_VALUE_TYPE_CASES
@@ -183,33 +195,14 @@ foreach(expectedCase IN LISTS OSCPM_EXPECTED_TYPE_CASES)
         "an expected with ${caseName} fails to compile" "${expectedMessage}")
 endforeach()
 
-add_executable(oscpm_address_rule address_rule.cpp)
-target_link_libraries(oscpm_address_rule PRIVATE oscpm::oscpm)
-target_compile_options(oscpm_address_rule PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
-)
-add_test(NAME "an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" COMMAND oscpm_address_rule)
+add_test(NAME "an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" COMMAND oscpm_rules change-parsed-address)
 set_tests_properties("an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must stay unchanged after it is parsed")
 
-add_executable(oscpm_expected_rule expected_rule.cpp)
-target_link_libraries(oscpm_expected_rule PRIVATE oscpm::oscpm)
-target_compile_options(oscpm_expected_rule PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
-)
-add_test(NAME "reading the value of an expected holding an error aborts" COMMAND oscpm_expected_rule value)
-add_test(NAME "reading the error of an expected holding a value aborts" COMMAND oscpm_expected_rule error)
-
-add_executable(oscpm_constructor_rule constructor_rule.cpp)
-target_link_libraries(oscpm_constructor_rule PRIVATE oscpm::oscpm)
-target_compile_options(oscpm_constructor_rule PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
-)
-add_test(NAME "constructing an address from malformed text aborts" COMMAND oscpm_constructor_rule address /synth/1/)
-add_test(NAME "constructing a pattern from malformed text aborts" COMMAND oscpm_constructor_rule pattern "/synth/[1-3")
+add_test(NAME "reading the value of an expected holding an error aborts" COMMAND oscpm_rules read-value-of-error)
+add_test(NAME "reading the error of an expected holding a value aborts" COMMAND oscpm_rules read-error-of-value)
+add_test(NAME "constructing an address from malformed text aborts" COMMAND oscpm_rules construct-address /synth/1/)
+add_test(NAME "constructing a pattern from malformed text aborts" COMMAND oscpm_rules construct-pattern "/synth/[1-3")
 
 set(OSCPM_CONSTRUCTOR_CASES
     "an address"
@@ -251,7 +244,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 if(OSCPM_SANITIZE)
-    foreach(target oscpm_tests oscpm_visitor_rule oscpm_address_rule oscpm_expected_rule oscpm_constructor_rule)
+    foreach(target oscpm_tests oscpm_rules)
         target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
         target_link_options(${target} PRIVATE -fsanitize=address,undefined)
     endforeach()
