@@ -11,6 +11,7 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace oscpm_bench
 {
@@ -18,10 +19,25 @@ namespace oscpm_bench
 namespace
 {
 
+    // In the GNU C library, `memchr` and `memcmp` take a number of instructions
+    // that depends on where their argument starts, and a string literal moves
+    // whenever the layout of the binary does.
+    std::vector<char> onHeap(std::string_view text)
+    {
+        return std::vector<char>(text.begin(), text.end());
+    }
+
+    std::string_view viewOf(const std::vector<char>& bytes)
+    {
+        return std::string_view(bytes.data(), bytes.size());
+    }
+
     void matchPrepared(benchmark::State& state, const MatchPair* pair)
     {
-        const oscpm::Expected<oscpm::Pattern, oscpm::PatternError> parsed = oscpm::Pattern::parse(pair->pattern);
-        const oscpm::Expected<oscpm::Address, oscpm::AddressError> parsedAddress = oscpm::Address::parse(pair->address);
+        const std::vector<char> patternBytes = onHeap(pair->pattern);
+        const std::vector<char> addressBytes = onHeap(pair->address);
+        const oscpm::Expected<oscpm::Pattern, oscpm::PatternError> parsed = oscpm::Pattern::parse(viewOf(patternBytes));
+        const oscpm::Expected<oscpm::Address, oscpm::AddressError> parsedAddress = oscpm::Address::parse(viewOf(addressBytes));
         if (!parsed || !parsedAddress || parsed->matches(*parsedAddress) != pair->matches)
         {
             failBenchmark(state, "unexpected parse or match result");
@@ -44,8 +60,10 @@ namespace
             failBenchmark(state, "unexpected match result");
             return;
         }
-        std::string_view pattern = pair->pattern;
-        std::string_view address = pair->address;
+        const std::vector<char> patternBytes = onHeap(pair->pattern);
+        const std::vector<char> addressBytes = onHeap(pair->address);
+        std::string_view pattern = viewOf(patternBytes);
+        std::string_view address = viewOf(addressBytes);
         for (auto _ : state)
         {
             benchmark::DoNotOptimize(pattern);
