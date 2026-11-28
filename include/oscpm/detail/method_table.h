@@ -30,11 +30,7 @@ template <typename T, typename MemoTable>
 class MethodTable
 {
 public:
-    explicit MethodTable(bool memoised)
-        : m_memo(memoised)
-    {
-    }
-
+    MethodTable() = default;
     MethodTable(const MethodTable&) = default;
     MethodTable(MethodTable&&) = default;
 
@@ -92,16 +88,16 @@ public:
         return findIn(*this, address);
     }
 
-    template <typename Result, typename Visitor>
-    Result visit(std::string_view text, Visitor& visitor)
+    template <typename Visitor>
+    MatchResult visit(std::string_view text, Visitor& visitor)
     {
-        return dispatchIn<Result>(*this, text, visitor);
+        return dispatchIn(*this, text, visitor);
     }
 
-    template <typename Result, typename Visitor>
-    Result visit(std::string_view text, Visitor& visitor) const
+    template <typename Visitor>
+    MatchResult visit(std::string_view text, Visitor& visitor) const
     {
-        return dispatchIn<Result>(*this, text, visitor);
+        return dispatchIn(*this, text, visitor);
     }
 
     template <typename Visitor>
@@ -158,20 +154,20 @@ private:
         return found ? &methods[index].value : nullptr;
     }
 
-    template <typename Result, typename Self, typename Visitor>
-    static Result dispatchIn(Self& self, std::string_view text, Visitor& visitor)
+    template <typename Self, typename Visitor>
+    static MatchResult dispatchIn(Self& self, std::string_view text, Visitor& visitor)
     {
         std::size_t numVisited = 0;
         if (dispatchKnown(self, text, visitor, numVisited))
         {
-            return Result { numVisited, std::nullopt };
+            return MatchResult { numVisited, std::nullopt };
         }
         const Expected<Pattern, PatternError> parsed = Pattern::parse(text);
         if (!parsed)
         {
-            return Result { 0, parsed.error() };
+            return MatchResult { 0, parsed.error() };
         }
-        return Result { dispatchParsed(self, *parsed, visitor), std::nullopt };
+        return MatchResult { dispatchParsed(self, *parsed, visitor), std::nullopt };
     }
 
     template <typename Self, typename Visitor>

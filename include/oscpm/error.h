@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
 namespace oscpm
 {
@@ -17,6 +18,10 @@ constexpr std::size_t kMaxAddressPartLength = 255;
 /// The maximum length, in bytes, of a pattern containing a wildcard, class,
 /// brace list or "//". A literal pattern has no limit.
 constexpr std::size_t kMaxPatternLength = 1024;
+
+/// The longest pattern whose matches are kept; a longer one is matched afresh
+/// every time.
+constexpr std::size_t kMaxMemoPatternLength = 256;
 
 /// A fault that stops a pattern parsing.
 enum class PatternError
@@ -36,6 +41,13 @@ enum class AddressError
     EmptyPart, ///< two adjacent slashes
     IllegalByte, ///< a byte outside printable ASCII or one of " #*,?[]{}"
     PartTooLong ///< a part longer than `kMaxAddressPartLength`
+};
+
+/// The outcome of `AddressSpace::visit` and `AddressSpace::dispatch`.
+struct MatchResult
+{
+    std::size_t matched; ///< the number of values visited or called
+    std::optional<PatternError> error; ///< the parse fault when the pattern was malformed and no value was reached
 };
 
 /// The enumerator's name as a null-terminated literal with static storage,

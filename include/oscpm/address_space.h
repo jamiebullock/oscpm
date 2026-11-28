@@ -16,7 +16,6 @@
 #include <cstddef>
 #include <functional>
 #include <limits>
-#include <optional>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -24,16 +23,11 @@
 namespace oscpm
 {
 
-/// The longest pattern whose matches are kept; a longer one is matched afresh
-/// every time.
-constexpr std::size_t kMaxMemoPatternLength = 256;
+/// The default `CacheBits` of an `AddressSpace`.
+constexpr unsigned kDefaultCacheBits = 8;
 
-/// The outcome of `AddressSpace::visit` and `AddressSpace::dispatch`.
-struct MatchResult
-{
-    std::size_t matched; ///< the number of values visited or called
-    std::optional<PatternError> error; ///< the parse fault when the pattern was malformed and no value was reached
-};
+/// The default `InlineResults` of an `AddressSpace`.
+constexpr std::size_t kDefaultInlineResults = 1024;
 
 /// Values of type `T` registered under well-formed addresses, which a pattern
 /// selects for `visit` and `dispatch`. When `T` is callable, each value is an
@@ -48,7 +42,7 @@ struct MatchResult
 /// pattern of up to `kMaxMemoPatternLength` bytes
 /// @tparam InlineResults the most matches a kept result lists; a pattern that
 /// matches more, or is too long, is delivered in full but not kept
-template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t InlineResults = 1024>
+template <typename T, bool Memo = true, unsigned CacheBits = kDefaultCacheBits, std::size_t InlineResults = kDefaultInlineResults>
 class AddressSpace
 {
     static_assert(std::is_object_v<T> && std::is_move_constructible_v<T> && std::is_move_assignable_v<T>, "AddressSpace needs a T that is an object type, move-constructible and move-assignable");
@@ -59,10 +53,7 @@ public:
     /// Constructs an empty space. With `Memo` true it allocates the memo,
     /// about `(1 << CacheBits) * (kMaxMemoPatternLength + 4 * InlineResults +
     /// 32)` bytes: 1,122,304 at the defaults on a 64-bit target.
-    AddressSpace()
-        : m_table(Memo)
-    {
-    }
+    AddressSpace() = default;
 
     /// Registers `value` under `address`; allocates. Returns false, and
     /// registers nothing, when the address is already registered. If it
@@ -111,7 +102,7 @@ public:
     {
         static_assert(std::is_invocable_v<Visitor&, std::string_view, T&>, "visit needs a visitor callable as visitor(std::string_view address, T& value)");
         [[maybe_unused]] const typename OpenVisits::Scope scope(m_openVisits);
-        return m_table.template visit<MatchResult>(pattern, visitor);
+        return m_table.visit(pattern, visitor);
     }
 
     /// The `const` overload; the visitor receives `const T&`.
@@ -120,7 +111,7 @@ public:
     {
         static_assert(std::is_invocable_v<Visitor&, std::string_view, const T&>, "visit needs a visitor callable as visitor(std::string_view address, const T& value)");
         [[maybe_unused]] const typename OpenVisits::Scope scope(m_openVisits);
-        return m_table.template visit<MatchResult>(pattern, visitor);
+        return m_table.visit(pattern, visitor);
     }
 
     /// Calls `visitor(std::string_view address, T& value)` for every
@@ -174,7 +165,7 @@ public:
     }
 
 private:
-    using Table = detail::MethodTable<T, detail::DispatchMemo<CacheBits, Memo ? InlineResults : 0, kMaxMemoPatternLength>>;
+    using Table = detail::MethodTable<T, std::conditional_t<Memo, detail::DispatchMemo<CacheBits, InlineResults>, detail::NoDispatchMemo>>;
 
     class OpenVisits
     {
