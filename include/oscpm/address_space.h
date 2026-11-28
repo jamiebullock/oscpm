@@ -67,9 +67,9 @@ public:
     /// Registers `value` under `address`; allocates. Returns false, and
     /// registers nothing, when the address is already registered. If it
     /// throws, the space is unchanged. A build without `NDEBUG` asserts when
-    /// the bytes the address views do not parse as an address. `add` and
-    /// `remove` each take time at least linear in the largest number of
-    /// addresses the space has had registered at once.
+    /// the bytes the address views do not parse as an address. An `add` or
+    /// `remove` that changes the space takes time at least linear in the
+    /// largest number of addresses it has had registered at once.
     bool add(const Address& address, T value)
     {
         assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
