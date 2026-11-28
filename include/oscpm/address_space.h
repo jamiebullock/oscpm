@@ -24,7 +24,7 @@ namespace oscpm
 {
 
 /// The default `CacheBits` of an `AddressSpace`.
-constexpr unsigned kDefaultCacheBits = 8;
+constexpr unsigned kDefaultCacheBits = 6;
 
 /// The default `InlineResults` of an `AddressSpace`.
 constexpr std::size_t kDefaultInlineResults = 1024;
@@ -52,7 +52,7 @@ class AddressSpace
 public:
     /// Constructs an empty space. With `Memo` true it allocates the memo,
     /// about `(1 << CacheBits) * (kMaxMemoPatternLength + 4 * InlineResults +
-    /// 32)` bytes: 1,122,304 at the defaults on a 64-bit target.
+    /// 32)` bytes: 280,576 at the defaults on a 64-bit target.
     AddressSpace() = default;
 
     /// Registers `value` under `address`; allocates. Returns false, and

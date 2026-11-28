@@ -23,7 +23,7 @@ constexpr float frequency = 440.0f;
 static_assert(oscpm::match("/synth/*/freq", "/synth/1/freq"), "a wildcard pattern matches at compile time");
 static_assert(!oscpm::match("/synth/*/freq", "/synth/1/amp"), "a wildcard pattern rejects at compile time");
 
-// A space without a memo: the default memo takes 1.1 MB when the space is constructed.
+// A space without a memo: the default memo takes about 280 KB when the space is constructed.
 oscpm::AddressSpace<float, false> parameters;
 
 void setup()
