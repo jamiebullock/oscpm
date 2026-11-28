@@ -20,7 +20,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(doctest)
 
-add_executable(oscpm_tests
+function(oscpm_add_test_executable target)
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target} PRIVATE oscpm::oscpm)
+    target_compile_options(${target} PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
+        $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
+    )
+endfunction()
+
+oscpm_add_test_executable(oscpm_tests
     address_space_model_tests.cpp
     address_space_tests.cpp
     allocation_counter.cpp
@@ -38,15 +47,7 @@ target_compile_definitions(oscpm_tests PRIVATE
     OSCPM_CORPUS_PATH="${PROJECT_SOURCE_DIR}/corpus/matching.txt"
 )
 
-target_link_libraries(oscpm_tests PRIVATE
-    oscpm::oscpm
-    doctest::doctest_with_main
-)
-
-target_compile_options(oscpm_tests PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
-)
+target_link_libraries(oscpm_tests PRIVATE doctest::doctest_with_main)
 
 if(OSCPM_MULL_PLUGIN)
     set(OSCPM_MULL_RUNNER mull-runner CACHE STRING "Mull runner of the same LLVM version as OSCPM_MULL_PLUGIN")
@@ -108,12 +109,7 @@ if(NOT IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}" AND NOT IS_ABSOLUTE "${CMAKE_IN
         FIXTURES_REQUIRED oscpm_installed)
 endif()
 
-add_executable(oscpm_rules rules.cpp)
-target_link_libraries(oscpm_rules PRIVATE oscpm::oscpm)
-target_compile_options(oscpm_rules PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX /permissive- /Zc:__cplusplus>
-    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Werror>
-)
+oscpm_add_test_executable(oscpm_rules rules.cpp)
 add_test(NAME "a visitor that removes an address trips an assertion in a build without NDEBUG" COMMAND oscpm_rules remove-from-visitor)
 set_tests_properties("a visitor that removes an address trips an assertion in a build without NDEBUG" PROPERTIES
     PASS_REGULAR_EXPRESSION "must not add to or remove from")
@@ -122,6 +118,7 @@ function(oscpm_add_compile_failure target source definition testName expectedMes
     add_executable(${target} EXCLUDE_FROM_ALL ${source})
     target_link_libraries(${target} PRIVATE oscpm::oscpm)
     target_compile_definitions(${target} PRIVATE ${definition})
+    target_compile_options(${target} PRIVATE ${ARGN})
     set_target_properties(${target} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
     add_test(NAME "${testName}"
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ${target} --config $<CONFIG>)
@@ -130,70 +127,72 @@ function(oscpm_add_compile_failure target source definition testName expectedMes
         RESOURCE_LOCK oscpm_build_tree)
 endfunction()
 
-set(OSCPM_VISITOR_CASES
-    "visit with a pattern on a space|visit needs a visitor callable as visitor.std::string_view address, T& value"
-    "visit with a pattern on a const space|visit needs a visitor callable as visitor.std::string_view address, const T& value"
-    "visit without a pattern on a space|visit needs a visitor callable as visitor.std::string_view address, T& value"
-    "visit without a pattern on a const space|visit needs a visitor callable as visitor.std::string_view address, const T& value"
-)
-set(caseNumber 0)
-foreach(visitorCase IN LISTS OSCPM_VISITOR_CASES)
-    math(EXPR caseNumber "${caseNumber} + 1")
-    string(REPLACE "|" ";" visitorCase "${visitorCase}")
-    list(GET visitorCase 0 caseName)
-    list(GET visitorCase 1 expectedMessage)
-    oscpm_add_compile_failure(oscpm_visitor_signature_${caseNumber} visitor_signature.cpp OSCPM_VISITOR_CASE=${caseNumber}
-        "${caseName} fails to compile with a visitor of the wrong signature" "${expectedMessage}")
-endforeach()
+# Each argument after the definition is a test name, or EXPECT <message> or
+# COMPILE_OPTION <option>, which applies to the test names after it. The Nth
+# test builds <targetPrefix>_N from the source with <definition>=N.
+function(oscpm_add_compile_failures targetPrefix source definition)
+    set(caseNumber 0)
+    set(expectedMessage "")
+    set(compileOptions "")
+    set(keyword "")
+    foreach(argument IN LISTS ARGN)
+        if(keyword STREQUAL "EXPECT")
+            set(expectedMessage "${argument}")
+            set(keyword "")
+        elseif(keyword STREQUAL "COMPILE_OPTION")
+            list(APPEND compileOptions "${argument}")
+            set(keyword "")
+        elseif(argument STREQUAL "EXPECT" OR argument STREQUAL "COMPILE_OPTION")
+            set(keyword "${argument}")
+        elseif(expectedMessage STREQUAL "")
+            message(FATAL_ERROR "No EXPECT message precedes \"${argument}\"")
+        else()
+            math(EXPR caseNumber "${caseNumber} + 1")
+            oscpm_add_compile_failure(${targetPrefix}_${caseNumber} ${source} ${definition}=${caseNumber}
+                "${argument}" "${expectedMessage}" ${compileOptions})
+        endif()
+    endforeach()
+endfunction()
 
-set(OSCPM_DISPATCH_CASES
-    "dispatch on a space"
-    "dispatch on a const space"
+oscpm_add_compile_failures(oscpm_visitor_signature visitor_signature.cpp OSCPM_VISITOR_CASE
+    EXPECT "visit needs a visitor callable as visitor.std::string_view address, T& value"
+    "visit with a pattern on a space fails to compile with a visitor of the wrong signature"
+    EXPECT "visit needs a visitor callable as visitor.std::string_view address, const T& value"
+    "visit with a pattern on a const space fails to compile with a visitor of the wrong signature"
+    EXPECT "visit needs a visitor callable as visitor.std::string_view address, T& value"
+    "visit without a pattern on a space fails to compile with a visitor of the wrong signature"
+    EXPECT "visit needs a visitor callable as visitor.std::string_view address, const T& value"
+    "visit without a pattern on a const space fails to compile with a visitor of the wrong signature"
 )
-set(caseNumber 0)
-foreach(caseName IN LISTS OSCPM_DISPATCH_CASES)
-    math(EXPR caseNumber "${caseNumber} + 1")
-    oscpm_add_compile_failure(oscpm_dispatch_signature_${caseNumber} dispatch_signature.cpp OSCPM_DISPATCH_CASE=${caseNumber}
-        "${caseName} fails to compile with a value not callable with the arguments given"
-        "dispatch needs a T that is callable with these arguments. use visit for other values")
-endforeach()
 
-set(OSCPM_VALUE_TYPE_CASES
-    "a value type with a const member|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
-    "a lambda's closure type|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
-    "a type that cannot be moved|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
-    "a reference type|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
-    "a type whose move construction may throw|AddressSpace needs a T whose move construction and move assignment cannot throw"
-    "a type whose move assignment may throw|AddressSpace needs a T whose move construction and move assignment cannot throw"
+oscpm_add_compile_failures(oscpm_dispatch_signature dispatch_signature.cpp OSCPM_DISPATCH_CASE
+    EXPECT "dispatch needs a T that is callable with these arguments. use visit for other values"
+    "dispatch on a space fails to compile with a value not callable with the arguments given"
+    "dispatch on a const space fails to compile with a value not callable with the arguments given"
 )
-set(caseNumber 0)
-foreach(valueTypeCase IN LISTS OSCPM_VALUE_TYPE_CASES)
-    math(EXPR caseNumber "${caseNumber} + 1")
-    string(REPLACE "|" ";" valueTypeCase "${valueTypeCase}")
-    list(GET valueTypeCase 0 caseName)
-    list(GET valueTypeCase 1 expectedMessage)
-    oscpm_add_compile_failure(oscpm_value_type_${caseNumber} value_type.cpp OSCPM_VALUE_TYPE_CASE=${caseNumber}
-        "an address space of ${caseName} fails to compile" "${expectedMessage}")
-endforeach()
+
+oscpm_add_compile_failures(oscpm_value_type value_type.cpp OSCPM_VALUE_TYPE_CASE
+    EXPECT "AddressSpace needs a T that is an object type, move-constructible and move-assignable"
+    "an address space of a value type with a const member fails to compile"
+    "an address space of a lambda's closure type fails to compile"
+    "an address space of a type that cannot be moved fails to compile"
+    "an address space of a reference type fails to compile"
+    EXPECT "AddressSpace needs a T whose move construction and move assignment cannot throw"
+    "an address space of a type whose move construction may throw fails to compile"
+    "an address space of a type whose move assignment may throw fails to compile"
+)
 
 oscpm_add_compile_failure(oscpm_cache_bits cache_bits.cpp ""
     "an address space with as many cache bits as std::size_t has bits fails to compile"
     "AddressSpace needs a CacheBits smaller than the number of bits in std::size_t")
 
-set(OSCPM_EXPECTED_TYPE_CASES
-    "an error type that is not an enumeration|Expected needs an E that is a scoped enumeration"
-    "an error type that is an unscoped enumeration|Expected needs an E that is a scoped enumeration"
-    "a value type that converts from the error type|Expected needs a T and an E that do not convert to each other"
+oscpm_add_compile_failures(oscpm_expected_type expected_type.cpp OSCPM_EXPECTED_TYPE_CASE
+    EXPECT "Expected needs an E that is a scoped enumeration"
+    "an expected with an error type that is not an enumeration fails to compile"
+    "an expected with an error type that is an unscoped enumeration fails to compile"
+    EXPECT "Expected needs a T and an E that do not convert to each other"
+    "an expected with a value type that converts from the error type fails to compile"
 )
-set(caseNumber 0)
-foreach(expectedCase IN LISTS OSCPM_EXPECTED_TYPE_CASES)
-    math(EXPR caseNumber "${caseNumber} + 1")
-    string(REPLACE "|" ";" expectedCase "${expectedCase}")
-    list(GET expectedCase 0 caseName)
-    list(GET expectedCase 1 expectedMessage)
-    oscpm_add_compile_failure(oscpm_expected_type_${caseNumber} expected_type.cpp OSCPM_EXPECTED_TYPE_CASE=${caseNumber}
-        "an expected with ${caseName} fails to compile" "${expectedMessage}")
-endforeach()
 
 add_test(NAME "an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" COMMAND oscpm_rules change-parsed-address)
 set_tests_properties("an address whose bytes changed after parsing trips an assertion in a build without NDEBUG" PROPERTIES
@@ -204,16 +203,11 @@ add_test(NAME "reading the error of an expected holding a value aborts" COMMAND 
 add_test(NAME "constructing an address from malformed text aborts" COMMAND oscpm_rules construct-address /synth/1/)
 add_test(NAME "constructing a pattern from malformed text aborts" COMMAND oscpm_rules construct-pattern "/synth/[1-3")
 
-set(OSCPM_CONSTRUCTOR_CASES
-    "an address"
-    "a pattern"
+oscpm_add_compile_failures(oscpm_constructor_constant constructor_constant.cpp OSCPM_CONSTRUCTOR_CASE
+    EXPECT "constant expression|evaluate to a constant"
+    "an address constructed from malformed text in a constant expression fails to compile"
+    "a pattern constructed from malformed text in a constant expression fails to compile"
 )
-set(caseNumber 0)
-foreach(caseName IN LISTS OSCPM_CONSTRUCTOR_CASES)
-    math(EXPR caseNumber "${caseNumber} + 1")
-    oscpm_add_compile_failure(oscpm_constructor_constant_${caseNumber} constructor_constant.cpp OSCPM_CONSTRUCTOR_CASE=${caseNumber}
-        "${caseName} constructed from malformed text in a constant expression fails to compile" "constant expression|evaluate to a constant")
-endforeach()
 
 # Clang before 20 accepts the attribute and reports nothing for a view of a
 # temporary held through it, so the compiler is asked.
@@ -227,19 +221,14 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         NO_CACHE
         OUTPUT_VARIABLE OSCPM_DANGLING_VIEW_PROBE_OUTPUT)
     if(NOT OSCPM_DANGLING_VIEW_PROBE_COMPILES AND OSCPM_DANGLING_VIEW_PROBE_OUTPUT MATCHES "Wdangling-gsl\\]")
-        set(OSCPM_DANGLING_VIEW_CASES
-            "an address constructed from a temporary string"
-            "a pattern constructed from a temporary string"
-            "an address parsed from a temporary string and kept after it"
-            "a pattern parsed from a temporary string and kept after it"
+        oscpm_add_compile_failures(oscpm_dangling_view dangling_view.cpp OSCPM_DANGLING_VIEW_CASE
+            COMPILE_OPTION -Werror=dangling-gsl
+            EXPECT "object backing the pointer will be destroyed at the end of the full-expression"
+            "an address constructed from a temporary string fails to compile"
+            "a pattern constructed from a temporary string fails to compile"
+            "an address parsed from a temporary string and kept after it fails to compile"
+            "a pattern parsed from a temporary string and kept after it fails to compile"
         )
-        set(caseNumber 0)
-        foreach(caseName IN LISTS OSCPM_DANGLING_VIEW_CASES)
-            math(EXPR caseNumber "${caseNumber} + 1")
-            oscpm_add_compile_failure(oscpm_dangling_view_${caseNumber} dangling_view.cpp OSCPM_DANGLING_VIEW_CASE=${caseNumber}
-                "${caseName} fails to compile" "object backing the pointer will be destroyed at the end of the full-expression")
-            target_compile_options(oscpm_dangling_view_${caseNumber} PRIVATE -Werror=dangling-gsl)
-        endforeach()
     endif()
 endif()
 
