@@ -6,6 +6,8 @@
 
 #include "allocation_counter.h"
 
+#include <doctest/doctest.h>
+
 #include <cstdlib>
 #include <limits>
 #include <new>
@@ -96,4 +98,12 @@ void operator delete(void* memory, std::size_t) noexcept
 void operator delete[](void* memory, std::size_t) noexcept
 {
     std::free(memory);
+}
+
+TEST_CASE("the allocation counter observes the heap")
+{
+    const std::size_t before = oscpm_test::allocationCount();
+    void* const allocated = ::operator new(sizeof(int));
+    CHECK(oscpm_test::allocationCount() > before);
+    ::operator delete(allocated);
 }

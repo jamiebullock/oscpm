@@ -5,6 +5,7 @@
  */
 
 #include "cursor_matcher.h"
+#include "faults.h"
 
 #include <oscpm/oscpm.h>
 
@@ -19,14 +20,10 @@
 using oscpm::match;
 using oscpm::Pattern;
 using oscpm::PatternError;
+using oscpm_test::faults;
 
 namespace
 {
-
-constexpr bool faults(const oscpm::Expected<Pattern, oscpm::PatternError>& result, PatternError kind)
-{
-    return !result && result.error() == kind;
-}
 
 template <typename Function>
 double secondsTaken(Function&& function)
@@ -37,6 +34,49 @@ double secondsTaken(Function&& function)
 }
 
 constexpr double kGenerousSeconds = 5.0;
+constexpr std::size_t kNumAddressRepeats = 200;
+
+struct SlowMatchCase
+{
+    std::string_view description;
+    std::string pattern;
+    std::string address;
+};
+
+std::string repeated(std::string_view text, std::size_t numRepeats)
+{
+    std::string result;
+    for (std::size_t i = 0; i < numRepeats; ++i)
+    {
+        result += text;
+    }
+    return result;
+}
+
+std::string longPartAddress()
+{
+    return "/" + repeated("a", kNumAddressRepeats) + "c";
+}
+
+SlowMatchCase manyStars()
+{
+    return { "many stars", "/" + repeated("*a", 20) + "*b", longPartAddress() };
+}
+
+SlowMatchCase manyBraceLists()
+{
+    return { "many brace lists", "/" + repeated("{a,aa}", 40) + "b", longPartAddress() };
+}
+
+SlowMatchCase thousandEmptyBraceMembers()
+{
+    return { "a brace list with a thousand empty members", "/{" + repeated(",", 1000) + "}b", longPartAddress() };
+}
+
+SlowMatchCase manyDescendantOperators()
+{
+    return { "many // operators", repeated("//a", 20) + "//b", repeated("/a", kNumAddressRepeats) + "/c" };
+}
 
 }
 
@@ -82,7 +122,7 @@ TEST_CASE("an address part longer than the supported length never matches")
     CHECK_FALSE(match("/*", "/" + tooLong));
 }
 
-TEST_CASE("a part shape selects the direct matcher for at most one star and no brace list")
+TEST_CASE("shapeOf classifies a part by its stars and brace lists and counts its tokens against a budget")
 {
     const auto shapeOf = [](std::string_view text, std::size_t maxTokens = oscpm::kMaxAddressPartLength)
     { return oscpm::detail::shapeOf(text, oscpm::detail::firstOpener(text), maxTokens); };
@@ -106,7 +146,7 @@ TEST_CASE("a part shape selects the direct matcher for at most one star and no b
     CHECK_FALSE(shapeOf("a*", 0).exceedsPart);
 }
 
-TEST_CASE("the general matcher and the cursor matcher agree at the edges of malformed text")
+TEST_CASE("matchParsed agrees with matching one part at a time on empty parts and missing slashes")
 {
     const char* const texts[] = { "", "/", "//", "///", "/a", "/a/", "/a//", "//a", "/a/b", "/a//b", "/a/b/", "a", "a/b" };
     for (const char* pattern : texts)
@@ -181,76 +221,18 @@ TEST_CASE("every construct matches a part either side of each multiple of 64 byt
     }
 }
 
-TEST_CASE("a pattern with many stars completes in bounded time")
+TEST_CASE("a pattern with many ways to match a prefix parses and fails to match in bounded time")
 {
-    const std::string address = "/" + std::string(200, 'a') + "c";
-    std::string pattern = "/";
-    for (int i = 0; i < 20; ++i)
+    const SlowMatchCase cases[] = { manyStars(), manyBraceLists(), thousandEmptyBraceMembers(), manyDescendantOperators() };
+    for (const SlowMatchCase& slow : cases)
     {
-        pattern += "*a";
+        INFO(slow.description);
+        REQUIRE(Pattern::parse(slow.pattern));
+
+        bool result = true;
+        const double seconds = secondsTaken([&]
+            { result = match(slow.pattern, slow.address); });
+        CHECK_FALSE(result);
+        CHECK(seconds < kGenerousSeconds);
     }
-    pattern += "*b";
-
-    bool result = true;
-    const double seconds = secondsTaken([&]
-        { result = match(pattern, address); });
-    CHECK_FALSE(result);
-    CHECK(seconds < kGenerousSeconds);
-}
-
-TEST_CASE("a pattern with many brace lists completes in bounded time")
-{
-    const std::string address = "/" + std::string(200, 'a') + "c";
-    std::string pattern = "/";
-    for (int i = 0; i < 40; ++i)
-    {
-        pattern += "{a,aa}";
-    }
-    pattern += "b";
-
-    bool result = true;
-    const double seconds = secondsTaken([&]
-        { result = match(pattern, address); });
-    CHECK_FALSE(result);
-    CHECK(seconds < kGenerousSeconds);
-}
-
-TEST_CASE("a brace list with a thousand empty members completes in bounded time")
-{
-    const std::string address = "/" + std::string(200, 'a') + "c";
-    std::string pattern = "/{";
-    for (int i = 0; i < 1000; ++i)
-    {
-        pattern += ",";
-    }
-    pattern += "}b";
-    REQUIRE(Pattern::parse(pattern));
-
-    bool result = true;
-    const double seconds = secondsTaken([&]
-        { result = match(pattern, address); });
-    CHECK_FALSE(result);
-    CHECK(seconds < kGenerousSeconds);
-}
-
-TEST_CASE("a pattern with many // operators completes in bounded time")
-{
-    std::string address;
-    for (int i = 0; i < 200; ++i)
-    {
-        address += "/a";
-    }
-    address += "/c";
-    std::string pattern;
-    for (int i = 0; i < 20; ++i)
-    {
-        pattern += "//a";
-    }
-    pattern += "//b";
-
-    bool result = true;
-    const double seconds = secondsTaken([&]
-        { result = match(pattern, address); });
-    CHECK_FALSE(result);
-    CHECK(seconds < kGenerousSeconds);
 }

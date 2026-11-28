@@ -5,6 +5,7 @@
  */
 
 #include "allocation_counter.h"
+#include "faults.h"
 
 #include <oscpm/address.h>
 #include <oscpm/pattern.h>
@@ -12,7 +13,6 @@
 #include <doctest/doctest.h>
 
 #include <cstddef>
-#include <new>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -21,6 +21,7 @@
 using oscpm::Address;
 using oscpm::Pattern;
 using oscpm::PatternError;
+using oscpm_test::faults;
 
 namespace
 {
@@ -37,11 +38,6 @@ static_assert(!kUnterminated);
 static_assert(kUnterminated.error() == PatternError::UnterminatedClass);
 static_assert(std::is_trivially_copyable_v<Pattern>);
 static_assert(std::is_trivially_copyable_v<oscpm::Expected<Pattern, oscpm::PatternError>>);
-
-constexpr bool faults(const oscpm::Expected<Pattern, oscpm::PatternError>& result, PatternError kind)
-{
-    return !result && result.error() == kind;
-}
 
 }
 
@@ -253,7 +249,7 @@ TEST_CASE("every byte the matcher treats as an opener makes a pattern non-litera
     }
 }
 
-TEST_CASE("the literal shortcut agrees with the general matcher")
+TEST_CASE("matches on a literal pattern agrees with matchParsed on its text")
 {
     const char* const patterns[] = { "/", "/a", "/a/", "/a/b", "/a]", "/a}", "/a,b", "/#bundle", "/a b", "/synth/1/freq" };
     const char* const addresses[] = { "/a", "/a/b", "/ab", "/synth/1/freq", "/synth/1/fre", "/synth/1/freq/x" };
@@ -296,14 +292,6 @@ TEST_CASE("parsing and matching allocate nothing")
     CHECK(matched);
     CHECK(convenience);
     CHECK_FALSE(failed);
-}
-
-TEST_CASE("the allocation counter observes the heap")
-{
-    const std::size_t before = oscpm_test::allocationCount();
-    void* const allocated = ::operator new(sizeof(int));
-    CHECK(oscpm_test::allocationCount() > before);
-    ::operator delete(allocated);
 }
 
 TEST_CASE("the constructor yields the pattern parse yields")

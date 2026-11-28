@@ -6,6 +6,7 @@
 
 #include "allocation_counter.h"
 #include "corpus.h"
+#include "faults.h"
 
 #include <oscpm/address_space.h>
 #include <oscpm/detail/address_index.h>
@@ -15,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <map>
@@ -34,27 +36,16 @@ using oscpm::Address;
 using oscpm::AddressSpace;
 using oscpm::Pattern;
 using oscpm::PatternError;
+using oscpm_test::faults;
 
 namespace
 {
 
 using Addresses = std::vector<std::string>;
 
-bool faults(const std::optional<PatternError>& result, PatternError kind)
-{
-    return result == kind;
-}
-
 Pattern parsed(std::string_view text)
 {
     const oscpm::Expected<Pattern, oscpm::PatternError> result = Pattern::parse(text);
-    REQUIRE(result);
-    return *result;
-}
-
-Address parsedAddress(std::string_view text)
-{
-    const oscpm::Expected<Address, oscpm::AddressError> result = Address::parse(text);
     REQUIRE(result);
     return *result;
 }
@@ -92,7 +83,7 @@ void populate(Space& space, const Addresses& addresses)
 {
     for (const std::string& address : addresses)
     {
-        REQUIRE(space.add(parsedAddress(address), 0));
+        REQUIRE(space.add(Address(address), 0));
     }
 }
 
@@ -235,7 +226,7 @@ Addresses matchesAmong(const Addresses& held, std::string_view pattern)
     const Pattern value = parsed(pattern);
     for (const std::string& address : held)
     {
-        if (value.matches(parsedAddress(address)))
+        if (value.matches(Address(address)))
         {
             expected.push_back(address);
         }
@@ -408,11 +399,11 @@ void failCopyAssignment()
     SmallMemoSpace<T> source;
     for (int i = 0; i < 4; ++i)
     {
-        REQUIRE(target.add(parsedAddress("/m/" + std::to_string(10 + i) + longPart), valueNumbered<T>(i)));
+        REQUIRE(target.add(Address("/m/" + std::to_string(10 + i) + longPart), valueNumbered<T>(i)));
     }
     for (int i = 0; i < 20; ++i)
     {
-        REQUIRE(source.add(parsedAddress("/s/" + std::to_string(10 + i) + longPart), valueNumbered<T>(100 + i)));
+        REQUIRE(source.add(Address("/s/" + std::to_string(10 + i) + longPart), valueNumbered<T>(100 + i)));
     }
     requireVisitsWhatItHolds(target);
     requireVisitsWhatItHolds(source);
@@ -429,9 +420,9 @@ void failCopyAssignment()
 void failAddToMovedFromSpace()
 {
     SmallMemoSpace<std::string> source;
-    REQUIRE(source.add(parsedAddress("/m/10"), valueNumbered<std::string>(0)));
+    REQUIRE(source.add(Address("/m/10"), valueNumbered<std::string>(0)));
     const SmallMemoSpace<std::string> taken(std::move(source));
-    const Address address = parsedAddress("/m/11/a-part-too-long-for-the-small-string-buffer");
+    const Address address("/m/11/a-part-too-long-for-the-small-string-buffer");
     const std::string value = valueNumbered<std::string>(1);
     const Contents after { { std::string(address.text()), value } };
     std::size_t numFailures = 0;
@@ -447,13 +438,47 @@ void failAddToMovedFromSpace()
     CHECK(numFailures > 0);
 }
 
+using MemoUnderTest = oscpm::detail::DispatchMemo<0, 4>;
+
+struct MemoMethod
+{
+    std::string address;
+    int value;
+};
+
+struct MemoReader
+{
+    std::vector<MemoMethod> methods { { "/a", 1 }, { "/b", 2 } };
+    Addresses served;
+    std::size_t numVisited = 0;
+
+    template <typename Visitor>
+    bool visit(MemoUnderTest& memo, std::string_view text, Visitor& visitor)
+    {
+        return memo.visit(text, oscpm::detail::hashOf(text), methods, visitor, numVisited);
+    }
+
+    bool serve(MemoUnderTest& memo, std::string_view text)
+    {
+        const auto record = [this](std::string_view address, int&)
+        { served.emplace_back(address); };
+        return visit(memo, text, record);
+    }
+};
+
+void storeOneResult(MemoUnderTest& memo, std::string_view text, std::uint32_t methodIndex)
+{
+    const MemoUnderTest::Results results { methodIndex };
+    memo.store(text, oscpm::detail::hashOf(text), results, 1);
+}
+
 }
 
 TEST_CASE("add registers an address once")
 {
     AddressSpace<int> space;
-    CHECK(space.add(parsedAddress("/synth/1/freq"), 1));
-    CHECK_FALSE(space.add(parsedAddress("/synth/1/freq"), 2));
+    CHECK(space.add(Address("/synth/1/freq"), 1));
+    CHECK_FALSE(space.add(Address("/synth/1/freq"), 2));
     CHECK(space.size() == 1);
     CHECK(*space.find("/synth/1/freq") == 1);
 }
@@ -462,9 +487,9 @@ TEST_CASE("remove unregisters an address that is registered")
 {
     AddressSpace<int> space;
     populate(space, { "/a", "/b" });
-    CHECK_FALSE(space.remove(parsedAddress("/c")));
-    CHECK(space.remove(parsedAddress("/a")));
-    CHECK_FALSE(space.remove(parsedAddress("/a")));
+    CHECK_FALSE(space.remove(Address("/c")));
+    CHECK(space.remove(Address("/a")));
+    CHECK_FALSE(space.remove(Address("/a")));
     CHECK(allAddresses(space) == Addresses { "/b" });
 }
 
@@ -476,11 +501,11 @@ TEST_CASE("remove is declared noexcept and allocates nothing")
     for (int i = 10; i < 50; ++i)
     {
         addresses.push_back("/m/" + std::to_string(i));
-        REQUIRE(space.add(parsedAddress(addresses.back()), valueNumbered<std::string>(i)));
+        REQUIRE(space.add(Address(addresses.back()), valueNumbered<std::string>(i)));
     }
-    const Address first = parsedAddress(addresses.front());
-    const Address middle = parsedAddress(addresses[addresses.size() / 2]);
-    const Address last = parsedAddress(addresses.back());
+    const Address first(addresses.front());
+    const Address middle(addresses[addresses.size() / 2]);
+    const Address last(addresses.back());
     REQUIRE(matchingAddresses(space, "/m/*") == addresses);
 
     const std::size_t before = oscpm_test::allocationCount();
@@ -544,8 +569,8 @@ TEST_CASE("visit returns the number of values visited and lets the visitor chang
 TEST_CASE("find returns the value registered under an address and null when there is none")
 {
     AddressSpace<int> space;
-    REQUIRE(space.add(parsedAddress("/synth/1/freq"), 440));
-    REQUIRE(space.add(parsedAddress("/synth/2/freq"), 220));
+    REQUIRE(space.add(Address("/synth/1/freq"), 440));
+    REQUIRE(space.add(Address("/synth/2/freq"), 220));
 
     int* const found = space.find("/synth/1/freq");
     REQUIRE(found != nullptr);
@@ -562,7 +587,7 @@ TEST_CASE("find returns the value registered under an address and null when ther
         CHECK(space.find(absent) == nullptr);
     }
 
-    REQUIRE(space.remove(parsedAddress("/synth/1/freq")));
+    REQUIRE(space.remove(Address("/synth/1/freq")));
     CHECK(space.find("/synth/1/freq") == nullptr);
     REQUIRE(space.find("/synth/2/freq") != nullptr);
     CHECK(*space.find("/synth/2/freq") == 220);
@@ -571,7 +596,7 @@ TEST_CASE("find returns the value registered under an address and null when ther
 TEST_CASE("find through a const space returns a pointer to a const value")
 {
     AddressSpace<int> space;
-    REQUIRE(space.add(parsedAddress("/a"), 7));
+    REQUIRE(space.add(Address("/a"), 7));
     const AddressSpace<int>& constSpace = space;
     static_assert(std::is_same_v<decltype(constSpace.find("/a")), const int*>);
     static_assert(std::is_same_v<decltype(space.find("/a")), int*>);
@@ -583,12 +608,12 @@ TEST_CASE("find through a const space returns a pointer to a const value")
 TEST_CASE("find reaches a move-only value and a value in a space without a memo")
 {
     AddressSpace<std::unique_ptr<int>> moveOnly;
-    REQUIRE(moveOnly.add(parsedAddress("/a"), std::make_unique<int>(3)));
+    REQUIRE(moveOnly.add(Address("/a"), std::make_unique<int>(3)));
     REQUIRE(moveOnly.find("/a") != nullptr);
     CHECK(**moveOnly.find("/a") == 3);
 
     AddressSpace<int, false> unmemoised;
-    REQUIRE(unmemoised.add(parsedAddress("/a"), 4));
+    REQUIRE(unmemoised.add(Address("/a"), 4));
     REQUIRE(unmemoised.find("/a") != nullptr);
     CHECK(*unmemoised.find("/a") == 4);
     CHECK(unmemoised.find("/b") == nullptr);
@@ -597,9 +622,9 @@ TEST_CASE("find reaches a move-only value and a value in a space without a memo"
 TEST_CASE("a visitor may call find on the space that called it")
 {
     AddressSpace<int> space;
-    REQUIRE(space.add(parsedAddress("/a/1"), 1));
-    REQUIRE(space.add(parsedAddress("/a/2"), 2));
-    REQUIRE(space.add(parsedAddress("/total"), 0));
+    REQUIRE(space.add(Address("/a/1"), 1));
+    REQUIRE(space.add(Address("/a/2"), 2));
+    REQUIRE(space.add(Address("/total"), 0));
     const oscpm::MatchResult result = space.visit("/a/*", [&](std::string_view, int& value)
         { *space.find("/total") += value; });
     CHECK(result.matched == 2);
@@ -718,9 +743,9 @@ TEST_CASE("a repeated visit gives the same result and a change to the space is s
     CHECK(matchingAddresses(space, "/a/*") == first);
     CHECK(first == Addresses { "/a/1", "/a/2" });
 
-    REQUIRE(space.add(parsedAddress("/a/0"), 0));
+    REQUIRE(space.add(Address("/a/0"), 0));
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
-    REQUIRE(space.remove(parsedAddress("/a/1")));
+    REQUIRE(space.remove(Address("/a/1")));
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/2" });
 }
@@ -813,19 +838,19 @@ TEST_CASE("a memo that keeps no list of matches still delivers every match")
         CHECK(matchingAddresses(space, "/c/1").empty());
         CHECK(matchingAddresses(space, "/b/1") == Addresses { "/b/1" });
     }
-    REQUIRE(space.add(parsedAddress("/c/1"), 0));
+    REQUIRE(space.add(Address("/c/1"), 0));
     CHECK(matchingAddresses(space, "/c/*") == Addresses { "/c/1" });
     CHECK(matchingAddresses(space, "/c/1") == Addresses { "/c/1" });
 }
 
-TEST_CASE("an address space without a memo behaves the same")
+TEST_CASE("an address space without a memo finds every match on each visit and after an add")
 {
     AddressSpace<int, false> space;
     populate(space, { "/a/1", "/a/2", "/b/1" });
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(space, "/a/1") == Addresses { "/a/1" });
-    REQUIRE(space.add(parsedAddress("/a/0"), 0));
+    REQUIRE(space.add(Address("/a/0"), 0));
     CHECK(matchingAddresses(space, "/a/*") == Addresses { "/a/0", "/a/1", "/a/2" });
 }
 
@@ -839,10 +864,10 @@ TEST_CASE("visit sees every add and remove after a pattern has been visited")
         CHECK(visitAddresses(space, "/b", result) == Addresses { });
         CHECK(visitAddresses(space, "/*", result) == Addresses { "/a" });
     }
-    REQUIRE(space.add(parsedAddress("/b"), 0));
+    REQUIRE(space.add(Address("/b"), 0));
     CHECK(visitAddresses(space, "/b", result) == Addresses { "/b" });
     CHECK(visitAddresses(space, "/*", result) == Addresses { "/a", "/b" });
-    REQUIRE(space.remove(parsedAddress("/a")));
+    REQUIRE(space.remove(Address("/a")));
     CHECK(visitAddresses(space, "/a", result) == Addresses { });
     CHECK(visitAddresses(space, "/*", result) == Addresses { "/b" });
 }
@@ -910,7 +935,7 @@ TEST_CASE("a copied address space and a moved-from one visit correctly")
     CHECK(visitAddresses(source, "/a/*", result) == Addresses { "/a/1", "/a/2" });
 
     const AddressSpace<int> copy(source);
-    REQUIRE(source.remove(parsedAddress("/a/1")));
+    REQUIRE(source.remove(Address("/a/1")));
     CHECK(visitAddresses(copy, "/a/1", result) == Addresses { "/a/1" });
     CHECK(visitAddresses(copy, "/a/*", result) == Addresses { "/a/1", "/a/2" });
     CHECK(visitAddresses(source, "/a/1", result) == Addresses { });
@@ -931,11 +956,11 @@ TEST_CASE("a space copied or moved during a visit starts outside any visit")
     space.visit("/a/1", [&](std::string_view, int&)
         {
             AddressSpace<int> copy(space);
-            REQUIRE(copy.add(parsedAddress("/b"), 0));
-            REQUIRE(copy.remove(parsedAddress("/a/2")));
+            REQUIRE(copy.add(Address("/b"), 0));
+            REQUIRE(copy.remove(Address("/a/2")));
             copied = allAddresses(copy);
             AddressSpace<int> taken(std::move(copy));
-            REQUIRE(taken.add(parsedAddress("/c"), 0));
+            REQUIRE(taken.add(Address("/c"), 0));
             moved = allAddresses(taken); });
     CHECK(copied == Addresses { "/a/1", "/b" });
     CHECK(moved == Addresses { "/a/1", "/b", "/c" });
@@ -944,61 +969,37 @@ TEST_CASE("a space copied or moved during a visit starts outside any visit")
 
 TEST_CASE("a memo copied while it is being read accepts a new result afterwards")
 {
-    using Memo = oscpm::detail::DispatchMemo<0, 4>;
-    struct Method
-    {
-        std::string address;
-        int value;
-    };
-    std::vector<Method> methods { { "/a", 1 }, { "/b", 2 } };
-    Memo memo;
-    const Memo::Results first { 0 };
-    memo.store("/a", oscpm::detail::hashOf("/a"), first, 1);
+    MemoReader reader;
+    MemoUnderTest memo;
+    storeOneResult(memo, "/a", 0);
 
-    std::optional<Memo> copy;
-    std::size_t numVisited = 0;
+    std::optional<MemoUnderTest> copy;
     const auto copyWhileReading = [&](std::string_view, int&)
     { copy.emplace(memo); };
-    REQUIRE(memo.visit("/a", oscpm::detail::hashOf("/a"), methods, copyWhileReading, numVisited));
+    REQUIRE(reader.visit(memo, "/a", copyWhileReading));
     REQUIRE(copy.has_value());
 
-    const Memo::Results second { 1 };
-    copy->store("/b", oscpm::detail::hashOf("/b"), second, 1);
-    Addresses served;
-    const auto record = [&](std::string_view address, int&)
-    { served.emplace_back(address); };
-    CHECK(copy->visit("/b", oscpm::detail::hashOf("/b"), methods, record, numVisited));
-    CHECK(served == Addresses { "/b" });
+    storeOneResult(*copy, "/b", 1);
+    CHECK(reader.serve(*copy, "/b"));
+    CHECK(reader.served == Addresses { "/b" });
 }
 
 TEST_CASE("a memo assigned to itself while it is being read is left as it was")
 {
-    using Memo = oscpm::detail::DispatchMemo<0, 4>;
-    struct Method
-    {
-        std::string address;
-        int value;
-    };
-    std::vector<Method> methods { { "/a", 1 }, { "/b", 2 } };
-    Memo memo;
-    const Memo::Results first { 0 };
-    memo.store("/a", oscpm::detail::hashOf("/a"), first, 1);
+    MemoReader reader;
+    MemoUnderTest memo;
+    storeOneResult(memo, "/a", 0);
 
-    std::size_t numVisited = 0;
     const auto assignToItself = [&](std::string_view, int&)
     {
-        Memo& same = memo;
+        MemoUnderTest& same = memo;
         memo = same;
     };
-    REQUIRE(memo.visit("/a", oscpm::detail::hashOf("/a"), methods, assignToItself, numVisited));
+    REQUIRE(reader.visit(memo, "/a", assignToItself));
 
-    const Memo::Results second { 1 };
-    memo.store("/b", oscpm::detail::hashOf("/b"), second, 1);
-    Addresses served;
-    const auto record = [&](std::string_view address, int&)
-    { served.emplace_back(address); };
-    CHECK(memo.visit("/b", oscpm::detail::hashOf("/b"), methods, record, numVisited));
-    CHECK(served == Addresses { "/b" });
+    storeOneResult(memo, "/b", 1);
+    CHECK(reader.serve(memo, "/b"));
+    CHECK(reader.served == Addresses { "/b" });
 }
 
 TEST_CASE("a moved address space keeps its values and the moved-from one stays usable")
@@ -1011,65 +1012,53 @@ TEST_CASE("a moved address space keeps its values and the moved-from one stays u
     CHECK(matchingAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(constructed, "/a/*") == Addresses { "/a/1", "/a/2" });
     CHECK(matchingAddresses(source, "/a/*") == Addresses { });
-    REQUIRE(source.add(parsedAddress("/b"), 0));
+    REQUIRE(source.add(Address("/b"), 0));
     CHECK(matchingAddresses(source, "/*") == Addresses { "/b" });
     CHECK(matchingAddresses(source, "/*") == Addresses { "/b" });
 
     AddressSpace<int> assigned;
     assigned = std::move(constructed);
     CHECK(matchingAddresses(assigned, "/a/*") == Addresses { "/a/1", "/a/2" });
-    REQUIRE(constructed.add(parsedAddress("/c"), 0));
+    REQUIRE(constructed.add(Address("/c"), 0));
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
     CHECK(matchingAddresses(constructed, "//") == Addresses { "/c" });
 }
 
 TEST_CASE("a moved-from memo that has its buckets again keeps a result and serves it")
 {
-    using Memo = oscpm::detail::DispatchMemo<0, 4>;
-    struct Method
-    {
-        std::string address;
-        int value;
-    };
-    std::vector<Method> methods { { "/a", 1 }, { "/b", 2 } };
-    const Memo::Results stale { 0 };
-    const Memo::Results fresh { 1 };
-    Addresses served;
-    std::size_t numVisited = 0;
-    const auto record = [&](std::string_view address, int&)
-    { served.emplace_back(address); };
-    const auto requireServesAfterEnsuring = [&](Memo& memo)
+    MemoReader reader;
+    const auto requireServesAfterEnsuring = [&](MemoUnderTest& memo)
     {
         REQUIRE_FALSE(memo.accepts("/*"));
         memo.ensureBuckets();
         REQUIRE(memo.accepts("/*"));
-        CHECK_FALSE(memo.visit("", oscpm::detail::hashOf(""), methods, record, numVisited));
-        CHECK_FALSE(memo.visit("/*", oscpm::detail::hashOf("/*"), methods, record, numVisited));
-        memo.store("/*", oscpm::detail::hashOf("/*"), fresh, 1);
-        CHECK(memo.visit("/*", oscpm::detail::hashOf("/*"), methods, record, numVisited));
-        CHECK(numVisited == 1);
-        CHECK(served == Addresses { "/b" });
+        CHECK_FALSE(reader.serve(memo, ""));
+        CHECK_FALSE(reader.serve(memo, "/*"));
+        storeOneResult(memo, "/*", 1);
+        CHECK(reader.serve(memo, "/*"));
+        CHECK(reader.numVisited == 1);
+        CHECK(reader.served == Addresses { "/b" });
     };
 
-    Memo source;
-    source.store("/*", oscpm::detail::hashOf("/*"), stale, 1);
+    MemoUnderTest source;
+    storeOneResult(source, "/*", 0);
 
     SUBCASE("after move construction")
     {
-        const Memo taken(std::move(source));
+        const MemoUnderTest taken(std::move(source));
         requireServesAfterEnsuring(source);
     }
     SUBCASE("after move assignment")
     {
-        Memo taken;
+        MemoUnderTest taken;
         taken = std::move(source);
         requireServesAfterEnsuring(source);
     }
     SUBCASE("a memo that has its buckets keeps its results")
     {
         source.ensureBuckets();
-        CHECK(source.visit("/*", oscpm::detail::hashOf("/*"), methods, record, numVisited));
-        CHECK(served == Addresses { "/a" });
+        CHECK(reader.serve(source, "/*"));
+        CHECK(reader.served == Addresses { "/a" });
     }
 }
 
@@ -1082,19 +1071,19 @@ TEST_CASE("a moved-from space that is given addresses again visits what it holds
     {
         requireVisitsWhatItHolds(space);
         REQUIRE(space.size() == 0);
-        REQUIRE(space.add(parsedAddress("/m/12"), 0));
-        REQUIRE_FALSE(space.add(parsedAddress("/m/12"), 0));
+        REQUIRE(space.add(Address("/m/12"), 0));
+        REQUIRE_FALSE(space.add(Address("/m/12"), 0));
         for (int round = 0; round < 2; ++round)
         {
             CHECK(matchingAddresses(space, "/m/1?") == Addresses { "/m/12" });
             CHECK(matchingAddresses(space, "/m/2?").empty());
         }
-        REQUIRE(space.add(parsedAddress("/m/13"), 0));
+        REQUIRE(space.add(Address("/m/13"), 0));
         for (int round = 0; round < 2; ++round)
         {
             CHECK(matchingAddresses(space, "/m/1?") == Addresses { "/m/12", "/m/13" });
         }
-        REQUIRE(space.remove(parsedAddress("/m/12")));
+        REQUIRE(space.remove(Address("/m/12")));
         for (int round = 0; round < 2; ++round)
         {
             CHECK(matchingAddresses(space, "/m/1?") == Addresses { "/m/13" });
@@ -1158,8 +1147,8 @@ TEST_CASE("a space that copy assignment failed on keeps the addresses and values
 TEST_CASE("a move-only value type is stored and reached through visit")
 {
     AddressSpace<std::unique_ptr<int>> space;
-    REQUIRE(space.add(parsedAddress("/a"), std::make_unique<int>(1)));
-    REQUIRE(space.add(parsedAddress("/b"), std::make_unique<int>(2)));
+    REQUIRE(space.add(Address("/a"), std::make_unique<int>(1)));
+    REQUIRE(space.add(Address("/b"), std::make_unique<int>(2)));
     space.visit("/*", [](std::string_view, std::unique_ptr<int>& value)
         { *value *= 10; });
     int sum = 0;
@@ -1176,7 +1165,7 @@ TEST_CASE("a visitor reaches every matching handler without allocating")
     std::vector<std::pair<std::string_view, int>> calls;
     for (const char* address : { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp" })
     {
-        REQUIRE(handlers.add(parsedAddress(address), [&calls, address](int argument)
+        REQUIRE(handlers.add(Address(address), [&calls, address](int argument)
             { calls.emplace_back(address, argument); }));
     }
     calls.reserve(8);
@@ -1221,7 +1210,7 @@ TEST_CASE("dispatch calls every matching handler with the same arguments without
     std::vector<Call> calls;
     for (const char* address : { "/synth/1/freq", "/synth/2/freq", "/synth/2/amp" })
     {
-        REQUIRE(handlers.add(parsedAddress(address), [&calls, address](int argument, const std::string& name)
+        REQUIRE(handlers.add(Address(address), [&calls, address](int argument, const std::string& name)
             { calls.push_back(Call { address, argument, &name, name == "note" }); }));
     }
     calls.reserve(8);
@@ -1265,7 +1254,7 @@ TEST_CASE("dispatch hands every handler that takes an argument by value its own 
     std::vector<std::string> received;
     for (const char* address : { "/synth/1/freq", "/synth/2/freq" })
     {
-        REQUIRE(handlers.add(parsedAddress(address), [&received](std::string name)
+        REQUIRE(handlers.add(Address(address), [&received](std::string name)
             { received.push_back(std::move(name)); }));
     }
 
@@ -1297,10 +1286,10 @@ TEST_CASE("dispatch calls a member function value on the object passed first, wi
         }
     };
     AddressSpace<void (Synth::*)(float)> setters;
-    REQUIRE(setters.add(parsedAddress("/synth/freq"), &Synth::setFrequency));
-    REQUIRE(setters.add(parsedAddress("/synth/amp"), &Synth::setAmplitude));
+    REQUIRE(setters.add(Address("/synth/freq"), &Synth::setFrequency));
+    REQUIRE(setters.add(Address("/synth/amp"), &Synth::setAmplitude));
     AddressSpace<void (Synth::*)(std::vector<float>&) const> reporters;
-    REQUIRE(reporters.add(parsedAddress("/synth/report"), &Synth::report));
+    REQUIRE(reporters.add(Address("/synth/report"), &Synth::report));
     Synth synth;
     std::vector<float> reported;
     reported.reserve(1);

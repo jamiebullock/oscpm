@@ -127,7 +127,7 @@ TEST_CASE("the word tests of the validators judge every byte value at every posi
     }
 }
 
-TEST_CASE("the marking queries agree with the bits of the marking")
+TEST_CASE("the marked-byte queries find adjacent marks and a marked first byte and the bytes after the last mark in every marking")
 {
     for (unsigned marking = 0; marking < kNumMarkings; ++marking)
     {
