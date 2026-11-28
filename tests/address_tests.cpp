@@ -132,7 +132,7 @@ TEST_CASE("parse reads no byte beyond the text of an address")
 
 TEST_CASE("parse rejects a part longer than the supported length")
 {
-    CHECK(oscpm::kMaxAddressPartLength == 4095);
+    CHECK(oscpm::kMaxAddressPartLength == 255);
     const std::string longest(oscpm::kMaxAddressPartLength, 'a');
     const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
     CHECK(Address::parse("/" + longest + "/" + longest));
