@@ -6,7 +6,6 @@
 
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <string_view>
@@ -43,11 +42,17 @@ namespace k
 
 constexpr std::size_t npos = std::string_view::npos;
 
-/// The bytes of `text` from `from` on, `count` of them at most. `from` must
-/// not exceed `text.size()`.
-constexpr std::string_view slice(std::string_view text, std::size_t from, std::size_t count = npos) noexcept
+/// The `count` bytes of `text` from `from` on. `from + count` must not exceed
+/// `text.size()`.
+constexpr std::string_view slice(std::string_view text, std::size_t from, std::size_t count) noexcept
 {
-    return std::string_view(text.data() + from, std::min(count, text.size() - from));
+    return std::string_view(text.data() + from, count);
+}
+
+/// The bytes of `text` from `from` on. `from` must not exceed `text.size()`.
+constexpr std::string_view sliceFrom(std::string_view text, std::size_t from) noexcept
+{
+    return slice(text, from, text.size() - from);
 }
 
 constexpr bool startsWith(std::string_view text, std::string_view prefix) noexcept

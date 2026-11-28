@@ -11,6 +11,7 @@
 #include <oscpm/detail/syntax.h>
 #include <oscpm/error.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <string_view>
 
@@ -69,10 +70,10 @@ constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, st
     while (moreAlternatives)
     {
         const std::size_t comma = remaining.find(k::listSeparator);
-        const std::string_view alternative = slice(remaining, 0, comma);
+        const std::string_view alternative = slice(remaining, 0, std::min(comma, remaining.size()));
         for (std::size_t position = 0; position <= part.size(); ++position)
         {
-            if (reach.test(position) && startsWith(slice(part, position), alternative))
+            if (reach.test(position) && startsWith(sliceFrom(part, position), alternative))
             {
                 next.set(position + alternative.size());
             }
@@ -80,7 +81,7 @@ constexpr Reach<NumWords> advanceByAlternatives(const Reach<NumWords>& reach, st
         moreAlternatives = comma != npos;
         if (moreAlternatives)
         {
-            remaining = slice(remaining, comma + 1);
+            remaining = sliceFrom(remaining, comma + 1);
         }
     }
     return next;
@@ -242,10 +243,10 @@ constexpr bool matchPartDirect(std::string_view pattern, std::string_view part, 
     {
         return false;
     }
-    const std::string_view prefix = slice(pattern, 0, shape.star);
-    const std::string_view suffix = shape.star == npos ? std::string_view() : slice(pattern, shape.star + 1);
+    const std::string_view prefix = slice(pattern, 0, std::min(shape.star, pattern.size()));
+    const std::string_view suffix = shape.star == npos ? std::string_view() : sliceFrom(pattern, shape.star + 1);
     return matchTokens(prefix, slice(part, 0, shape.numTokensBeforeStar))
-        && matchTokens(suffix, slice(part, part.size() - shape.numTokensAfterStar));
+        && matchTokens(suffix, sliceFrom(part, part.size() - shape.numTokensAfterStar));
 }
 
 OSCPM_NOINLINE constexpr bool matchPart(std::string_view pattern, std::string_view part) noexcept

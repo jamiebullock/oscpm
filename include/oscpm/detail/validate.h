@@ -163,7 +163,7 @@ constexpr PatternScan scanPattern(std::string_view pattern) noexcept
         {
             return { PatternError::PatternTooLong, false };
         }
-        if (hasIllegalByte(slice(pattern, checked)))
+        if (hasIllegalByte(sliceFrom(pattern, checked)))
         {
             return { PatternError::IllegalByte, false };
         }
