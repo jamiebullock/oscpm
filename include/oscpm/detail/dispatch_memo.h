@@ -103,6 +103,14 @@ public:
         ++m_generation;
     }
 
+    void ensureBuckets()
+    {
+        if (m_buckets.empty())
+        {
+            m_buckets.resize(kNumBuckets);
+        }
+    }
+
 private:
     static constexpr std::size_t kNumBuckets = std::size_t { 1 } << CacheBits;
     static constexpr std::uint64_t kNeverStored = 0;
@@ -195,6 +203,10 @@ public:
     }
 
     constexpr void forget() const noexcept
+    {
+    }
+
+    constexpr void ensureBuckets() const noexcept
     {
     }
 };

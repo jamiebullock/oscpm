@@ -54,6 +54,7 @@ public:
             m_partEnds.reserve(2 * m_partEnds.size() + 1);
         }
         m_index.reserveForInsert();
+        m_memo.ensureBuckets();
         const auto offset = position - m_methods.begin();
         // Nothing after this call can throw, and the call has no effects when it throws, so a failed insert leaves the table as it was.
         m_methods.insert(position, Method { std::string(address), std::move(value) });
