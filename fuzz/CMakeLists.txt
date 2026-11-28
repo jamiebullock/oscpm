@@ -73,6 +73,7 @@ function(oscpm_add_fuzz_target target source)
 endfunction()
 
 oscpm_add_fuzz_target(oscpm_pattern_fuzz pattern_fuzz.cpp)
+target_include_directories(oscpm_pattern_fuzz PRIVATE ${PROJECT_SOURCE_DIR}/tests)
 add_dependencies(oscpm_pattern_fuzz oscpm_fuzz_seeds)
 
 oscpm_add_fuzz_target(oscpm_address_space_fuzz address_space_fuzz.cpp)

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Zlib
  */
 
+#include "cursor_matcher.h"
+
 #include <oscpm/oscpm.h>
 
 #include <doctest/doctest.h>
@@ -128,7 +130,7 @@ TEST_CASE("the general matcher and the cursor matcher agree at the edges of malf
         for (const char* address : texts)
         {
             INFO("pattern \"" << pattern << "\" address \"" << address << "\"");
-            CHECK(oscpm::detail::matchParsed(pattern, address) == oscpm::detail::matchWithCursors(pattern, address));
+            CHECK(oscpm::detail::matchParsed(pattern, address) == oscpm_test::matchWithCursors(pattern, address));
         }
     }
 }
