@@ -457,11 +457,11 @@ Nothing in the library calls `std::abort` except:
 
 `AddressSpace::add`:
 - leaves the space unchanged when it throws
-- when it registers the address, takes time at least linear in the largest number of addresses the space has had registered at once
+- when it registers the address, takes time at least proportional to the number of registered addresses
 
 `AddressSpace::remove`:
 - never throws, and is declared `noexcept`
-- when it removes the address, takes time at least linear in the largest number of addresses the space has had registered at once
+- when it removes the address, takes time at least proportional to the number of registered addresses
 
 `AddressSpace::find`:
 - never throws, and is declared `noexcept`
