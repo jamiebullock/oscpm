@@ -7,6 +7,7 @@
 #pragma once
 
 #include <oscpm/address.h>
+#include <oscpm/detail/compiler.h>
 #include <oscpm/detail/match.h>
 #include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
@@ -27,18 +28,18 @@ class Pattern
 {
 public:
     /// Parses `text`, yielding the pattern or the first fault.
-    static constexpr Expected<Pattern, PatternError> parse(std::string_view text) noexcept;
+    [[nodiscard]] static constexpr Expected<Pattern, PatternError> parse(std::string_view text OSCPM_LIFETIMEBOUND) noexcept;
 
     /// Parses `text`, calling `std::abort` on the first fault; in a constant
     /// expression a fault is a compile error. For text the program controls;
     /// `parse` is for text it does not.
-    constexpr explicit Pattern(std::string_view text) noexcept
+    constexpr explicit Pattern(std::string_view text OSCPM_LIFETIMEBOUND) noexcept
         : Pattern(text, detail::scanPattern(text))
     {
     }
 
     /// Whether this pattern matches `address`.
-    constexpr bool matches(const Address& address) const noexcept
+    [[nodiscard]] constexpr bool matches(const Address& address) const noexcept
     {
         return m_isLiteral ? address.text() == m_text : detail::matchParsed(m_text, address.text());
     }
@@ -92,7 +93,7 @@ constexpr Expected<Pattern, PatternError> Pattern::parse(std::string_view text) 
 }
 
 /// Whether `pattern` matches `address`; false when either is malformed.
-constexpr bool match(std::string_view pattern, std::string_view address) noexcept
+[[nodiscard]] constexpr bool match(std::string_view pattern, std::string_view address) noexcept
 {
     const Expected<Pattern, PatternError> parsedPattern = Pattern::parse(pattern);
     if (!parsedPattern)
