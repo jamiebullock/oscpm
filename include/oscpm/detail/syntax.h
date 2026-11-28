@@ -169,21 +169,4 @@ constexpr bool hasWildcard(std::string_view pattern) noexcept
     return hasOpener(pattern) || pattern.find(k::descendantOperator) != npos;
 }
 
-constexpr bool hasPartLongerThan(std::string_view text, std::size_t limit) noexcept
-{
-    std::size_t partLength = 0;
-    for (const char byte : text)
-    {
-        if (byte == k::partSeparator)
-        {
-            partLength = 0;
-        }
-        else if (++partLength > limit)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 }

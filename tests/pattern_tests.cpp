@@ -219,15 +219,15 @@ TEST_CASE("a pattern is literal when it contains no wildcard, class, brace list 
     static_assert(!Pattern::parse("//")->isLiteral());
 }
 
-TEST_CASE("a pattern with a part beyond the maximum length is not literal and never matches")
+TEST_CASE("a pattern without a wildcard is literal whatever the length of its parts")
 {
     const std::string longest(oscpm::kMaxAddressPartLength, 'a');
     const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
     CHECK(Pattern::parse("/" + longest)->isLiteral());
     CHECK(Pattern::parse("/" + longest)->matches(*Address::parse("/" + longest)));
-    CHECK_FALSE(Pattern::parse("/" + tooLong)->isLiteral());
-    CHECK_FALSE(oscpm::detail::matchParsed("/" + tooLong, "/" + tooLong));
-    CHECK_FALSE(Pattern::parse("/a/" + tooLong)->isLiteral());
+    CHECK(Pattern::parse("/" + tooLong)->isLiteral());
+    CHECK(Pattern::parse("/a/" + tooLong)->isLiteral());
+    CHECK_FALSE(oscpm::match("/" + tooLong, "/" + tooLong));
 }
 
 TEST_CASE("every byte the matcher treats as an opener makes a pattern non-literal and no other does")
