@@ -5,6 +5,7 @@
  */
 
 #include "allocation_counter.h"
+#include "faults.h"
 
 #include <oscpm/address.h>
 #include <oscpm/detail/validate.h>
@@ -21,6 +22,7 @@
 
 using oscpm::Address;
 using oscpm::AddressError;
+using oscpm_test::faults;
 
 namespace
 {
@@ -34,11 +36,6 @@ static_assert(!kTrailing);
 static_assert(kTrailing.error() == AddressError::TrailingSlash);
 static_assert(std::is_trivially_copyable_v<Address>);
 static_assert(std::is_trivially_copyable_v<oscpm::Expected<Address, oscpm::AddressError>>);
-
-constexpr bool faults(const oscpm::Expected<Address, oscpm::AddressError>& result, AddressError kind)
-{
-    return !result && result.error() == kind;
-}
 
 }
 
