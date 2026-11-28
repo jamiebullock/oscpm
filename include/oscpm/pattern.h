@@ -8,7 +8,6 @@
 
 #include <oscpm/address.h>
 #include <oscpm/detail/match.h>
-#include <oscpm/detail/syntax.h>
 #include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
 #include <oscpm/expected.h>

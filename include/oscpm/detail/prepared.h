@@ -118,7 +118,7 @@ public:
     std::string_view part() const noexcept
     {
         const std::size_t start = m_index == 0 ? 1 : m_partEnds[m_index - 1] + 1;
-        return m_address.substr(start, m_partEnds[m_index] - start);
+        return slice(m_address, start, m_partEnds[m_index] - start);
     }
 
     void advance() noexcept

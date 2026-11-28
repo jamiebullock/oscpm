@@ -11,7 +11,6 @@
 #include <oscpm/detail/method_table.h>
 #include <oscpm/detail/validate.h>
 #include <oscpm/error.h>
-#include <oscpm/pattern.h>
 
 #include <cassert>
 #include <cstddef>

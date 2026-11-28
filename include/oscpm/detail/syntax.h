@@ -6,8 +6,7 @@
 
 #pragma once
 
-#include <oscpm/error.h>
-
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <string_view>
@@ -44,9 +43,16 @@ namespace k
 
 constexpr std::size_t npos = std::string_view::npos;
 
+/// The bytes of `text` from `from` on, `count` of them at most. `from` must
+/// not exceed `text.size()`.
+constexpr std::string_view slice(std::string_view text, std::size_t from, std::size_t count = npos) noexcept
+{
+    return std::string_view(text.data() + from, std::min(count, text.size() - from));
+}
+
 constexpr bool startsWith(std::string_view text, std::string_view prefix) noexcept
 {
-    return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
+    return text.size() >= prefix.size() && slice(text, 0, prefix.size()) == prefix;
 }
 
 constexpr bool isOpener(char byte) noexcept
