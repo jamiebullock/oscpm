@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.11.0] - 2026-11-28
+
+### Changed
+
+- **Breaking:** require libstdc++ 8 or later when the standard library is libstdc++ ([#102](https://github.com/jamiebullock/oscpm/pull/102))
+- **Breaking:** reduce `kMaxAddressPartLength` from 4,095 to 255 ([#109](https://github.com/jamiebullock/oscpm/pull/109))
+- **Breaking:** require an `AddressSpace` value type whose move construction and move assignment cannot throw ([#110](https://github.com/jamiebullock/oscpm/pull/110))
+- **Breaking:** treat a pattern without a wildcard as literal in `Pattern::isLiteral` whatever the length of its parts ([#107](https://github.com/jamiebullock/oscpm/pull/107))
+- Keep an `AddressSpace` unchanged when `add` throws ([#110](https://github.com/jamiebullock/oscpm/pull/110))
+- Make `AddressSpace::remove` `noexcept` ([#110](https://github.com/jamiebullock/oscpm/pull/110))
+- Make `AddressSpace::add` allocate the memo of a moved-from space again ([#112](https://github.com/jamiebullock/oscpm/pull/112))
+- Make `match`, `Pattern::parse`, `Pattern::matches`, `Address::parse` and `AddressSpace::find` `[[nodiscard]]` ([#114](https://github.com/jamiebullock/oscpm/pull/114))
+- Report an `Address` or `Pattern` that outlives a temporary string, under Clang 20 or later ([#114](https://github.com/jamiebullock/oscpm/pull/114))
+- Reduce the stack `match` uses for a part with a brace list or two or more `*` ([#109](https://github.com/jamiebullock/oscpm/pull/109))
+
+### Added
+
+- Add `kDefaultCacheBits` and `kDefaultInlineResults` ([#111](https://github.com/jamiebullock/oscpm/pull/111))
+
 ## [0.10.2] - 2026-11-27
 
 ### Fixed
@@ -146,6 +165,7 @@
 
 - Add `match`, `isValidAddress`, `isValidPattern` and `kMaxAddressPartLength` ([#2](https://github.com/jamiebullock/oscpm/pull/2))
 
+[0.11.0]: https://github.com/jamiebullock/oscpm/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/jamiebullock/oscpm/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/jamiebullock/oscpm/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/jamiebullock/oscpm/compare/v0.9.8...v0.10.0
