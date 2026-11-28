@@ -7,6 +7,7 @@
 #pragma once
 
 #include <oscpm/detail/address_index.h>
+#include <oscpm/detail/compiler.h>
 #include <oscpm/detail/match.h>
 #include <oscpm/detail/prepared.h>
 #include <oscpm/detail/syntax.h>
@@ -18,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -48,18 +48,12 @@ public:
         {
             return false;
         }
-        std::vector<std::size_t> partEnds = partEndsOf(address);
-        if (m_partEnds.size() == m_partEnds.capacity())
-        {
-            m_partEnds.reserve(2 * m_partEnds.size() + 1);
-        }
         m_index.reserveForInsert();
         m_memo.ensureBuckets();
         const auto offset = position - m_methods.begin();
         // Nothing after this call can throw, and the call has no effects when it throws, so a failed insert leaves the table as it was.
-        m_methods.insert(position, Method { std::string(address), std::move(value) });
+        m_methods.insert(position, Method { StoredAddress(address), std::move(value) });
         m_memo.forget();
-        m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
         m_index.insert(static_cast<std::size_t>(offset), hashOf(address));
         return true;
     }
@@ -74,7 +68,6 @@ public:
         const auto offset = position - m_methods.begin();
         m_memo.forget();
         m_methods.erase(position);
-        m_partEnds.erase(m_partEnds.begin() + offset);
         m_index.erase(static_cast<std::size_t>(offset));
         return true;
     }
@@ -127,7 +120,7 @@ public:
 private:
     struct Method
     {
-        std::string address;
+        StoredAddress address;
         T value;
     };
 
@@ -169,6 +162,11 @@ private:
             return MatchResult { 0, parsed.error() };
         }
         return MatchResult { dispatchParsed(self, *parsed, visitor), std::nullopt };
+    }
+
+    OSCPM_NOINLINE static bool matchUnprepared(std::string_view pattern, const StoredAddress& address) noexcept
+    {
+        return matchParts(PatternCursor(pattern), StoredAddressCursor(address));
     }
 
     template <typename Self, typename Visitor>
@@ -215,8 +213,8 @@ private:
         {
             auto& method = methods[index];
             const bool matched = numPrepared == npos
-                ? matchParsed(text, method.address)
-                : matchParts(PreparedCursor(prepared, numPrepared), StoredAddressCursor(method.address, self.m_partEnds[index]));
+                ? matchUnprepared(text, method.address)
+                : matchParts(PreparedCursor(prepared, numPrepared), StoredAddressCursor(method.address));
             if (matched)
             {
                 if constexpr (MemoTable::kInlineResults != 0)
@@ -239,7 +237,6 @@ private:
     }
 
     std::vector<Method> m_methods;
-    std::vector<std::vector<std::size_t>> m_partEnds;
     AddressIndex m_index;
     mutable MemoTable m_memo;
 };
