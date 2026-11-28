@@ -4,7 +4,10 @@ language: en-GB
 reviews:
   # Substantive findings over style notes.
   profile: chill
+  # The summary goes in the walkthrough comment, so the description stays as
+  # the author wrote it.
   high_level_summary: true
+  high_level_summary_in_walkthrough: true
   poem: false
   # CodeRabbit requests changes when it finds something and approves once
   # that is resolved, so the review state says whether anything is open.
