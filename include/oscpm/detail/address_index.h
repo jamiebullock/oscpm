@@ -29,16 +29,18 @@ public:
         {
             m_hashes.reserve(2 * m_hashes.size() + 1);
         }
+        const std::size_t numSlotsNeeded = kSlotsPerEntry * (m_hashes.size() + 1);
+        if (m_slots.size() < numSlotsNeeded)
+        {
+            growSlots(numSlotsNeeded);
+        }
     }
 
-    void insert(std::size_t index, std::size_t hash)
+    /// Adds an entry at `index`. `reserveForInsert` must have been called
+    /// since the last `insert` into this object or assignment to it.
+    void insert(std::size_t index, std::size_t hash) noexcept
     {
         m_hashes.insert(m_hashes.begin() + static_cast<std::ptrdiff_t>(index), hash);
-        if (m_slots.size() < 2 * m_hashes.size())
-        {
-            rebuild();
-            return;
-        }
         const auto shifted = static_cast<std::uint32_t>(index);
         for (std::uint32_t& slot : m_slots)
         {
@@ -53,17 +55,10 @@ public:
         m_slots[slot] = static_cast<std::uint32_t>(index + 1);
     }
 
-    void erase(std::size_t index)
+    void erase(std::size_t index) noexcept
     {
-        if (!m_slots.empty())
-        {
-            eraseSlot(index);
-        }
+        eraseSlot(index);
         m_hashes.erase(m_hashes.begin() + static_cast<std::ptrdiff_t>(index));
-        if (m_slots.empty())
-        {
-            rebuild();
-        }
     }
 
     template <typename IsEntry>
@@ -88,13 +83,13 @@ public:
 
 private:
     static constexpr std::size_t kMinSlots = 16;
+    static constexpr std::size_t kSlotsPerEntry = 2;
     static constexpr std::uint32_t kEmptySlot = 0;
 
-    void rebuild()
+    void growSlots(std::size_t numSlotsNeeded)
     {
-        m_slots.clear();
         std::size_t numSlots = kMinSlots;
-        while (numSlots < 2 * m_hashes.size())
+        while (numSlots < numSlotsNeeded)
         {
             numSlots *= 2;
         }

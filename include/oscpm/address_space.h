@@ -40,8 +40,8 @@ struct MatchResult
 /// OSC method and `dispatch` calls the methods a pattern matches. No
 /// member function allocates unless its documentation says so; copying the
 /// space allocates. Not safe for concurrent use.
-/// @tparam T an object type that is move-constructible and move-assignable;
-/// copying the space also needs it to be copyable
+/// @tparam T an object type whose move construction and move assignment
+/// cannot throw; copying the space also needs it to be copyable
 /// @tparam Memo whether the matches of a pattern are kept until the next `add`
 /// or `remove`
 /// @tparam CacheBits the memo has `1 << CacheBits` entries, each holding one
@@ -52,6 +52,7 @@ template <typename T, bool Memo = true, unsigned CacheBits = 8, std::size_t Inli
 class AddressSpace
 {
     static_assert(std::is_object_v<T> && std::is_move_constructible_v<T> && std::is_move_assignable_v<T>, "AddressSpace needs a T that is an object type, move-constructible and move-assignable");
+    static_assert(std::is_nothrow_move_constructible_v<T> && std::is_nothrow_move_assignable_v<T>, "AddressSpace needs a T whose move construction and move assignment cannot throw");
     static_assert(CacheBits < std::numeric_limits<std::size_t>::digits, "AddressSpace needs a CacheBits smaller than the number of bits in std::size_t");
 
 public:
@@ -64,9 +65,10 @@ public:
     }
 
     /// Registers `value` under `address`; allocates. Returns false, and
-    /// registers nothing, when the address is already registered. A build
-    /// without `NDEBUG` asserts when the bytes the address views do not parse
-    /// as an address.
+    /// registers nothing, when the address is already registered. If it
+    /// throws, the space is unchanged. A build without `NDEBUG` asserts when
+    /// the bytes the address views do not parse as an address. `add` and
+    /// `remove` each take time linear in the number of registered addresses.
     bool add(const Address& address, T value)
     {
         assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
@@ -75,10 +77,8 @@ public:
     }
 
     /// Removes `address`. Returns false when the address is not registered,
-    /// and asserts as `add` does. Apart from what moving a `T` does, it
-    /// allocates only when an earlier `add` threw while it grew the index of
-    /// addresses.
-    bool remove(const Address& address)
+    /// and asserts as `add` does.
+    bool remove(const Address& address) noexcept
     {
         assert(m_openVisits.none() && "a visitor must not add to or remove from the space that called it");
         assert(!detail::validateAddress(address.text()) && "the bytes an Address views must stay unchanged after it is parsed");

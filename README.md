@@ -440,7 +440,7 @@ Inside a class or brace list, only the member containing the byte is excluded:
 
 ## Guarantees
 
-Nothing in the library allocates except `AddressSpace` construction, copying, `add` and `remove`.
+Nothing in the library allocates except `AddressSpace` construction, copying and `add`.
 
 Nothing in the library calls `std::abort` except:
 - the `Address` and `Pattern` constructors on malformed text
@@ -452,6 +452,16 @@ Nothing in the library calls `std::abort` except:
 - have execution time bounded by the product of the pattern and address lengths
 - have stack size fixed at compile time
 - are `constexpr`, so a fixed pattern can be parsed or matched at compile time
+
+`AddressSpace<T>` needs a `T` whose move construction and move assignment cannot throw. Any other `T` fails to compile.
+
+`AddressSpace::add`:
+- leaves the space unchanged when it throws
+- takes time linear in the number of registered addresses
+
+`AddressSpace::remove`:
+- never throws, and is declared `noexcept`
+- takes time linear in the number of registered addresses
 
 `AddressSpace::find`:
 - never throws, and is declared `noexcept`
