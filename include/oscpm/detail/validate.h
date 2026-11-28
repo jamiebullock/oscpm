@@ -84,8 +84,6 @@ constexpr bool hasIllegalAddressByte(Word word) noexcept
     return ((~plain | bytesAboveAscii(word)) & k::highBitPerByte) != 0;
 }
 
-static_assert(kMaxPatternLength <= kMaxAddressPartLength, "a part over the address part limit fits only in a pattern over the wildcard limit");
-
 struct PatternScan
 {
     std::optional<PatternError> fault;
@@ -167,7 +165,6 @@ constexpr PatternScan scanPattern(std::string_view pattern) noexcept
         {
             return { PatternError::IllegalByte, false };
         }
-        isLiteral = !hasPartLongerThan(pattern, kMaxAddressPartLength);
     }
     return { std::nullopt, isLiteral };
 }
