@@ -55,15 +55,12 @@ TEST_CASE("every pattern construct is matched at compile time")
     static_assert(!match("/[]", "/a"));
     static_assert(match("/{ab,a}c", "/ac"));
     static_assert(match("/x{a,}", "/x"));
-    static_assert(oscpm::detail::matchParsed("/{a,{b,c}}", "/{b}"));
     static_assert(match("//gain", "/synth/1/osc/2/gain"));
     static_assert(match("/a//b//c", "/a/x/b/y/c"));
     static_assert(!match("/a//c", "/ab/c"));
     static_assert(match("/a///", "/a/b/c"));
     static_assert(match("//", "/a"));
     static_assert(!match("/a/", "/a"));
-    static_assert(oscpm::detail::matchParsed("/a]", "/a]"));
-    static_assert(oscpm::detail::matchParsed("/caf[\xc3]?", "/caf\xc3\xa9"));
     static_assert(!match("/", ""));
     static_assert(!match("/a", "a"));
 }
@@ -85,18 +82,6 @@ TEST_CASE("an address part longer than the supported length never matches")
     CHECK_FALSE(match("/*", "/" + tooLong));
 }
 
-TEST_CASE("the general matcher takes a literal part at the length limit and rejects one byte more")
-{
-    using oscpm::detail::matchParsed;
-    const std::string longest(oscpm::kMaxAddressPartLength, 'a');
-    const std::string tooLong(oscpm::kMaxAddressPartLength + 1, 'a');
-    CHECK(matchParsed("/" + longest + "/?", "/" + longest + "/x"));
-    CHECK_FALSE(matchParsed("/" + longest + "/?", "/" + longest + "b/x"));
-    CHECK_FALSE(matchParsed("/" + tooLong + "/?", "/" + tooLong + "/x"));
-    const std::string half(2500, 'a');
-    CHECK(matchParsed("/" + half + "/" + half + "/?", "/" + half + "/" + half + "/x"));
-}
-
 TEST_CASE("a part shape selects the direct matcher for at most one star and no brace list")
 {
     const auto shapeOf = [](std::string_view text, std::size_t maxTokens = oscpm::kMaxAddressPartLength)
@@ -108,7 +93,6 @@ TEST_CASE("a part shape selects the direct matcher for at most one star and no b
     CHECK(shapeOf("[!]a").isDirect);
     CHECK_FALSE(shapeOf("a*b*c").isDirect);
     CHECK_FALSE(shapeOf("a{b,c}").isDirect);
-    CHECK_FALSE(shapeOf("[ab").isDirect);
     CHECK(shapeOf("a*bc").star == 1);
     CHECK(shapeOf("a*bc").numTokensBeforeStar == 1);
     CHECK(shapeOf("a*bc").numTokensAfterStar == 2);

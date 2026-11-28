@@ -10,7 +10,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <string_view>
 #include <vector>
 
@@ -24,7 +23,6 @@ public:
     using Results = std::array<std::uint32_t, InlineResults>;
 
     static constexpr std::size_t kInlineResults = InlineResults;
-    static constexpr std::size_t kMaxMethods = std::numeric_limits<std::uint32_t>::max();
 
     explicit DispatchMemo(bool enabled)
         : m_buckets(enabled ? kNumBuckets : 0)
