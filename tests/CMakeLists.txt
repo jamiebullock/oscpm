@@ -147,16 +147,21 @@ foreach(visitorCase IN LISTS OSCPM_VISITOR_CASES)
 endforeach()
 
 set(OSCPM_VALUE_TYPE_CASES
-    "a value type with a const member"
-    "a lambda's closure type"
-    "a type that cannot be moved"
-    "a reference type"
+    "a value type with a const member|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
+    "a lambda's closure type|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
+    "a type that cannot be moved|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
+    "a reference type|AddressSpace needs a T that is an object type, move-constructible and move-assignable"
+    "a type whose move construction may throw|AddressSpace needs a T whose move construction and move assignment cannot throw"
+    "a type whose move assignment may throw|AddressSpace needs a T whose move construction and move assignment cannot throw"
 )
 set(caseNumber 0)
-foreach(caseName IN LISTS OSCPM_VALUE_TYPE_CASES)
+foreach(valueTypeCase IN LISTS OSCPM_VALUE_TYPE_CASES)
     math(EXPR caseNumber "${caseNumber} + 1")
+    string(REPLACE "|" ";" valueTypeCase "${valueTypeCase}")
+    list(GET valueTypeCase 0 caseName)
+    list(GET valueTypeCase 1 expectedMessage)
     oscpm_add_compile_failure(oscpm_value_type_${caseNumber} value_type.cpp OSCPM_VALUE_TYPE_CASE=${caseNumber}
-        "an address space of ${caseName} fails to compile" "AddressSpace needs a T that is an object type, move-constructible and move-assignable")
+        "an address space of ${caseName} fails to compile" "${expectedMessage}")
 endforeach()
 
 oscpm_add_compile_failure(oscpm_cache_bits cache_bits.cpp ""

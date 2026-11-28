@@ -64,35 +64,6 @@ struct Handler
     int number;
 };
 
-struct ThrowingMoveHandler
-{
-    explicit ThrowingMoveHandler(int initial)
-        : number(initial)
-    {
-    }
-
-    ThrowingMoveHandler(const ThrowingMoveHandler&) = default;
-    ThrowingMoveHandler& operator=(const ThrowingMoveHandler&) = default;
-
-    ThrowingMoveHandler(ThrowingMoveHandler&& other) noexcept(false)
-        : number(other.number)
-    {
-    }
-
-    ThrowingMoveHandler& operator=(ThrowingMoveHandler&& other) noexcept(false)
-    {
-        number = other.number;
-        return *this;
-    }
-
-    void operator()(std::vector<int>& called) const
-    {
-        called.push_back(number);
-    }
-
-    int number;
-};
-
 inline int& numberIn(int& value) noexcept
 {
     return value;
@@ -167,8 +138,8 @@ inline std::string repeated(std::string_view text, std::size_t count)
 }
 
 /// Applies the operations that `choices` selects to a `std::map` and to
-/// address spaces with and without a memo, with small memos, with handlers
-/// and with a value type whose move may throw.
+/// address spaces with and without a memo, with small memos and with
+/// handlers.
 class ModelRun
 {
 public:
@@ -207,7 +178,7 @@ private:
         oscpm::AddressSpace<int, true, 2, 2>,
         oscpm::AddressSpace<Handler, true, 2, 1>,
         oscpm::AddressSpace<Handler, false>,
-        oscpm::AddressSpace<ThrowingMoveHandler, true, 1, 3>>;
+        oscpm::AddressSpace<Handler, true, 1, 3>>;
 
     template <typename Function>
     void forEachSpace(Function&& function)

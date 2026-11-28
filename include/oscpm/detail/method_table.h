@@ -20,7 +20,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -53,42 +52,33 @@ public:
         {
             return false;
         }
-        std::vector<std::size_t> partEnds;
-        if constexpr (kMethodMovesCannotThrow)
+        std::vector<std::size_t> partEnds = partEndsOf(address);
+        if (m_partEnds.size() == m_partEnds.capacity())
         {
-            partEnds = partEndsOf(address);
-            if (m_partEnds.size() == m_partEnds.capacity())
-            {
-                m_partEnds.reserve(2 * m_partEnds.size() + 1);
-            }
-            m_index.reserveForInsert();
+            m_partEnds.reserve(2 * m_partEnds.size() + 1);
         }
-        [[maybe_unused]] const auto offset = position - m_methods.begin();
-        m_memo.forget();
+        m_index.reserveForInsert();
+        const auto offset = position - m_methods.begin();
+        // Nothing after this call can throw, and the call has no effects when it throws, so a failed insert leaves the table as it was.
         m_methods.insert(position, Method { std::string(address), std::move(value) });
-        if constexpr (kMethodMovesCannotThrow)
-        {
-            m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
-            m_index.insert(static_cast<std::size_t>(offset), hashOf(address));
-        }
+        m_memo.forget();
+        m_partEnds.insert(m_partEnds.begin() + offset, std::move(partEnds));
+        m_index.insert(static_cast<std::size_t>(offset), hashOf(address));
         return true;
     }
 
-    bool erase(std::string_view address)
+    bool erase(std::string_view address) noexcept
     {
         const auto position = lowerBound(m_methods, address);
         if (position == m_methods.end() || position->address != address)
         {
             return false;
         }
-        [[maybe_unused]] const auto offset = position - m_methods.begin();
+        const auto offset = position - m_methods.begin();
         m_memo.forget();
         m_methods.erase(position);
-        if constexpr (kMethodMovesCannotThrow)
-        {
-            m_partEnds.erase(m_partEnds.begin() + offset);
-            m_index.erase(static_cast<std::size_t>(offset));
-        }
+        m_partEnds.erase(m_partEnds.begin() + offset);
+        m_index.erase(static_cast<std::size_t>(offset));
         return true;
     }
 
@@ -144,8 +134,6 @@ private:
         T value;
     };
 
-    static constexpr bool kMethodMovesCannotThrow = std::is_nothrow_move_constructible_v<Method> && std::is_nothrow_move_assignable_v<Method>;
-
     template <typename Methods>
     static auto lowerBound(Methods& methods, std::string_view address)
     {
@@ -165,13 +153,9 @@ private:
     {
         auto& methods = self.m_methods;
         std::size_t index = 0;
-        if (self.m_index.find(hashOf(address), [&](std::size_t candidate)
-                { return methods[candidate].address == address; }, index))
-        {
-            return &methods[index].value;
-        }
-        const auto position = lowerBound(methods, address);
-        return position != methods.end() && position->address == address ? &position->value : nullptr;
+        const bool found = self.m_index.find(hashOf(address), [&](std::size_t candidate)
+            { return methods[candidate].address == address; }, index);
+        return found ? &methods[index].value : nullptr;
     }
 
     template <typename Result, typename Self, typename Visitor>
@@ -217,24 +201,19 @@ private:
         const std::string_view text = pattern.text();
         if (pattern.isLiteral())
         {
-            const auto position = lowerBound(methods, text);
-            if (position == methods.end() || position->address != text)
+            // `dispatchKnown` found no address equal to the text, and a literal pattern matches no other.
+            if (self.m_memo.accepts(text))
             {
-                if (self.m_memo.accepts(text))
-                {
-                    self.m_memo.rememberNoMatch(text, hashOf(text));
-                }
-                return 0;
+                self.m_memo.rememberNoMatch(text, hashOf(text));
             }
-            visitor(std::string_view(position->address), position->value);
-            return 1;
+            return 0;
         }
 
         const bool memoisable = self.m_memo.accepts(text);
         typename MemoTable::Results found;
         std::size_t numFound = 0;
         PreparedParts prepared;
-        const std::size_t numPrepared = kMethodMovesCannotThrow ? prepareParts(text, prepared) : npos;
+        const std::size_t numPrepared = prepareParts(text, prepared);
         for (std::size_t index = 0; index < methods.size(); ++index)
         {
             auto& method = methods[index];
