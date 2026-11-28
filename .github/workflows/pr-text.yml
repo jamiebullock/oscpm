@@ -32,7 +32,5 @@ jobs:
           vale sync
           mkdir "$RUNNER_TEMP/pr"
           printf '%s\n' "$TITLE" > "$RUNNER_TEMP/pr/COMMIT_EDITMSG"
-          printf '%s\n' "$BODY" | tr -d '\r' \
-            | awk -f .github/scripts/strip-release-notes.awk \
-            > "$RUNNER_TEMP/pr/PR_BODY.md"
+          printf '%s\n' "$BODY" | tr -d '\r' > "$RUNNER_TEMP/pr/PR_BODY.md"
           vale --no-wrap "$RUNNER_TEMP/pr/COMMIT_EDITMSG" "$RUNNER_TEMP/pr/PR_BODY.md"
