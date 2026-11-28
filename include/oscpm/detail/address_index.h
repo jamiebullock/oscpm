@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <string_view>
 #include <vector>
 
@@ -24,8 +23,6 @@ inline std::size_t hashOf(std::string_view text) noexcept
 class AddressIndex
 {
 public:
-    static constexpr std::size_t kMaxEntries = std::numeric_limits<std::uint32_t>::max();
-
     void reserveForInsert()
     {
         if (m_hashes.size() == m_hashes.capacity())
@@ -96,10 +93,6 @@ private:
     void rebuild()
     {
         m_slots.clear();
-        if (m_hashes.size() > kMaxEntries)
-        {
-            return;
-        }
         std::size_t numSlots = kMinSlots;
         while (numSlots < 2 * m_hashes.size())
         {

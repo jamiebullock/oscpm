@@ -9,7 +9,6 @@
 #include <oscpm/detail/compiler.h>
 #include <oscpm/detail/reach.h>
 #include <oscpm/detail/syntax.h>
-#include <oscpm/error.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -110,16 +109,12 @@ constexpr bool matchPartWithin(std::string_view pattern, std::string_view part) 
         else if (byte == k::setOpen)
         {
             std::size_t start = i + 1;
-            const bool negate = start < pattern.size() && pattern[start] == k::setNegate;
+            const bool negate = pattern[start] == k::setNegate;
             if (negate)
             {
                 ++start;
             }
             const std::size_t close = pattern.find(k::setClose, start);
-            if (close == npos)
-            {
-                return false;
-            }
             const std::string_view members = slice(pattern, start, close - start);
             reach = advanceWhere(reach, part, [members, negate](char candidate)
                 { return setContains(members, candidate) != negate; });
@@ -128,10 +123,6 @@ constexpr bool matchPartWithin(std::string_view pattern, std::string_view part) 
         else if (byte == k::listOpen)
         {
             const std::size_t close = pattern.find(k::listClose, i + 1);
-            if (close == npos)
-            {
-                return false;
-            }
             reach = advanceByAlternatives(reach, part, slice(pattern, i + 1, close - i - 1));
             i = close + 1;
         }
@@ -176,13 +167,7 @@ constexpr PartShape shapeOf(std::string_view pattern, std::size_t firstOpener, s
         }
         if (byte == k::setOpen)
         {
-            const std::size_t close = pattern.find(k::setClose, i + 1);
-            if (close == npos)
-            {
-                shape.isDirect = false;
-                return shape;
-            }
-            i = close + 1;
+            i = pattern.find(k::setClose, i + 1) + 1;
         }
         else if (byte == k::listOpen)
         {
@@ -251,10 +236,6 @@ constexpr bool matchPartDirect(std::string_view pattern, std::string_view part, 
 
 OSCPM_NOINLINE constexpr bool matchPart(std::string_view pattern, std::string_view part) noexcept
 {
-    if (part.size() > kMaxAddressPartLength)
-    {
-        return false;
-    }
     const std::size_t opener = firstOpener(pattern);
     if (opener == npos)
     {
@@ -406,7 +387,7 @@ constexpr bool matchPartAt(std::string_view pattern, std::size_t patternStart, s
         if (patternByte == k::partSeparator)
         {
             span = { i, j };
-            return addressByte == k::partSeparator && j - addressStart <= kMaxAddressPartLength;
+            return addressByte == k::partSeparator;
         }
         if (patternByte != addressByte)
         {

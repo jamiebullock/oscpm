@@ -220,7 +220,7 @@ private:
             const auto position = lowerBound(methods, text);
             if (position == methods.end() || position->address != text)
             {
-                if (self.m_memo.accepts(text) && methods.size() <= MemoTable::kMaxMethods)
+                if (self.m_memo.accepts(text))
                 {
                     self.m_memo.rememberNoMatch(text, hashOf(text));
                 }
@@ -230,7 +230,7 @@ private:
             return 1;
         }
 
-        const bool memoisable = self.m_memo.accepts(text) && methods.size() <= MemoTable::kMaxMethods;
+        const bool memoisable = self.m_memo.accepts(text);
         typename MemoTable::Results found;
         std::size_t numFound = 0;
         PreparedParts prepared;
